@@ -74,6 +74,7 @@ model Pilot {
   payrollRecords     PayrollRecord[]
   walletTransactions WalletTransaction[]
   vamsysOAuthToken   VamsysOAuthToken?
+  lastPirepSyncAt    DateTime?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -102,21 +103,27 @@ model Pirep {
   vamsysPirepId     String         @unique
   pilotId           String
   pilot             Pilot          @relation(fields: [pilotId], references: [id], onDelete: Restrict)
-  flightNumber      String
-  callsign          String
-  departure         String
-  arrival           String
-  aircraftType      String
-  network           String
-  flightTimeMinutes Int
-  blockTimeMinutes  Int
-  landingRate       Int
-  score             Int
-  fuelUsed          Int
+  flightNumber      String?
+  callsign          String?
+  departure         String?
+  arrival           String?
+  aircraftType      String?
+  network           String?
+  flightTimeMinutes Int?
+  blockTimeMinutes  Int?
+  landingRate       Int?
+  score             Int?
+  fuelUsed          Int?
+  points            Float?
+  credits           Float?
   status            PirepStatus
-  flownAt           DateTime
+  acarsSoftware     String?
+  source            String         @default("mock")
+  flownAt           DateTime?
   acceptedAt        DateTime?
-  sourcePayload     Json?
+  vamsysCreatedAt   DateTime?
+  vamsysUpdatedAt   DateTime?
+  rawData           Json?          @map("sourcePayload")
   synchronizedAt    DateTime       @default(now())
   payrollRecord     PayrollRecord?
   createdAt         DateTime       @default(now())
@@ -124,6 +131,7 @@ model Pirep {
 
   @@index([pilotId, flownAt])
   @@index([status, flownAt])
+  @@index([source, synchronizedAt])
 }
 
 model PayrollRecord {
