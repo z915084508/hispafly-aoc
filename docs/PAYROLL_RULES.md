@@ -1,18 +1,18 @@
-# Reglas de n贸mina virtual 鈥?Versi贸n 1
+# Reglas de nómina virtual — Versión 1
 
-HISPAFLY AOC genera n贸mina 煤nicamente para PIREPs con estado `accepted` procedente de vAMSYS. La restricci贸n 煤nica `PayrollRecord.pirepId` garantiza un solo registro por PIREP. Volver a ejecutar la generaci贸n crea los registros que falten y recalcula 煤nicamente los que sigan `pending`; nunca modifica autom谩ticamente registros aprobados, rechazados o pagados.
+HISPAFLY AOC genera nómina únicamente para PIREPs con estado `accepted` procedente de vAMSYS. La restricción única `PayrollRecord.pirepId` garantiza un solo registro por PIREP. Volver a ejecutar la generación crea los registros que falten y recalcula únicamente los que sigan `pending`; nunca modifica automáticamente registros aprobados, rechazados o pagados.
 
-## F贸rmula
+## Fórmula
 
 `importe final = max(0, pago base + bonificaciones - penalizaciones)`
 
-`pago base = flightTimeMinutes / 60 脳 tarifa horaria de la aeronave`
+`pago base = flightTimeMinutes / 60 × tarifa horaria de la aeronave`
 
-Todos los importes persistidos se guardan como c茅ntimos enteros. El resultado detallado, su explicaci贸n y la versi贸n de la regla se guardan con el registro para facilitar auditor铆as.
+Todos los importes persistidos se guardan como céntimos enteros. El resultado detallado, su explicación y la versión de la regla se guardan con el registro para facilitar auditorías.
 
 ## Tarifas por aeronave
 
-| Aeronave | Cr茅ditos/hora |
+| Aeronave | Créditos/hora |
 | --- | ---: |
 | A320 | 80 |
 | A321 | 85 |
@@ -23,44 +23,44 @@ Todos los importes persistidos se guardan como c茅ntimos enteros. El resultado 
 ## Bonificaciones
 
 - Vuelo realizado en VATSIM o IVAO: 10 % del pago base.
-- Toma entre -50 y -300 fpm, ambos incluidos: 100 cr茅ditos.
-- Puntuaci贸n igual o superior a 95: 150 cr茅ditos.
+- Toma entre -50 y -300 fpm, ambos incluidos: 100 créditos.
+- Puntuación igual o superior a 95: 150 créditos.
 
 ## Penalizaciones
 
-- Toma peor que -600 fpm: 200 cr茅ditos.
-- Puntuaci贸n inferior a 70: 150 cr茅ditos.
+- Toma peor que -600 fpm: 200 créditos.
+- Puntuación inferior a 70: 150 créditos.
 - El importe final nunca puede ser negativo.
 
 ## Ejemplos verificables
 
 ### A320 normal en VATSIM
 
-120 minutos, toma -180 fpm y puntuaci贸n 90: base 160 + red 16 + toma 100 = **276 cr茅ditos**.
+120 minutos, toma -180 fpm y puntuación 90: base 160 + red 16 + toma 100 = **276 créditos**.
 
 ### A388 de largo recorrido
 
-600 minutos, fuera de red, toma -400 fpm y puntuaci贸n 96: base 1.500 + puntuaci贸n 150 = **1.650 cr茅ditos**.
+600 minutos, fuera de red, toma -400 fpm y puntuación 96: base 1.500 + puntuación 150 = **1.650 créditos**.
 
 ### Toma dura
 
-A320, 60 minutos, toma -601 fpm y puntuaci贸n 90: base 80 - penalizaci贸n 200; el m铆nimo de cero produce **0 cr茅ditos**.
+A320, 60 minutos, toma -601 fpm y puntuación 90: base 80 - penalización 200; el mínimo de cero produce **0 créditos**.
 
-### Puntuaci贸n baja
+### Puntuación baja
 
-A321, 120 minutos, toma -400 fpm y puntuaci贸n 69: base 170 - penalizaci贸n 150 = **20 cr茅ditos**.
+A321, 120 minutos, toma -400 fpm y puntuación 69: base 170 - penalización 150 = **20 créditos**.
 
 ### PIREP rechazado
 
-Un PIREP con estado `rejected` no es elegible y no genera ning煤n `PayrollRecord`.
+Un PIREP con estado `rejected` no es elegible y no genera ningún `PayrollRecord`.
 
 Ejecutar los cinco casos: `pnpm test:payroll`.
 
 ## Flujo del personal
 
 - `pending`: puede recalcularse con la regla activa, aprobarse o rechazarse.
-- `approved`: revisado y listo para liquidaci贸n; no se recalcula autom谩ticamente.
-- `rejected`: excluido por el personal; no se recalcula autom谩ticamente.
-- `paid`: liquidado una sola vez mediante una transacci贸n de cartera inmutable.
+- `approved`: revisado y listo para liquidación; no se recalcula automáticamente.
+- `rejected`: excluido por el personal; no se recalcula automáticamente.
+- `paid`: liquidado una sola vez mediante una transacción de cartera inmutable.
 
-Recalcular, aprobar, rechazar y pagar producen entradas en `AocAuditLog`. El pago es transaccional y solo puede reclamar una n贸mina aprobada una vez.
+Recalcular, aprobar, rechazar y pagar producen entradas en `AocAuditLog`. El pago es transaccional y solo puede reclamar una nómina aprobada una vez.
