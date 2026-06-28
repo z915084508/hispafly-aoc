@@ -10,7 +10,8 @@
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
     "prisma:seed": "node --experimental-strip-types prisma/seed.ts",
-    "test:payroll": "node --experimental-strip-types src/lib/payroll/calculatePayroll.test.ts"
+    "test:payroll": "node --experimental-strip-types src/lib/payroll/calculatePayroll.test.ts",
+    "test:permissions": "node --experimental-strip-types src/lib/staff/permissions.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
