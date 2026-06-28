@@ -58,6 +58,18 @@ Test locally by starting the portal, opening `/settings/vamsys`, and selecting *
 
 Apply committed database migrations with `prisma migrate deploy` before enabling the OAuth client in a deployed environment.
 
+## vAMSYS accepted PIREP synchronization
+
+ADMIN and OPS can start a manual synchronization from `/pireps` for every connected pilot or from `/pilots` for one pilot. FINANCE and VIEWER remain read-only. The server requests only accepted PIREPs, uses cursor pagination in pages of 50 and imports newest records first.
+
+Imports are idempotent through the unique `vamsysPirepId`. Existing PIREPs may be refreshed, but an existing payroll record is never recalculated or duplicated. A pending payroll is generated only when the accepted PIREP contains all fields required by the active rule. Failures for one pilot do not stop the all-pilot run. Task 7 has no automatic scheduler.
+
+Apply committed migrations with `pnpm prisma migrate deploy` before using synchronization.
+
+## vAMSYS Operations API
+
+Task 8 uses OAuth Client Credentials exclusively on the server. Configure `VAMSYS_OPERATIONS_CLIENT_ID` and `VAMSYS_OPERATIONS_CLIENT_SECRET` in the deployment environment, then use `/settings/operations` to test health or manually synchronize `GET /pilots`, `GET /pilots/{pilot_id}` and read-only pilot notes. The token is cached server-side and never rendered. Fleet, Aircraft and Route models are placeholders only; no endpoint is called until vAMSYS confirms those contracts.
+
 ## Development staff and permissions
 
 Set `MOCK_STAFF_EMAIL` in `.env` and restart the development server to select the current staff identity:

@@ -12,6 +12,7 @@ const navItems = [
   ["Registro de auditoría", "/audit"],
   ["Conexión vAMSYS", "/settings/vamsys"],
   ["Configuración", "/settings"],
+  ["Operations API", "/settings/operations"],
 ] as const;
 
 export async function PortalShell({ children }: { children: React.ReactNode }) {

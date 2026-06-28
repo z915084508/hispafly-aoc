@@ -66,7 +66,11 @@ export async function recalculatePayroll(formData: FormData) {
       if (record.pirep.status !== "accepted") throw new Error("Solo los PIREPs aceptados pueden generar nómina.");
       if (!activeRule) throw new Error("No hay ninguna regla de nómina activa.");
 
-      const calculation = calculatePayroll(record.pirep, payrollRulesFromStoredRule(activeRule));
+      const { aircraftType, flightTimeMinutes, network, landingRate, score } = record.pirep;
+      if (!aircraftType || flightTimeMinutes === null || !network || landingRate === null || score === null) {
+        throw new Error("El PIREP no contiene todos los datos necesarios para recalcular la nómina.");
+      }
+      const calculation = calculatePayroll({ aircraftType, flightTimeMinutes, network, landingRate, score, status: record.pirep.status }, payrollRulesFromStoredRule(activeRule));
       const amountCents = creditsToCents(calculation.finalAmount);
       const result = await tx.payrollRecord.updateMany({
         where: { id, status: "pending" },
