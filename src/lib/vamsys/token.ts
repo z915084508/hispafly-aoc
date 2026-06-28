@@ -4,11 +4,11 @@ import { refreshVamsysToken, VamsysApiError } from "./client";
 
 const EXPIRY_MARGIN_MS = 60_000;
 
-export async function getValidVamsysAccessToken(pilotId: string): Promise<string> {
+export async function getValidVamsysAccessToken(pilotId: string, options: { forceRefresh?: boolean } = {}): Promise<string> {
   const stored = await prisma.vamsysOAuthToken.findUnique({ where: { pilotId }, include: { pilot: true } });
   if (!stored) throw new Error("El piloto no ha conectado su cuenta de vAMSYS.");
   if (stored.revokedAt) throw new Error("La conexión de vAMSYS está revocada.");
-  if (stored.expiresAt.getTime() > Date.now() + EXPIRY_MARGIN_MS) return stored.accessToken;
+  if (!options.forceRefresh && stored.expiresAt.getTime() > Date.now() + EXPIRY_MARGIN_MS) return stored.accessToken;
 
   try {
     const refreshed = await refreshVamsysToken(stored.refreshToken);
