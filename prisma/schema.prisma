@@ -53,9 +53,19 @@ model StaffUser {
 model Pilot {
   id                 String              @id @default(cuid())
   vamsysPilotId      String              @unique
+  vamsysUserId       String?             @unique
+  username           String?
+  firstName          String?
+  lastName           String?
   callsign           String?             @unique
   displayName        String
   email              String?             @unique
+  vatsimId           String?
+  ivaoId             String?
+  discordId          String?
+  rankName           String?
+  rankAbbreviation   String?
+  hubId              String?
   rank               String?
   base               String?
   status             PilotStatus         @default(active)
@@ -63,6 +73,7 @@ model Pilot {
   pireps             Pirep[]
   payrollRecords     PayrollRecord[]
   walletTransactions WalletTransaction[]
+  vamsysOAuthToken   VamsysOAuthToken?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -71,15 +82,19 @@ model Pilot {
 }
 
 model VamsysOAuthToken {
-  id                    String   @id @default(cuid())
-  provider              String   @unique @default("vamsys")
-  accessTokenEncrypted  String
-  refreshTokenEncrypted String?
-  tokenType             String   @default("Bearer")
-  scope                 String?
-  expiresAt             DateTime
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id           String    @id @default(cuid())
+  pilotId      String    @unique
+  pilot        Pilot     @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  scopes       String
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([expiresAt])
+  @@index([revokedAt])
 }
 
 model Pirep {
@@ -173,17 +188,17 @@ model PayrollRule {
 }
 
 model AocAuditLog {
-  id          String    @id @default(cuid())
-  staffUserId String
-  staffUser   StaffUser @relation(fields: [staffUserId], references: [id], onDelete: Restrict)
+  id          String     @id @default(cuid())
+  staffUserId String?
+  staffUser   StaffUser? @relation(fields: [staffUserId], references: [id], onDelete: SetNull)
   action      String
   entityType  String
   entityId    String?
-  message     String    @default("")
-  metadata    Json?     @map("details")
+  message     String     @default("")
+  metadata    Json?      @map("details")
   ipAddress   String?
   userAgent   String?
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime   @default(now())
 
   @@index([staffUserId, createdAt])
   @@index([entityType, entityId])
