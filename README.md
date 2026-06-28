@@ -1,8 +1,8 @@
 # HISPAFLY AOC Portal
 
-Initial staff portal for HISPAFLY airline operations control. It covers pilot administration, accepted PIREP synchronization, virtual payroll, wallet transactions and reporting-oriented dashboard views.
+Staff portal for HISPAFLY operations, pilot administration, accepted PIREP synchronization, virtual payroll, wallet transactions, monthly reports and rankings.
 
-This is **not an EFB**. PEGASUS ACARS and vAMSYS remain the official flight detection and PIREP source. The AOC portal only reads accepted PIREPs and derives virtual payroll records.
+This is **not an EFB**. PEGASUS ACARS and vAMSYS remain the official flight-detection and PIREP source. The AOC portal only reads accepted PIREPs and calculates virtual payroll.
 
 ## Stack
 
@@ -13,20 +13,33 @@ This is **not an EFB**. PEGASUS ACARS and vAMSYS remain the official flight dete
 ## Run locally
 
 1. Copy `.env.example` to `.env` and set `DATABASE_URL`.
-2. Install dependencies with `pnpm install`.
-3. Generate the Prisma client with `pnpm prisma:generate`.
-4. Start the preview with `pnpm dev`.
+2. Install dependencies with `npm install` or `pnpm install`.
+3. Generate the Prisma client with `npm run prisma:generate`.
+4. Create/update the development database with `npx prisma migrate dev --name task-3-mock-payroll`.
+5. Load the deterministic mock workflow with `npm run prisma:seed`.
+6. Start the portal with `npm run dev`.
 
-All visible data is currently provided by `src/lib/mock-data.ts`. No real vAMSYS calls or authentication flows are implemented in v0.1.
+Without `DATABASE_URL`, the dashboard, PIREP and payroll pages automatically display the same mock dataset in read-only demonstration mode. Database-backed payroll actions require PostgreSQL and the seed.
+
+## Task 3 mock workflow
+
+The seed creates five pilots, twelve accepted PIREPs, two rejected PIREPs, twelve one-to-one payroll records, an initial payroll rule and a mock AOC staff user. Re-running it is safe: vAMSYS pilot/PIREP IDs and the unique payroll-to-PIREP relation prevent duplicates.
+
+Payroll actions are transactional:
+
+- Approve: moves a pending record to approved and writes an audit log.
+- Reject: rejects a pending or approved record and writes an audit log.
+- Mark as paid: atomically creates one wallet transaction, increments the pilot balance and writes an audit log.
+
+No real vAMSYS API or authentication flow is implemented yet.
 
 ## Project map
 
-- `src/app` — portal routes and page composition
+- `src/app` — portal routes, payroll server actions and page composition
 - `src/components` — reusable shell and data-display components
-- `src/lib` — mock domain data
-- `prisma/schema.prisma` — proposed PostgreSQL domain model
+- `src/lib/payroll-calculation.ts` — reusable, typed payroll engine
+- `src/lib/mock-workflow-data.ts` — deterministic Task 3 fixture data
+- `src/lib/workflow-data.ts` — PostgreSQL reads with mock fallback
+- `prisma/schema.prisma` — PostgreSQL domain model and constraints
+- `prisma/seed.ts` — idempotent mock seed
 - `docs` — product boundary and payroll rules
-
-## Next milestones
-
-Authentication and staff roles, read-only vAMSYS synchronization, idempotent payroll calculation, wallet audit controls, report export, tests and deployment configuration.
