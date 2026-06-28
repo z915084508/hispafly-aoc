@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { mockPilots, mockPireps } from "../src/lib/mock-workflow-data.ts";
-import { AIRCRAFT_HOURLY_RATES, calculatePayroll, creditsToCents } from "../src/lib/payroll-calculation.ts";
+import { calculatePayroll, creditsToCents, isPayrollEligible } from "../src/lib/payroll/calculatePayroll.ts";
+import { AIRCRAFT_HOURLY_RATES, DEFAULT_PAYROLL_RULES } from "../src/lib/payroll/rules.ts";
 
 const prisma = new PrismaClient();
 
@@ -18,8 +19,8 @@ async function main() {
       name: "Tarifas iniciales HISPAFLY",
       version: 1,
       aircraftRates: AIRCRAFT_HOURLY_RATES,
-      bonusRules: { onlineNetworkPercent: 10, landingRange: [-300, -50], landingBonus: 100, minimumScore: 95, scoreBonus: 150 },
-      penaltyRules: { landingRateBelow: -600, landingPenalty: 200, scoreBelow: 70, scorePenalty: 150 },
+      bonusRules: { onlineNetworkPercent: DEFAULT_PAYROLL_RULES.networkBonusPercent, landingRange: [DEFAULT_PAYROLL_RULES.landingBonusMinimum, DEFAULT_PAYROLL_RULES.landingBonusMaximum], landingBonus: DEFAULT_PAYROLL_RULES.landingBonusCredits, minimumScore: DEFAULT_PAYROLL_RULES.scoreBonusMinimum, scoreBonus: DEFAULT_PAYROLL_RULES.scoreBonusCredits },
+      penaltyRules: { landingRateBelow: DEFAULT_PAYROLL_RULES.hardLandingThreshold, landingPenalty: DEFAULT_PAYROLL_RULES.hardLandingPenaltyCredits, scoreBelow: DEFAULT_PAYROLL_RULES.lowScoreThreshold, scorePenalty: DEFAULT_PAYROLL_RULES.lowScorePenaltyCredits },
       effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
       isActive: true,
     },
@@ -45,15 +46,13 @@ async function main() {
       create: { ...pirep, pilotId, flownAt: new Date(pirep.flownAt), acceptedAt },
     });
 
-    if (pirep.status === "rejected") {
-      await prisma.payrollRecord.deleteMany({ where: { pirepId: saved.id, status: { not: "paid" } } });
+    if (!isPayrollEligible(pirep)) {
+      await prisma.payrollRecord.deleteMany({ where: { pirepId: saved.id, status: "pending" } });
       continue;
     }
 
     const calculation = calculatePayroll(pirep);
-    await prisma.payrollRecord.upsert({
-      where: { pirepId: saved.id },
-      update: {
+    const payrollData = {
         pilotId,
         payrollRuleId: rule.id,
         basePayCents: creditsToCents(calculation.basePay),
@@ -62,19 +61,10 @@ async function main() {
         amountCents: creditsToCents(calculation.finalAmount),
         calculationDetails: { ...calculation },
         settlementMonth: pirep.flownAt.slice(0, 7),
-      },
-      create: {
-        pirepId: saved.id,
-        pilotId,
-        payrollRuleId: rule.id,
-        basePayCents: creditsToCents(calculation.basePay),
-        bonusCents: creditsToCents(calculation.totalBonus),
-        penaltyCents: creditsToCents(calculation.totalPenalty),
-        amountCents: creditsToCents(calculation.finalAmount),
-        calculationDetails: { ...calculation },
-        settlementMonth: pirep.flownAt.slice(0, 7),
-      },
-    });
+    };
+    const existing = await prisma.payrollRecord.findUnique({ where: { pirepId: saved.id }, select: { id: true, status: true } });
+    if (!existing) await prisma.payrollRecord.create({ data: { pirepId: saved.id, ...payrollData } });
+    else if (existing.status === "pending") await prisma.payrollRecord.update({ where: { id: existing.id }, data: payrollData });
   }
 
   await prisma.aocAuditLog.create({

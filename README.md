@@ -37,7 +37,7 @@ No real vAMSYS API or authentication flow is implemented yet.
 
 - `src/app` — portal routes, payroll server actions and page composition
 - `src/components` — reusable shell and data-display components
-- `src/lib/payroll-calculation.ts` — reusable, typed payroll engine
+- `src/lib/payroll` — motor de nómina tipado, reglas configurables y casos de prueba
 - `src/lib/mock-workflow-data.ts` — deterministic Task 3 fixture data
 - `src/lib/workflow-data.ts` — PostgreSQL reads with mock fallback
 - `prisma/schema.prisma` — PostgreSQL domain model and constraints

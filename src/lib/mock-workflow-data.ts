@@ -1,4 +1,5 @@
-import { calculatePayroll, type SupportedAircraft } from "./payroll-calculation.ts";
+import { calculatePayroll } from "./payroll/calculatePayroll.ts";
+import type { AircraftType as SupportedAircraft } from "./payroll/types.ts";
 
 export type MockPirepStatus = "accepted" | "rejected";
 

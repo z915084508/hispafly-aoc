@@ -1,7 +1,7 @@
 import { Badge, DataTable, Identity } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
 import { canMutatePayroll, getPayrollRows } from "@/lib/workflow-data";
-import { approvePayroll, markPayrollPaid, rejectPayroll } from "./actions";
+import { approvePayroll, markPayrollPaid, recalculatePayroll, rejectPayroll } from "./actions";
 
 const credits = (cents: number) => `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(cents / 100)} cr`;
 const statusLabels: Record<string, string> = { pending: "Pendiente", approved: "Aprobado", rejected: "Rechazado", paid: "Pagado" };
@@ -9,10 +9,10 @@ const statusLabels: Record<string, string> = { pending: "Pendiente", approved: "
 export default async function PayrollPage() {
   const payroll = await getPayrollRows();
   return <>
-    <PageHeading eyebrow="COMPENSACIÓN VIRTUAL" title="Nóminas" copy="Un registro por PIREP aceptado, calculado con reglas versionadas." />
-    {!canMutatePayroll && <div className="notice">Vista de demostración: configura PostgreSQL y ejecuta la semilla para activar Aprobar, Rechazar y Marcar como pagado.</div>}
+    <PageHeading eyebrow="COMPENSACIÓN VIRTUAL" title="Nóminas" copy="Un registro por PIREP aceptado, calculado con reglas versionadas y explicación completa." />
+    {!canMutatePayroll && <div className="notice">Vista de demostración: configura PostgreSQL y ejecuta la semilla para activar las acciones de nómina.</div>}
     <div className="card"><DataTable
-      headers={["Piloto", "Vuelo", "Aeronave", "Base", "Bonificación", "Penalización", "Importe final", "Estado", "Mes", "Acciones"]}
+      headers={["Piloto", "Vuelo", "Aeronave", "Base", "Bonificación", "Penalización", "Importe final", "Estado", "Mes", "Cálculo y acciones"]}
       rows={payroll.map((record) => [
         <Identity key="pilot" primary={record.pilot} secondary={record.id} />,
         record.flightNumber,
@@ -24,6 +24,22 @@ export default async function PayrollPage() {
         <Badge key="status" tone={record.status === "paid" ? "green" : record.status === "rejected" ? "amber" : "blue"}>{statusLabels[record.status] ?? record.status}</Badge>,
         record.settlementMonth,
         <div className="actions" key="actions">
+          <details className="calculation-details">
+            <summary>Ver cálculo</summary>
+            <div className="calculation-panel">
+              <div className="calculation-grid">
+                <span>Base <strong>{credits(record.basePayCents)}</strong></span>
+                <span>Aeronave <strong>+{credits(record.calculation.aircraftBonusCents)}</strong></span>
+                <span>Red <strong>+{credits(record.calculation.networkBonusCents)}</strong></span>
+                <span>Aterrizaje <strong>+{credits(record.calculation.landingBonusCents)}</strong></span>
+                <span>Puntuación <strong>+{credits(record.calculation.scoreBonusCents)}</strong></span>
+                <span>Penalizaciones <strong>−{credits(record.penaltyCents)}</strong></span>
+                <span>Final <strong>{credits(record.amountCents)}</strong></span>
+              </div>
+              <ul>{record.calculation.explanation.map((line) => <li key={line}>{line}</li>)}</ul>
+            </div>
+          </details>
+          <form action={recalculatePayroll}><input type="hidden" name="payrollId" value={record.id}/><button className="action-button recalculate" disabled={!canMutatePayroll || record.status !== "pending"}>Recalcular</button></form>
           <form action={approvePayroll}><input type="hidden" name="payrollId" value={record.id}/><button className="action-button approve" disabled={!canMutatePayroll || record.status !== "pending"}>Aprobar</button></form>
           <form action={rejectPayroll}><input type="hidden" name="payrollId" value={record.id}/><button className="action-button reject" disabled={!canMutatePayroll || !["pending", "approved"].includes(record.status)}>Rechazar</button></form>
           <form action={markPayrollPaid}><input type="hidden" name="payrollId" value={record.id}/><button className="action-button pay" disabled={!canMutatePayroll || record.status !== "approved"}>Pagar</button></form>

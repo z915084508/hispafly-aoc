@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { mockPayrollRecords, mockPilots, mockPireps } from "./mock-workflow-data";
-import { creditsToCents } from "./payroll-calculation";
+import { creditsToCents } from "./payroll/calculatePayroll";
 
 export interface PirepRow {
   id: string;
@@ -28,6 +28,26 @@ export interface PayrollRow {
   amountCents: number;
   status: string;
   settlementMonth: string;
+  calculation: {
+    aircraftBonusCents: number;
+    networkBonusCents: number;
+    landingBonusCents: number;
+    scoreBonusCents: number;
+    landingPenaltyCents: number;
+    scorePenaltyCents: number;
+    explanation: string[];
+  };
+}
+
+function calculationView(details: unknown): PayrollRow["calculation"] {
+  const value = details && typeof details === "object" ? details as Record<string, unknown> : {};
+  const cents = (key: string) => typeof value[key] === "number" ? creditsToCents(value[key]) : 0;
+  return {
+    aircraftBonusCents: cents("aircraftBonus"), networkBonusCents: cents("networkBonus"),
+    landingBonusCents: cents("landingBonus"), scoreBonusCents: cents("scoreBonus"),
+    landingPenaltyCents: cents("landingPenalty"), scorePenaltyCents: cents("scorePenalty"),
+    explanation: Array.isArray(value.explanation) ? value.explanation.filter((line): line is string => typeof line === "string") : [],
+  };
 }
 
 const databaseConfigured = Boolean(process.env.DATABASE_URL);
@@ -48,12 +68,12 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
   if (databaseConfigured) {
     try {
       const rows = await prisma.payrollRecord.findMany({ include: { pilot: true, pirep: true }, orderBy: { createdAt: "desc" } });
-      return rows.map((row) => ({ id: row.id, pilot: row.pilot.displayName, flightNumber: row.pirep.flightNumber, aircraftType: row.pirep.aircraftType, basePayCents: row.basePayCents, bonusCents: row.bonusCents, penaltyCents: row.penaltyCents, amountCents: row.amountCents, status: row.status, settlementMonth: row.settlementMonth }));
+      return rows.map((row) => ({ id: row.id, pilot: row.pilot.displayName, flightNumber: row.pirep.flightNumber, aircraftType: row.pirep.aircraftType, basePayCents: row.basePayCents, bonusCents: row.bonusCents, penaltyCents: row.penaltyCents, amountCents: row.amountCents, status: row.status, settlementMonth: row.settlementMonth, calculation: calculationView(row.calculationDetails) }));
     } catch (error) {
       console.error("Unable to load payroll from PostgreSQL; using mock data.", error);
     }
   }
-  return mockPayrollRecords.map((row) => ({ id: row.id, pilot: row.pilot.displayName, flightNumber: row.flightNumber, aircraftType: row.aircraftType, basePayCents: creditsToCents(row.calculation.basePay), bonusCents: creditsToCents(row.calculation.totalBonus), penaltyCents: creditsToCents(row.calculation.totalPenalty), amountCents: creditsToCents(row.calculation.finalAmount), status: row.status, settlementMonth: row.settlementMonth }));
+  return mockPayrollRecords.map((row) => ({ id: row.id, pilot: row.pilot.displayName, flightNumber: row.flightNumber, aircraftType: row.aircraftType, basePayCents: creditsToCents(row.calculation.basePay), bonusCents: creditsToCents(row.calculation.totalBonus), penaltyCents: creditsToCents(row.calculation.totalPenalty), amountCents: creditsToCents(row.calculation.finalAmount), status: row.status, settlementMonth: row.settlementMonth, calculation: calculationView(row.calculation) }));
 }
 
 export async function getDashboardSummary() {
