@@ -41,15 +41,15 @@ export function calculatePayroll(
   const finalAmount = roundCredits(Math.max(0, basePay + totalBonus - penalties));
 
   const explanation = [
-    `Pago base: ${formatHours(input.flightTimeMinutes)} h 脳 tarifa ${aircraftType} ${formatCredits(hourlyRate)} = ${formatCredits(basePay)} cr茅ditos`,
+    `Pago base: ${formatHours(input.flightTimeMinutes)} h × tarifa ${aircraftType} ${formatCredits(hourlyRate)} = ${formatCredits(basePay)} créditos`,
   ];
-  if (aircraftBonus) explanation.push(`Bonificaci贸n de aeronave: +${formatCredits(aircraftBonus)} cr茅ditos`);
-  if (networkBonus) explanation.push(`Bonificaci贸n de red: ${network} +${rules.networkBonusPercent}% = ${formatCredits(networkBonus)} cr茅ditos`);
-  if (landingBonus) explanation.push(`Bonificaci贸n de aterrizaje: ${input.landingRate} fpm = +${formatCredits(landingBonus)} cr茅ditos`);
-  if (scoreBonus) explanation.push(`Bonificaci贸n de puntuaci贸n: ${input.score} = +${formatCredits(scoreBonus)} cr茅ditos`);
-  if (landingPenalty) explanation.push(`Penalizaci贸n de aterrizaje: ${input.landingRate} fpm = -${formatCredits(landingPenalty)} cr茅ditos`);
-  if (scorePenalty) explanation.push(`Penalizaci贸n de puntuaci贸n: ${input.score} = -${formatCredits(scorePenalty)} cr茅ditos`);
-  explanation.push(`Importe final: ${formatCredits(finalAmount)} cr茅ditos`);
+  if (aircraftBonus) explanation.push(`Bonificación de aeronave: +${formatCredits(aircraftBonus)} créditos`);
+  if (networkBonus) explanation.push(`Bonificación de red: ${network} +${rules.networkBonusPercent}% = ${formatCredits(networkBonus)} créditos`);
+  if (landingBonus) explanation.push(`Bonificación de aterrizaje: ${input.landingRate} fpm = +${formatCredits(landingBonus)} créditos`);
+  if (scoreBonus) explanation.push(`Bonificación de puntuación: ${input.score} = +${formatCredits(scoreBonus)} créditos`);
+  if (landingPenalty) explanation.push(`Penalización de aterrizaje: ${input.landingRate} fpm = -${formatCredits(landingPenalty)} créditos`);
+  if (scorePenalty) explanation.push(`Penalización de puntuación: ${input.score} = -${formatCredits(scorePenalty)} créditos`);
+  explanation.push(`Importe final: ${formatCredits(finalAmount)} créditos`);
 
   return {
     hourlyRate,
