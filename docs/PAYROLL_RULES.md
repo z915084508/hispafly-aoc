@@ -1,10 +1,18 @@
-# Virtual Payroll Rules — Version 1
+# Reglas de n贸mina virtual 鈥?Versi贸n 1
 
-Virtual payroll is calculated only for PIREPs whose vAMSYS status is `accepted`. A unique database constraint on `PayrollRecord.pirepId` guarantees one payroll record per PIREP.
+HISPAFLY AOC genera n贸mina 煤nicamente para PIREPs con estado `accepted` procedente de vAMSYS. La restricci贸n 煤nica `PayrollRecord.pirepId` garantiza un solo registro por PIREP. Volver a ejecutar la generaci贸n crea los registros que falten y recalcula 煤nicamente los que sigan `pending`; nunca modifica autom谩ticamente registros aprobados, rechazados o pagados.
 
-## Aircraft hourly rates
+## F贸rmula
 
-| Aircraft | Credits/hour |
+`importe final = max(0, pago base + bonificaciones - penalizaciones)`
+
+`pago base = flightTimeMinutes / 60 脳 tarifa horaria de la aeronave`
+
+Todos los importes persistidos se guardan como c茅ntimos enteros. El resultado detallado, su explicaci贸n y la versi贸n de la regla se guardan con el registro para facilitar auditor铆as.
+
+## Tarifas por aeronave
+
+| Aeronave | Cr茅ditos/hora |
 | --- | ---: |
 | A320 | 80 |
 | A321 | 85 |
@@ -12,28 +20,47 @@ Virtual payroll is calculated only for PIREPs whose vAMSYS status is `accepted`.
 | A359 | 130 |
 | A388 | 150 |
 
-`base pay = flightTimeMinutes / 60 × aircraft hourly rate`
+## Bonificaciones
 
-## Bonuses
+- Vuelo realizado en VATSIM o IVAO: 10 % del pago base.
+- Toma entre -50 y -300 fpm, ambos incluidos: 100 cr茅ditos.
+- Puntuaci贸n igual o superior a 95: 150 cr茅ditos.
 
-- VATSIM or IVAO: 10% of base pay.
-- Landing rate between -50 and -300 fpm, inclusive: 100 credits.
-- Score of 95 or above: 150 credits.
+## Penalizaciones
 
-## Penalties
+- Toma peor que -600 fpm: 200 cr茅ditos.
+- Puntuaci贸n inferior a 70: 150 cr茅ditos.
+- El importe final nunca puede ser negativo.
 
-- Landing rate worse than -600 fpm: 200 credits.
-- Score below 70: 150 credits.
+## Ejemplos verificables
 
-`final amount = max(0, base pay + bonuses - penalties)`
+### A320 normal en VATSIM
 
-All persisted amounts use integer cents. Calculation details and the rule version are stored with each payroll record for reproducibility.
+120 minutos, toma -180 fpm y puntuaci贸n 90: base 160 + red 16 + toma 100 = **276 cr茅ditos**.
 
-## Status workflow
+### A388 de largo recorrido
 
-- `pending`: calculated and awaiting staff review.
-- `approved`: reviewed and ready for settlement.
-- `rejected`: excluded by staff review.
-- `paid`: settled once through an immutable wallet transaction.
+600 minutos, fuera de red, toma -400 fpm y puntuaci贸n 96: base 1.500 + puntuaci贸n 150 = **1.650 cr茅ditos**.
 
-Approving, rejecting and paying create `AocAuditLog` records. Paying is transactional and can only claim an approved record once, preventing duplicate wallet credits.
+### Toma dura
+
+A320, 60 minutos, toma -601 fpm y puntuaci贸n 90: base 80 - penalizaci贸n 200; el m铆nimo de cero produce **0 cr茅ditos**.
+
+### Puntuaci贸n baja
+
+A321, 120 minutos, toma -400 fpm y puntuaci贸n 69: base 170 - penalizaci贸n 150 = **20 cr茅ditos**.
+
+### PIREP rechazado
+
+Un PIREP con estado `rejected` no es elegible y no genera ning煤n `PayrollRecord`.
+
+Ejecutar los cinco casos: `pnpm test:payroll`.
+
+## Flujo del personal
+
+- `pending`: puede recalcularse con la regla activa, aprobarse o rechazarse.
+- `approved`: revisado y listo para liquidaci贸n; no se recalcula autom谩ticamente.
+- `rejected`: excluido por el personal; no se recalcula autom谩ticamente.
+- `paid`: liquidado una sola vez mediante una transacci贸n de cartera inmutable.
+
+Recalcular, aprobar, rechazar y pagar producen entradas en `AocAuditLog`. El pago es transaccional y solo puede reclamar una n贸mina aprobada una vez.
