@@ -9,4 +9,5 @@ out/
 prisma/dev.db
 .pnpm-home/
 .pnpm-store/
+
 .vercel
