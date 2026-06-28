@@ -1,28 +1,39 @@
-# Virtual Payroll Rules
+# Virtual Payroll Rules — Version 1
 
-## Principles
+Virtual payroll is calculated only for PIREPs whose vAMSYS status is `accepted`. A unique database constraint on `PayrollRecord.pirepId` guarantees one payroll record per PIREP.
 
-Payroll is virtual and derived only from accepted PIREPs. Calculations must be deterministic, reproducible and tied to a versioned rule set. Stored money values use integer cents.
+## Aircraft hourly rates
 
-## Initial mock formula
+| Aircraft | Credits/hour |
+| --- | ---: |
+| A320 | 80 |
+| A321 | 85 |
+| B772 | 120 |
+| A359 | 130 |
+| A388 | 150 |
 
-For design and UI demonstration only:
+`base pay = flightTimeMinutes / 60 × aircraft hourly rate`
 
-`eligible pay = accepted block hours × configured hourly rate + approved bonuses`
+## Bonuses
 
-Block minutes are converted to hours at calculation time and the final line is rounded to the nearest cent. Rejected, pending, duplicated or deleted source PIREPs are not eligible.
+- VATSIM or IVAO: 10% of base pay.
+- Landing rate between -50 and -300 fpm, inclusive: 100 credits.
+- Score of 95 or above: 150 credits.
 
-## Lifecycle
+## Penalties
 
-- **Draft:** calculated and may be safely recalculated with the same rule version.
-- **Review:** an exception requires staff attention.
-- **Approved:** reviewed and locked for period closing.
-- **Posted:** represented by an immutable wallet transaction.
+- Landing rate worse than -600 fpm: 200 credits.
+- Score below 70: 150 credits.
 
-## Adjustments and reversals
+`final amount = max(0, base pay + bonuses - penalties)`
 
-Staff must not edit posted transactions. Corrections create a new adjustment or reversal that references the original record, includes a reason and captures the responsible staff identity.
+All persisted amounts use integer cents. Calculation details and the rule version are stored with each payroll record for reproducibility.
 
-## Future decisions
+## Status workflow
 
-Rates by rank or aircraft, route and event bonuses, minimum block time, training rules, inactivity policy, period closing authority, retroactive PIREP changes and currency display all require business approval before production implementation.
+- `pending`: calculated and awaiting staff review.
+- `approved`: reviewed and ready for settlement.
+- `rejected`: excluded by staff review.
+- `paid`: settled once through an immutable wallet transaction.
+
+Approving, rejecting and paying create `AocAuditLog` records. Paying is transactional and can only claim an approved record once, preventing duplicate wallet credits.
