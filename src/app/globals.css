@@ -68,13 +68,20 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .field label { font-size: 11px; font-weight: 800; color: #4f5f73; }
 .field input, .field select { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: #fbfcfe; color: var(--ink); }
 .notice { padding: 14px 16px; background: #fff8e1; border: 1px solid #ffe39a; border-left: 4px solid var(--yellow); border-radius: 12px; color: #6d5100; font-size: 12px; line-height: 1.5; margin-bottom: 18px; }
-.actions { display: flex; gap: 5px; }
+.actions { display: flex; gap: 5px; align-items: center; position: relative; }
 .actions form { margin: 0; }
 .action-button { border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; background: white; color: var(--ink); font-size: 10px; font-weight: 750; cursor: pointer; }
 .action-button.approve { color: #08774e; border-color: #b9e2d2; }
 .action-button.reject { color: #b42318; border-color: #f2c2be; }
 .action-button.pay { color: #0758bf; border-color: #bdd5f7; }
+.action-button.recalculate { color: #775800; border-color: #ead38d; }
 .action-button:disabled { opacity: .32; cursor: not-allowed; }
+.calculation-details summary { list-style: none; cursor: pointer; border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; font-size: 10px; font-weight: 750; color: #4c385f; }
+.calculation-details summary::-webkit-details-marker { display: none; }
+.calculation-panel { position: absolute; z-index: 20; right: 0; top: calc(100% + 8px); width: min(440px, 80vw); padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: white; box-shadow: 0 16px 45px rgba(22,38,58,.18); white-space: normal; }
+.calculation-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 11px; }
+.calculation-grid span { display: flex; justify-content: space-between; gap: 12px; padding: 7px; background: #f7f8fb; border-radius: 7px; }
+.calculation-panel ul { margin: 12px 0 0; padding: 10px 0 0 18px; border-top: 1px solid #edf0f4; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .amount-positive { color: #08774e; font-weight: 700; }
 .amount-negative { color: #b42318; font-weight: 700; }
 .ranking-card { margin-top: 18px; max-width: 720px; }
