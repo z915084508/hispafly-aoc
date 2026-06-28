@@ -29,6 +29,12 @@ OAuth started, connected, failed, refreshed and revoked events are recorded in t
 
 Dashboard, pilot directory, read-only mock PIREP list, payroll workspace, wallet transaction ledger, staff audit log and vAMSYS Pilot OAuth connection. Live PIREP synchronization is not included.
 
+## Accepted PIREP synchronization
+
+ADMIN and OPS may manually import accepted PIREPs through each connected pilot's OAuth grant. The integration is read-only, follows cursor pagination and continues with other pilots when one connection fails. `vamsysPirepId` is the immutable idempotency key; raw source data and synchronization timestamps are retained for traceability.
+
+An accepted PIREP creates at most one pending payroll record. Existing payroll is never recalculated by synchronization. Incomplete PIREPs remain visible with nullable fields and do not generate payroll until the calculation inputs are complete.
+
 ## Core workflow
 
 1. A future synchronization worker reads accepted PIREPs from vAMSYS.
