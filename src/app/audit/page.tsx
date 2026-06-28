@@ -9,6 +9,11 @@ const actionLabels: Record<string, string> = {
   PAYROLL_RECALCULATED: "Nómina recalculada",
   WALLET_TRANSACTION_CREATED: "Movimiento creado",
   PERMISSION_DENIED: "Permiso denegado",
+  VAMSYS_OAUTH_STARTED: "OAuth vAMSYS iniciado",
+  VAMSYS_OAUTH_CONNECTED: "vAMSYS conectado",
+  VAMSYS_OAUTH_FAILED: "Error OAuth vAMSYS",
+  VAMSYS_TOKEN_REFRESHED: "Token vAMSYS renovado",
+  VAMSYS_TOKEN_REVOKED: "Token vAMSYS revocado",
 };
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ action?: string; staff?: string }> }) {
