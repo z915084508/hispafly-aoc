@@ -39,6 +39,16 @@ export interface PayrollRow {
   };
 }
 
+export interface AuditRow {
+  id: string;
+  createdAt: Date;
+  staffName: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  message: string;
+}
+
 function calculationView(details: unknown): PayrollRow["calculation"] {
   const value = details && typeof details === "object" ? details as Record<string, unknown> : {};
   const cents = (key: string) => typeof value[key] === "number" ? creditsToCents(value[key]) : 0;
@@ -90,8 +100,45 @@ export async function getDashboardSummary() {
     approvedCents: amountFor("approved"),
     paidCents: amountFor("paid"),
     totalCostCents: monthPayroll.reduce((sum, row) => sum + row.amountCents, 0),
+    pendingReviewCount: payroll.filter((row) => row.status === "pending").length,
+    approvedPaymentCount: payroll.filter((row) => row.status === "approved").length,
+    paidThisMonthCount: monthPayroll.filter((row) => row.status === "paid").length,
     topPilots,
   };
+}
+
+export async function getAuditRows(filters: { action?: string; staffUserId?: string } = {}): Promise<AuditRow[]> {
+  if (databaseConfigured) {
+    try {
+      const rows = await prisma.aocAuditLog.findMany({
+        where: { action: filters.action || undefined, staffUserId: filters.staffUserId || undefined },
+        include: { staffUser: true },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      });
+      return rows.map((row) => ({ id: row.id, createdAt: row.createdAt, staffName: row.staffUser.name, action: row.action, entityType: row.entityType, entityId: row.entityId, message: row.message }));
+    } catch (error) {
+      console.error("Unable to load audit logs from PostgreSQL; using mock data.", error);
+    }
+  }
+  return [
+    { id: "audit-demo-1", createdAt: new Date("2026-06-28T18:10:00Z"), staffName: "María Administradora", action: "PAYROLL_APPROVED", entityType: "PayrollRecord", entityId: "MOCK-PAY-001", message: "María Administradora aprobó una nómina de demostración." },
+    { id: "audit-demo-2", createdAt: new Date("2026-06-28T18:14:00Z"), staffName: "Carlos Finanzas", action: "PAYROLL_MARKED_PAID", entityType: "PayrollRecord", entityId: "MOCK-PAY-003", message: "Carlos Finanzas marcó una nómina de demostración como pagada." },
+  ].filter((row) => !filters.action || row.action === filters.action);
+}
+
+export async function getAuditFilterOptions() {
+  if (!databaseConfigured) return { actions: ["PAYROLL_APPROVED", "PAYROLL_MARKED_PAID"], staff: [] as { id: string; name: string }[] };
+  try {
+    const [actions, staff] = await Promise.all([
+      prisma.aocAuditLog.findMany({ distinct: ["action"], select: { action: true }, orderBy: { action: "asc" } }),
+      prisma.staffUser.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    ]);
+    return { actions: actions.map((row) => row.action), staff };
+  } catch (error) {
+    console.error("Unable to load audit filters.", error);
+    return { actions: [], staff: [] };
+  }
 }
 
 export const canMutatePayroll = databaseConfigured;
