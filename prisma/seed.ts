@@ -6,11 +6,23 @@ import { AIRCRAFT_HOURLY_RATES, DEFAULT_PAYROLL_RULES } from "../src/lib/payroll
 const prisma = new PrismaClient();
 
 async function main() {
-  const staff = await prisma.staffUser.upsert({
-    where: { email: "operations@hispafly.test" },
-    update: { displayName: "Operaciones HISPAFLY", role: "admin", isActive: true },
-    create: { email: "operations@hispafly.test", displayName: "Operaciones HISPAFLY", role: "admin" },
-  });
+  const staffFixtures = [
+    { email: "admin@hispafly.local", name: "María Administradora", role: "ADMIN" as const },
+    { email: "ops@hispafly.local", name: "Óscar Operaciones", role: "OPS" as const },
+    { email: "finance@hispafly.local", name: "Carlos Finanzas", role: "FINANCE" as const },
+    { email: "viewer@hispafly.local", name: "Vera Consulta", role: "VIEWER" as const },
+  ];
+  const staffUsers = new Map<string, string>();
+  for (const fixture of staffFixtures) {
+    const saved = await prisma.staffUser.upsert({
+      where: { email: fixture.email },
+      update: { name: fixture.name, role: fixture.role, active: true },
+      create: { ...fixture, active: true },
+    });
+    staffUsers.set(fixture.email, saved.id);
+  }
+  const adminId = staffUsers.get("admin@hispafly.local");
+  if (!adminId) throw new Error("Seed admin was not created.");
 
   const rule = await prisma.payrollRule.upsert({
     where: { name_version: { name: "Tarifas iniciales HISPAFLY", version: 1 } },
@@ -37,13 +49,14 @@ async function main() {
   }
 
   for (const pirep of mockPireps) {
-    const pilotId = pilotIds.get(pirep.vamsysPilotId);
+    const { vamsysPilotId, ...pirepData } = pirep;
+    const pilotId = pilotIds.get(vamsysPilotId);
     if (!pilotId) throw new Error(`Pilot not found for ${pirep.vamsysPirepId}`);
     const acceptedAt = pirep.status === "accepted" ? new Date(pirep.flownAt) : null;
     const saved = await prisma.pirep.upsert({
       where: { vamsysPirepId: pirep.vamsysPirepId },
-      update: { ...pirep, pilotId, flownAt: new Date(pirep.flownAt), acceptedAt },
-      create: { ...pirep, pilotId, flownAt: new Date(pirep.flownAt), acceptedAt },
+      update: { ...pirepData, pilotId, flownAt: new Date(pirep.flownAt), acceptedAt },
+      create: { ...pirepData, pilotId, flownAt: new Date(pirep.flownAt), acceptedAt },
     });
 
     if (!isPayrollEligible(pirep)) {
@@ -67,8 +80,15 @@ async function main() {
     else if (existing.status === "pending") await prisma.payrollRecord.update({ where: { id: existing.id }, data: payrollData });
   }
 
-  await prisma.aocAuditLog.create({
-    data: { staffUserId: staff.id, action: "mock_seed_completed", entityType: "system", details: { pilots: 5, acceptedPireps: 12, rejectedPireps: 2 } },
+  const existingSeedLog = await prisma.aocAuditLog.findFirst({ where: { action: "MOCK_SEED_COMPLETED", staffUserId: adminId } });
+  if (!existingSeedLog) await prisma.aocAuditLog.create({
+    data: {
+      staffUserId: adminId,
+      action: "MOCK_SEED_COMPLETED",
+      entityType: "System",
+      message: "María Administradora cargó los datos de demostración de HISPAFLY AOC.",
+      metadata: { pilots: 5, acceptedPireps: 12, rejectedPireps: 2, staffUsers: 4 },
+    },
   });
   console.log("Seed complete: 5 pilots, 14 PIREPs and 12 payroll records.");
 }

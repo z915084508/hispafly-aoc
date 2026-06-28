@@ -8,6 +8,6 @@ export function Identity({ primary, secondary }: { primary: string; secondary: s
   return <span className="primary">{primary}<span className="secondary">{secondary}</span></span>;
 }
 
-export function Badge({ children, tone = "green" }: { children: ReactNode; tone?: "green" | "blue" | "amber" }) {
+export function Badge({ children, tone = "green" }: { children: ReactNode; tone?: "green" | "blue" | "amber" | "red" | "gray" }) {
   return <span className={`badge ${tone === "green" ? "" : tone}`}>{children}</span>;
 }

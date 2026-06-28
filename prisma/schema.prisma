@@ -8,10 +8,10 @@ datasource db {
 }
 
 enum StaffRole {
-  admin
-  operations
-  payroll
-  viewer
+  ADMIN   @map("admin")
+  OPS     @map("operations")
+  FINANCE @map("payroll")
+  VIEWER  @map("viewer")
 }
 
 enum PilotStatus {
@@ -40,14 +40,14 @@ enum WalletTransactionType {
 }
 
 model StaffUser {
-  id          String        @id @default(cuid())
-  email       String        @unique
-  displayName String
-  role        StaffRole     @default(operations)
-  isActive    Boolean       @default(true)
-  auditLogs   AocAuditLog[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id        String        @id @default(cuid())
+  name      String        @map("displayName")
+  email     String        @unique
+  role      StaffRole     @default(OPS)
+  active    Boolean       @default(true) @map("isActive")
+  auditLogs AocAuditLog[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 }
 
 model Pilot {
@@ -179,7 +179,8 @@ model AocAuditLog {
   action      String
   entityType  String
   entityId    String?
-  details     Json?
+  message     String    @default("")
+  metadata    Json?     @map("details")
   ipAddress   String?
   userAgent   String?
   createdAt   DateTime  @default(now())
