@@ -1,4 +1,5 @@
-import { calculatePayroll, type SupportedAircraft } from "./payroll-calculation.ts";
+import { calculatePayroll } from "./payroll/calculatePayroll.ts";
+import type { AircraftType as SupportedAircraft } from "./payroll/types.ts";
 
 export type MockPirepStatus = "accepted" | "rejected";
 
@@ -32,9 +33,9 @@ export interface MockPirep {
 export const mockPilots: MockPilot[] = [
   { vamsysPilotId: "VMS-HSP-0102", callsign: "HSP102", displayName: "Marta Vidal", email: "marta.vidal@hispafly.test", rank: "Comandante", base: "LEMD" },
   { vamsysPilotId: "VMS-HSP-0118", callsign: "HSP118", displayName: "Daniel Costa", email: "daniel.costa@hispafly.test", rank: "Primer oficial", base: "LEBL" },
-  { vamsysPilotId: "VMS-HSP-0126", callsign: "HSP126", displayName: "Lucía Romero", email: "lucia.romero@hispafly.test", rank: "Comandante", base: "LEVC" },
-  { vamsysPilotId: "VMS-HSP-0141", callsign: "HSP141", displayName: "Álex Martín", email: "alex.martin@hispafly.test", rank: "Primer oficial", base: "LEMD" },
-  { vamsysPilotId: "VMS-HSP-0157", callsign: "HSP157", displayName: "Sofía Navarro", email: "sofia.navarro@hispafly.test", rank: "Comandante", base: "LEVC" },
+  { vamsysPilotId: "VMS-HSP-0126", callsign: "HSP126", displayName: "Luc铆a Romero", email: "lucia.romero@hispafly.test", rank: "Comandante", base: "LEVC" },
+  { vamsysPilotId: "VMS-HSP-0141", callsign: "HSP141", displayName: "脕lex Mart铆n", email: "alex.martin@hispafly.test", rank: "Primer oficial", base: "LEMD" },
+  { vamsysPilotId: "VMS-HSP-0157", callsign: "HSP157", displayName: "Sof铆a Navarro", email: "sofia.navarro@hispafly.test", rank: "Comandante", base: "LEVC" },
 ];
 
 export const mockPireps: MockPirep[] = [
