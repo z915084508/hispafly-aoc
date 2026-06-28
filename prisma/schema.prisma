@@ -27,6 +27,11 @@ enum PayrollRecordStatus {
   paid
 }
 
+enum PirepStatus {
+  accepted
+  rejected
+}
+
 enum WalletTransactionType {
   payroll
   bonus
@@ -78,24 +83,32 @@ model VamsysOAuthToken {
 }
 
 model Pirep {
-  id              String         @id @default(cuid())
-  vamsysPirepId   String         @unique
-  pilotId         String
-  pilot           Pilot          @relation(fields: [pilotId], references: [id], onDelete: Restrict)
-  flightNumber    String
-  originIcao      String
-  destinationIcao String
-  aircraftType    String?
-  blockMinutes    Int
-  acceptedAt      DateTime
-  sourcePayload   Json?
-  synchronizedAt  DateTime       @default(now())
-  payrollRecord   PayrollRecord?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id                String         @id @default(cuid())
+  vamsysPirepId     String         @unique
+  pilotId           String
+  pilot             Pilot          @relation(fields: [pilotId], references: [id], onDelete: Restrict)
+  flightNumber      String
+  callsign          String
+  departure         String
+  arrival           String
+  aircraftType      String
+  network           String
+  flightTimeMinutes Int
+  blockTimeMinutes  Int
+  landingRate       Int
+  score             Int
+  fuelUsed          Int
+  status            PirepStatus
+  flownAt           DateTime
+  acceptedAt        DateTime?
+  sourcePayload     Json?
+  synchronizedAt    DateTime       @default(now())
+  payrollRecord     PayrollRecord?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
-  @@index([pilotId, acceptedAt])
-  @@index([acceptedAt])
+  @@index([pilotId, flownAt])
+  @@index([status, flownAt])
 }
 
 model PayrollRecord {
@@ -107,17 +120,21 @@ model PayrollRecord {
   payrollRuleId      String?
   payrollRule        PayrollRule?        @relation(fields: [payrollRuleId], references: [id], onDelete: SetNull)
   walletTransaction  WalletTransaction?
+  basePayCents       Int
+  bonusCents         Int                 @default(0)
+  penaltyCents       Int                 @default(0)
   amountCents        Int
   currency           String              @default("EUR")
   calculationDetails Json?
   status             PayrollRecordStatus @default(pending)
+  settlementMonth    String
   approvedAt         DateTime?
   paidAt             DateTime?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
   @@index([pilotId, status])
-  @@index([status, createdAt])
+  @@index([status, settlementMonth])
 }
 
 model WalletTransaction {
@@ -138,18 +155,18 @@ model WalletTransaction {
 }
 
 model PayrollRule {
-  id              String          @id @default(cuid())
-  name            String
-  version         Int
-  hourlyRateCents Int
-  bonusRules      Json?
-  penaltyRules    Json?
-  effectiveFrom   DateTime
-  effectiveUntil  DateTime?
-  isActive        Boolean         @default(false)
-  payrollRecords  PayrollRecord[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id             String          @id @default(cuid())
+  name           String
+  version        Int
+  aircraftRates  Json
+  bonusRules     Json?
+  penaltyRules   Json?
+  effectiveFrom  DateTime
+  effectiveUntil DateTime?
+  isActive       Boolean         @default(false)
+  payrollRecords PayrollRecord[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@unique([name, version])
   @@index([isActive, effectiveFrom])
