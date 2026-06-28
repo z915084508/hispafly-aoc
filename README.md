@@ -15,7 +15,7 @@ This is **not an EFB**. PEGASUS ACARS and vAMSYS remain the official flight-dete
 1. Copy `.env.example` to `.env` and set `DATABASE_URL`.
 2. Install dependencies with `npm install` or `pnpm install`.
 3. Generate the Prisma client with `npm run prisma:generate`.
-4. Create/update the development database with `npx prisma migrate dev --name task-5-staff-audit`.
+4. Create/update the development database with `npx prisma migrate dev`.
 5. Load the deterministic mock workflow with `npm run prisma:seed`.
 6. Start the portal with `npm run dev`.
 
@@ -31,7 +31,30 @@ Payroll actions are transactional:
 - Reject: rejects a pending or approved record and writes an audit log.
 - Mark as paid: atomically creates one wallet transaction, increments the pilot balance and writes an audit log.
 
-No real vAMSYS API or authentication flow is implemented yet.
+Real PIREP synchronization is not implemented. Task 6 only connects an individual pilot identity through vAMSYS OAuth.
+
+## vAMSYS Pilot OAuth
+
+Register an OAuth client in vAMSYS without a client secret and configure an exact callback URI:
+
+- Local: `http://localhost:3000/api/vamsys/oauth/callback`
+- Production: `https://YOUR-AOC-DOMAIN/api/vamsys/oauth/callback`
+- Privacy policy: `https://YOUR-AOC-DOMAIN/privacy`
+
+The URI registered in vAMSYS must exactly match `VAMSYS_PILOT_REDIRECT_URI`. Configure these server-side variables:
+
+```env
+VAMSYS_PILOT_CLIENT_ID="your-client-id"
+VAMSYS_PILOT_REDIRECT_URI="http://localhost:3000/api/vamsys/oauth/callback"
+VAMSYS_PILOT_SCOPES="identity:basic pilot:read flights:read"
+VAMSYS_API_BASE_URL="https://vamsys.io/api/v3/pilot"
+VAMSYS_AUTH_URL="https://vamsys.io/oauth/authorize"
+VAMSYS_TOKEN_URL="https://vamsys.io/oauth/token"
+```
+
+Test locally by starting the portal, opening `/settings/vamsys`, and selecting **Conectar vAMSYS**. The server generates a PKCE verifier/challenge and CSRF state, stores the temporary values in secure HTTP-only cookies, exchanges the callback code on the server, reads `/user` and `/profile`, and imports the pilot profile. Access and refresh tokens are persisted only in PostgreSQL and are never returned to browser code.
+
+`getValidVamsysAccessToken(pilotId)` refreshes expiring tokens server-side. Invalid refresh grants revoke the local connection and create audit events. This OAuth connection does not synchronize PIREPs; that remains Task 7.
 
 ## Development staff and permissions
 
@@ -56,6 +79,7 @@ Use `/audit` to review staff actions, denied permission attempts and wallet tran
 - `src/components` — reusable shell and data-display components
 - `src/lib/payroll` — motor de nómina tipado, reglas configurables y casos de prueba
 - `src/lib/staff` — development staff adapter and centralized role permissions
+- `src/lib/vamsys` — PKCE, Pilot API client, profile mapping and token refresh
 - `src/lib/mock-workflow-data.ts` — deterministic Task 3 fixture data
 - `src/lib/workflow-data.ts` — PostgreSQL reads with mock fallback
 - `prisma/schema.prisma` — PostgreSQL domain model and constraints
