@@ -14,6 +14,11 @@ const actionLabels: Record<string, string> = {
   VAMSYS_OAUTH_FAILED: "Error OAuth vAMSYS",
   VAMSYS_TOKEN_REFRESHED: "Token vAMSYS renovado",
   VAMSYS_TOKEN_REVOKED: "Token vAMSYS revocado",
+  VAMSYS_PIREP_SYNC_STARTED: "Sincronización PIREP iniciada",
+  VAMSYS_PIREP_SYNC_COMPLETED: "Sincronización PIREP completada",
+  VAMSYS_PIREP_SYNC_FAILED: "Error de sincronización PIREP",
+  VAMSYS_PIREP_IMPORTED: "PIREP vAMSYS importado",
+  PAYROLL_GENERATED_FROM_VAMSYS_PIREP: "Nómina generada desde vAMSYS",
 };
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ action?: string; staff?: string }> }) {
