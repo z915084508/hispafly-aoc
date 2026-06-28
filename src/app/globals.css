@@ -100,9 +100,16 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .audit-filters label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
 .audit-filters select { min-width: 190px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: white; color: var(--ink); }
 .audit-message { display: block; min-width: 280px; max-width: 520px; white-space: normal; line-height: 1.4; }
+.settings-link { margin-top: 18px; }
+.oauth-connect-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+.disabled-button { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.legal-copy { max-width: 920px; line-height: 1.7; color: #344054; }
+.legal-copy h2 { margin: 26px 0 8px; color: var(--ink); font-size: 17px; }
+.legal-copy p { margin: 8px 0; }
+.legal-copy ul { margin: 8px 0; padding-left: 22px; }
 .ranking-list { display: grid; gap: 4px; }
 .ranking-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; padding: 12px 4px; border-top: 1px solid #edf0f4; }
 .ranking-position { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: #fff0ed; color: #b80e17; font-size: 11px; font-weight: 850; }
 
 @media (max-width: 1050px) { .stats { grid-template-columns: repeat(2, 1fr); } .two-column { grid-template-columns: 1fr; } }
-@media (max-width: 760px) { .app-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .nav-list { grid-template-columns: repeat(2, 1fr); } .sidebar-note { display: none; } .topbar { padding: 0 20px; } .content { padding: 24px 18px; } .stats, .form-grid, .workflow-summary { grid-template-columns: 1fr; } .page-heading { align-items: start; flex-direction: column; } .audit-filters { align-items: stretch; flex-direction: column; } }
+@media (max-width: 760px) { .app-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .nav-list { grid-template-columns: repeat(2, 1fr); } .sidebar-note { display: none; } .topbar { padding: 0 20px; } .content { padding: 24px 18px; } .stats, .form-grid, .workflow-summary { grid-template-columns: 1fr; } .page-heading { align-items: start; flex-direction: column; } .audit-filters, .oauth-connect-card { align-items: stretch; flex-direction: column; } }
