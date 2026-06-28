@@ -35,6 +35,10 @@ ADMIN and OPS may manually import accepted PIREPs through each connected pilot's
 
 An accepted PIREP creates at most one pending payroll record. Existing payroll is never recalculated by synchronization. Incomplete PIREPs remain visible with nullable fields and do not generate payroll until the calculation inputs are complete.
 
+## Operations API directory
+
+The server uses the vAMSYS Client Credentials grant to read the airline pilot directory, pilot detail and administrative notes. Credentials and access tokens remain server-side. ADMIN and OPS may run a manual sync; the portal records connection health and audit events. Notes are imported read-only. Fleet, Aircraft and Route persistence is prepared but inactive until official endpoint contracts are confirmed.
+
 ## Core workflow
 
 1. A future synchronization worker reads accepted PIREPs from vAMSYS.
