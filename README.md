@@ -15,7 +15,7 @@ This is **not an EFB**. PEGASUS ACARS and vAMSYS remain the official flight-dete
 1. Copy `.env.example` to `.env` and set `DATABASE_URL`.
 2. Install dependencies with `npm install` or `pnpm install`.
 3. Generate the Prisma client with `npm run prisma:generate`.
-4. Create/update the development database with `npx prisma migrate dev --name task-3-mock-payroll`.
+4. Create/update the development database with `npx prisma migrate dev --name task-5-staff-audit`.
 5. Load the deterministic mock workflow with `npm run prisma:seed`.
 6. Start the portal with `npm run dev`.
 
@@ -33,11 +33,29 @@ Payroll actions are transactional:
 
 No real vAMSYS API or authentication flow is implemented yet.
 
+## Development staff and permissions
+
+Set `MOCK_STAFF_EMAIL` in `.env` and restart the development server to select the current staff identity:
+
+| Email | Role | Payroll permissions |
+| --- | --- | --- |
+| `admin@hispafly.local` | ADMIN | Approve, reject, recalculate and pay |
+| `ops@hispafly.local` | OPS | Approve, reject and recalculate |
+| `finance@hispafly.local` | FINANCE | Mark approved payroll as paid |
+| `viewer@hispafly.local` | VIEWER | Read only |
+
+The selector is a development authentication adapter, not production authentication. Every payroll mutation repeats the role and active-user check on the server. Hiding a button in the browser never grants or removes permission.
+
+The enforced workflow is `pending → approved → paid` or `pending → rejected`. Approved, rejected and paid records cannot be recalculated or rejected. Paying creates exactly one wallet transaction and immutable audit entries in the same transaction.
+
+Use `/audit` to review staff actions, denied permission attempts and wallet transaction creation.
+
 ## Project map
 
 - `src/app` — portal routes, payroll server actions and page composition
 - `src/components` — reusable shell and data-display components
 - `src/lib/payroll` — motor de nómina tipado, reglas configurables y casos de prueba
+- `src/lib/staff` — development staff adapter and centralized role permissions
 - `src/lib/mock-workflow-data.ts` — deterministic Task 3 fixture data
 - `src/lib/workflow-data.ts` — PostgreSQL reads with mock fallback
 - `prisma/schema.prisma` — PostgreSQL domain model and constraints
