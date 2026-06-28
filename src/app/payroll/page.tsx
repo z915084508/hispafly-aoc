@@ -9,31 +9,31 @@ const statusLabels: Record<string, string> = { pending: "Pendiente", approved: "
 export default async function PayrollPage() {
   const payroll = await getPayrollRows();
   return <>
-    <PageHeading eyebrow="COMPENSACI脫N VIRTUAL" title="N贸minas" copy="Un registro por PIREP aceptado, calculado con reglas versionadas y explicaci贸n completa." />
-    {!canMutatePayroll && <div className="notice">Vista de demostraci贸n: configura PostgreSQL y ejecuta la semilla para activar las acciones de n贸mina.</div>}
+    <PageHeading eyebrow="COMPENSACIÓN VIRTUAL" title="Nóminas" copy="Un registro por PIREP aceptado, calculado con reglas versionadas y explicación completa." />
+    {!canMutatePayroll && <div className="notice">Vista de demostración: configura PostgreSQL y ejecuta la semilla para activar las acciones de nómina.</div>}
     <div className="card"><DataTable
-      headers={["Piloto", "Vuelo", "Aeronave", "Base", "Bonificaci贸n", "Penalizaci贸n", "Importe final", "Estado", "Mes", "C谩lculo y acciones"]}
+      headers={["Piloto", "Vuelo", "Aeronave", "Base", "Bonificación", "Penalización", "Importe final", "Estado", "Mes", "Cálculo y acciones"]}
       rows={payroll.map((record) => [
         <Identity key="pilot" primary={record.pilot} secondary={record.id} />,
         record.flightNumber,
         record.aircraftType,
         credits(record.basePayCents),
         <span key="bonus" className="amount-positive">+{credits(record.bonusCents)}</span>,
-        <span key="penalty" className={record.penaltyCents ? "amount-negative" : ""}>鈭抺credits(record.penaltyCents)}</span>,
+        <span key="penalty" className={record.penaltyCents ? "amount-negative" : ""}>−{credits(record.penaltyCents)}</span>,
         <strong key="amount">{credits(record.amountCents)}</strong>,
         <Badge key="status" tone={record.status === "paid" ? "green" : record.status === "rejected" ? "amber" : "blue"}>{statusLabels[record.status] ?? record.status}</Badge>,
         record.settlementMonth,
         <div className="actions" key="actions">
           <details className="calculation-details">
-            <summary>Ver c谩lculo</summary>
+            <summary>Ver cálculo</summary>
             <div className="calculation-panel">
               <div className="calculation-grid">
                 <span>Base <strong>{credits(record.basePayCents)}</strong></span>
                 <span>Aeronave <strong>+{credits(record.calculation.aircraftBonusCents)}</strong></span>
                 <span>Red <strong>+{credits(record.calculation.networkBonusCents)}</strong></span>
                 <span>Aterrizaje <strong>+{credits(record.calculation.landingBonusCents)}</strong></span>
-                <span>Puntuaci贸n <strong>+{credits(record.calculation.scoreBonusCents)}</strong></span>
-                <span>Penalizaciones <strong>鈭抺credits(record.penaltyCents)}</strong></span>
+                <span>Puntuación <strong>+{credits(record.calculation.scoreBonusCents)}</strong></span>
+                <span>Penalizaciones <strong>−{credits(record.penaltyCents)}</strong></span>
                 <span>Final <strong>{credits(record.amountCents)}</strong></span>
               </div>
               <ul>{record.calculation.explanation.map((line) => <li key={line}>{line}</li>)}</ul>
