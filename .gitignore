@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.next-aoc/
+out/
+.env
+.env.local
+*.log
+.DS_Store
+prisma/dev.db
+.pnpm-home/
+.pnpm-store/

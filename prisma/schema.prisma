@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StaffRole {
+  admin
+  operations
+  payroll
+  viewer
+}
+
+enum PilotStatus {
+  active
+  on_leave
+  inactive
+}
+
+enum PayrollRecordStatus {
+  pending
+  approved
+  rejected
+  paid
+}
+
+enum WalletTransactionType {
+  payroll
+  bonus
+  penalty
+  manual_adjustment
+}
+
+model StaffUser {
+  id          String        @id @default(cuid())
+  email       String        @unique
+  displayName String
+  role        StaffRole     @default(operations)
+  isActive    Boolean       @default(true)
+  auditLogs   AocAuditLog[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Pilot {
+  id                 String              @id @default(cuid())
+  vamsysPilotId      String              @unique
+  callsign           String?             @unique
+  displayName        String
+  email              String?             @unique
+  rank               String?
+  base               String?
+  status             PilotStatus         @default(active)
+  walletBalanceCents Int                 @default(0)
+  pireps             Pirep[]
+  payrollRecords     PayrollRecord[]
+  walletTransactions WalletTransaction[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([status])
+  @@index([base])
+}
+
+model VamsysOAuthToken {
+  id                    String   @id @default(cuid())
+  provider              String   @unique @default("vamsys")
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String?
+  tokenType             String   @default("Bearer")
+  scope                 String?
+  expiresAt             DateTime
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model Pirep {
+  id              String         @id @default(cuid())
+  vamsysPirepId   String         @unique
+  pilotId         String
+  pilot           Pilot          @relation(fields: [pilotId], references: [id], onDelete: Restrict)
+  flightNumber    String
+  originIcao      String
+  destinationIcao String
+  aircraftType    String?
+  blockMinutes    Int
+  acceptedAt      DateTime
+  sourcePayload   Json?
+  synchronizedAt  DateTime       @default(now())
+  payrollRecord   PayrollRecord?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([pilotId, acceptedAt])
+  @@index([acceptedAt])
+}
+
+model PayrollRecord {
+  id                 String              @id @default(cuid())
+  pirepId            String              @unique
+  pirep              Pirep               @relation(fields: [pirepId], references: [id], onDelete: Restrict)
+  pilotId            String
+  pilot              Pilot               @relation(fields: [pilotId], references: [id], onDelete: Restrict)
+  payrollRuleId      String?
+  payrollRule        PayrollRule?        @relation(fields: [payrollRuleId], references: [id], onDelete: SetNull)
+  walletTransaction  WalletTransaction?
+  amountCents        Int
+  currency           String              @default("EUR")
+  calculationDetails Json?
+  status             PayrollRecordStatus @default(pending)
+  approvedAt         DateTime?
+  paidAt             DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([pilotId, status])
+  @@index([status, createdAt])
+}
+
+model WalletTransaction {
+  id              String                @id @default(cuid())
+  pilotId         String
+  pilot           Pilot                 @relation(fields: [pilotId], references: [id], onDelete: Restrict)
+  payrollRecordId String?               @unique
+  payrollRecord   PayrollRecord?        @relation(fields: [payrollRecordId], references: [id], onDelete: Restrict)
+  type            WalletTransactionType
+  amountCents     Int
+  currency        String                @default("EUR")
+  description     String
+  reference       String?
+  createdAt       DateTime              @default(now())
+
+  @@index([pilotId, createdAt])
+  @@index([type])
+}
+
+model PayrollRule {
+  id              String          @id @default(cuid())
+  name            String
+  version         Int
+  hourlyRateCents Int
+  bonusRules      Json?
+  penaltyRules    Json?
+  effectiveFrom   DateTime
+  effectiveUntil  DateTime?
+  isActive        Boolean         @default(false)
+  payrollRecords  PayrollRecord[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([name, version])
+  @@index([isActive, effectiveFrom])
+}
+
+model AocAuditLog {
+  id          String    @id @default(cuid())
+  staffUserId String
+  staffUser   StaffUser @relation(fields: [staffUserId], references: [id], onDelete: Restrict)
+  action      String
+  entityType  String
+  entityId    String?
+  details     Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([staffUserId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+}

@@ -1,0 +1,5 @@
+import { Badge, DataTable, Identity } from "@/components/data-table";
+import { PageHeading } from "@/components/page-heading";
+import { transactions } from "@/lib/mock-data";
+
+export default function WalletPage() { return <><PageHeading eyebrow="LIBRO MAYOR AUDITABLE" title="Movimientos de cartera" copy="Créditos de nómina virtual, anulaciones y ajustes del personal." action="Nuevo ajuste"/><div className="card"><DataTable headers={["Movimiento", "Piloto", "Tipo", "Importe", "Fecha", "Estado"]} rows={transactions.map((t) => { const type = t.type === "Payroll credit" ? "Abono de nómina" : t.type === "Manual adjustment" ? "Ajuste manual" : "Anulación"; return [t.id, <Identity key="i" primary={t.pilot} secondary={type}/>, type, <strong key="a" style={{color:t.amount < 0 ? "#b42318" : "#08774e"}}>{t.amount < 0 ? "−" : "+"}{Math.abs(t.amount).toLocaleString("es-ES")} €</strong>, t.date.replace("Jun", "jun"), <Badge key="b" tone={t.status === "Pending" ? "amber" : "green"}>{t.status === "Pending" ? "Pendiente" : "Contabilizado"}</Badge>]; })}/></div></> }
