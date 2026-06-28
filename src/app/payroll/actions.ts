@@ -81,7 +81,7 @@ export async function markPayrollPaid(formData: FormData) {
     if (!record || record.status !== "approved") throw new Error("Only approved payroll can be paid.");
     const claimed = await tx.payrollRecord.updateMany({ where: { id, status: "approved" }, data: { status: "paid", paidAt: new Date() } });
     if (claimed.count !== 1) throw new Error("This payroll record has already been paid.");
-    await tx.walletTransaction.create({ data: { pilotId: record.pilotId, payrollRecordId: record.id, type: "payroll", amountCents: record.amountCents, description: `N贸mina ${record.pirep.flightNumber}`, reference: record.pirep.vamsysPirepId } });
+    await tx.walletTransaction.create({ data: { pilotId: record.pilotId, payrollRecordId: record.id, type: "payroll", amountCents: record.amountCents, description: `Nómina ${record.pirep.flightNumber}`, reference: record.pirep.vamsysPirepId } });
     await tx.pilot.update({ where: { id: record.pilotId }, data: { walletBalanceCents: { increment: record.amountCents } } });
     await tx.aocAuditLog.create({ data: { staffUserId: actorId, action: "payroll_marked_paid", entityType: "PayrollRecord", entityId: id, details: { amountCents: record.amountCents } } });
   });
