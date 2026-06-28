@@ -1,0 +1,69 @@
+import { getVamsysPilotConfig } from "./config";
+import type { VamsysApiRecord, VamsysTokenResponse } from "./types";
+
+export class VamsysApiError extends Error {
+  constructor(message: string, public status: number, public code?: string) {
+    super(message);
+  }
+}
+
+async function parseResponse<T>(response: Response): Promise<T> {
+  const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+  if (!response.ok) {
+    const code = typeof payload.error === "string" ? payload.error : undefined;
+    const description = typeof payload.error_description === "string" ? payload.error_description : undefined;
+    throw new VamsysApiError(description || code || `vAMSYS request failed with status ${response.status}.`, response.status, code);
+  }
+  return payload as T;
+}
+
+async function pilotApiRequest(path: string, accessToken: string): Promise<VamsysApiRecord> {
+  const { apiBaseUrl } = getVamsysPilotConfig();
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    headers: { Accept: "application/json", Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  if (response.status === 401) throw new VamsysApiError("El token de vAMSYS no está autorizado.", 401, "unauthorized");
+  return parseResponse<VamsysApiRecord>(response);
+}
+
+export function fetchVamsysUser(accessToken: string) {
+  return pilotApiRequest("/user", accessToken);
+}
+
+export function fetchVamsysProfile(accessToken: string) {
+  return pilotApiRequest("/profile", accessToken);
+}
+
+async function tokenRequest(parameters: URLSearchParams): Promise<VamsysTokenResponse> {
+  const { tokenUrl } = getVamsysPilotConfig();
+  const response = await fetch(tokenUrl, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
+    body: parameters,
+    cache: "no-store",
+  });
+  const token = await parseResponse<VamsysTokenResponse>(response);
+  if (!token.access_token || !Number.isFinite(token.expires_in)) throw new VamsysApiError("vAMSYS returned an invalid token response.", 502, "invalid_response");
+  return token;
+}
+
+export function exchangeVamsysAuthorizationCode(code: string, codeVerifier: string) {
+  const config = getVamsysPilotConfig();
+  return tokenRequest(new URLSearchParams({
+    grant_type: "authorization_code",
+    client_id: config.clientId,
+    redirect_uri: config.redirectUri,
+    code,
+    code_verifier: codeVerifier,
+  }));
+}
+
+export function refreshVamsysToken(refreshToken: string) {
+  const config = getVamsysPilotConfig();
+  return tokenRequest(new URLSearchParams({
+    grant_type: "refresh_token",
+    client_id: config.clientId,
+    refresh_token: refreshToken,
+  }));
+}
