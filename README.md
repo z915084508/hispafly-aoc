@@ -35,11 +35,11 @@ No real vAMSYS API or authentication flow is implemented yet.
 
 ## Project map
 
-- `src/app` — portal routes, payroll server actions and page composition
-- `src/components` — reusable shell and data-display components
-- `src/lib/payroll-calculation.ts` — reusable, typed payroll engine
-- `src/lib/mock-workflow-data.ts` — deterministic Task 3 fixture data
-- `src/lib/workflow-data.ts` — PostgreSQL reads with mock fallback
-- `prisma/schema.prisma` — PostgreSQL domain model and constraints
-- `prisma/seed.ts` — idempotent mock seed
-- `docs` — product boundary and payroll rules
+- `src/app` 鈥?portal routes, payroll server actions and page composition
+- `src/components` 鈥?reusable shell and data-display components
+- `src/lib/payroll` 鈥?motor de n贸mina tipado, reglas configurables y casos de prueba
+- `src/lib/mock-workflow-data.ts` 鈥?deterministic Task 3 fixture data
+- `src/lib/workflow-data.ts` 鈥?PostgreSQL reads with mock fallback
+- `prisma/schema.prisma` 鈥?PostgreSQL domain model and constraints
+- `prisma/seed.ts` 鈥?idempotent mock seed
+- `docs` 鈥?product boundary and payroll rules
