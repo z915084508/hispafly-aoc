@@ -56,6 +56,8 @@ Test locally by starting the portal, opening `/settings/vamsys`, and selecting *
 
 `getValidVamsysAccessToken(pilotId)` refreshes expiring tokens server-side. Invalid refresh grants revoke the local connection and create audit events. This OAuth connection does not synchronize PIREPs; that remains Task 7.
 
+Apply committed database migrations with `prisma migrate deploy` before enabling the OAuth client in a deployed environment.
+
 ## Development staff and permissions
 
 Set `MOCK_STAFF_EMAIL` in `.env` and restart the development server to select the current staff identity:
