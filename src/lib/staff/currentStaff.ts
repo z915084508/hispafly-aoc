@@ -25,8 +25,13 @@ export async function getCurrentStaff(): Promise<StaffIdentity | null> {
     return { id: "development-staff", ...mock };
   }
 
-  return prisma.staffUser.findUnique({
-    where: { email: developmentStaffEmail },
-    select: { id: true, name: true, email: true, role: true, active: true },
-  });
+  try {
+    return await prisma.staffUser.findUnique({
+      where: { email: developmentStaffEmail },
+      select: { id: true, name: true, email: true, role: true, active: true },
+    });
+  } catch (error) {
+    console.error("Unable to resolve the current AOC staff identity.", error);
+    return null;
+  }
 }

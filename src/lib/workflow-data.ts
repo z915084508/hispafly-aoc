@@ -116,7 +116,7 @@ export async function getAuditRows(filters: { action?: string; staffUserId?: str
         orderBy: { createdAt: "desc" },
         take: 200,
       });
-      return rows.map((row) => ({ id: row.id, createdAt: row.createdAt, staffName: row.staffUser.name, action: row.action, entityType: row.entityType, entityId: row.entityId, message: row.message }));
+      return rows.map((row) => ({ id: row.id, createdAt: row.createdAt, staffName: row.staffUser?.name ?? "Sistema / Piloto", action: row.action, entityType: row.entityType, entityId: row.entityId, message: row.message }));
     } catch (error) {
       console.error("Unable to load audit logs from PostgreSQL; using mock data.", error);
     }

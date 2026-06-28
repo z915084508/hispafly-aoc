@@ -17,9 +17,17 @@ HISPAFLY AOC is separate from the existing EFB. It does not detect flights, repl
 
 Inactive staff cannot perform actions regardless of role. Authorization is enforced in server actions and permission denials are audited. The current development identity comes from `MOCK_STAFF_EMAIL`; this adapter will be replaced by real staff authentication later.
 
+## vAMSYS Pilot OAuth connection
+
+Each pilot must explicitly authorize HISPAFLY AOC through vAMSYS Authorization Code + PKCE. HISPAFLY does not collect the pilot's vAMSYS password and the Pilot OAuth client uses no client secret.
+
+The callback imports identity and pilot profile fields from the vAMSYS Pilot API. Access and refresh tokens are stored server-side only, linked one-to-one with the local pilot, and never rendered or returned to frontend code. Expired access tokens are refreshed on demand. An `invalid_grant` response marks the connection revoked and requires fresh pilot consent.
+
+OAuth started, connected, failed, refreshed and revoked events are recorded in the AOC audit log. Pilot OAuth grants identity access only; it does not accept PIREPs, detect flights or replace PEGASUS ACARS.
+
 ## v0.1 scope
 
-Dashboard, pilot directory, read-only PIREP list, payroll workspace, wallet transaction ledger and settings. The first version uses mock data and includes no live vAMSYS integration.
+Dashboard, pilot directory, read-only mock PIREP list, payroll workspace, wallet transaction ledger, staff audit log and vAMSYS Pilot OAuth connection. Live PIREP synchronization is not included.
 
 ## Core workflow
 
@@ -38,4 +46,4 @@ Role-based access, complete auditability, idempotent synchronization, UTC storag
 
 ## Out of scope for v0.1
 
-Real API calls, authentication, live notifications, PIREP editing or acceptance, ACARS processing, EFB functions, real-money payments and production reporting exports.
+Real PIREP synchronization, Pilot OAuth as an AOC login system, Operations API client credentials, live notifications, PIREP editing or acceptance, ACARS processing, EFB functions, real-money payments and production reporting exports.
