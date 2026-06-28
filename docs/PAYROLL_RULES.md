@@ -56,6 +56,10 @@ Un PIREP con estado `rejected` no es elegible y no genera ningún `PayrollRecord
 
 Ejecutar los cinco casos: `pnpm test:payroll`.
 
+## Generación desde vAMSYS
+
+Solo un PIREP importado con estado `accepted` y con aeronave, tiempo de vuelo, red, toma, puntuación y fecha completos puede generar una nómina pendiente. La sincronización crea el registro únicamente si no existe ninguno para ese PIREP. Volver a sincronizar actualiza el PIREP, pero nunca recalcula ni sustituye una nómina existente.
+
 ## Flujo del personal
 
 - `pending`: puede recalcularse con la regla activa, aprobarse o rechazarse.
