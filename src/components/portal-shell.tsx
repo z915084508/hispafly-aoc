@@ -10,6 +10,7 @@ const navItems = [
   ["Nóminas", "/payroll"],
   ["Carteras", "/wallet"],
   ["Registro de auditoría", "/audit"],
+  ["Conexión vAMSYS", "/settings/vamsys"],
   ["Configuración", "/settings"],
 ] as const;
 
@@ -25,7 +26,7 @@ export async function PortalShell({ children }: { children: React.ReactNode }) {
         </div>
         <div className="nav-label">Área de trabajo</div>
         <nav className="nav-list">{navItems.map(([label, href]) => <Link className="nav-item" href={href} key={href}>{label}</Link>)}</nav>
-        <div className="sidebar-note">PEGASUS ACARS y vAMSYS siguen siendo la fuente oficial de los PIREPs aceptados.</div>
+        <div className="sidebar-note">PEGASUS ACARS y vAMSYS siguen siendo la fuente oficial de los PIREPs aceptados.<br/><Link href="/privacy">Política de privacidad</Link></div>
       </aside>
       <main className="main">
         <header className="topbar">
