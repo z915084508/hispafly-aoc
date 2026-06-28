@@ -58,6 +58,8 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .badge { display: inline-flex; align-items: center; padding: 5px 8px; border-radius: 999px; background: #e8f7f0; color: #08774e; font-size: 10px; font-weight: 800; }
 .badge.blue { background: #e9f2ff; color: #0758bf; }
 .badge.amber { background: #fff4dc; color: #926200; }
+.badge.red { background: #ffebea; color: #b42318; }
+.badge.gray { background: #eef1f5; color: #566174; }
 .activity { display: grid; gap: 16px; }
 .activity-row { display: grid; grid-template-columns: 9px 1fr; gap: 12px; align-items: start; }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--blue); margin-top: 4px; box-shadow: 0 0 0 4px #ffe8e9; }
@@ -76,6 +78,10 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .action-button.pay { color: #0758bf; border-color: #bdd5f7; }
 .action-button.recalculate { color: #775800; border-color: #ead38d; }
 .action-button:disabled { opacity: .32; cursor: not-allowed; }
+.no-actions { color: var(--muted); font-size: 10px; padding: 0 3px; }
+.feedback { padding: 13px 16px; border-radius: 10px; margin-bottom: 18px; font-size: 12px; font-weight: 700; }
+.feedback.success { color: #08774e; background: #e8f7f0; border: 1px solid #b9e2d2; }
+.feedback.error { color: #b42318; background: #ffebea; border: 1px solid #f2c2be; }
 .calculation-details summary { list-style: none; cursor: pointer; border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; font-size: 10px; font-weight: 750; color: #4c385f; }
 .calculation-details summary::-webkit-details-marker { display: none; }
 .calculation-panel { position: absolute; z-index: 20; right: 0; top: calc(100% + 8px); width: min(440px, 80vw); padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: white; box-shadow: 0 16px 45px rgba(22,38,58,.18); white-space: normal; }
@@ -85,9 +91,18 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .amount-positive { color: #08774e; font-weight: 700; }
 .amount-negative { color: #b42318; font-weight: 700; }
 .ranking-card { margin-top: 18px; max-width: 720px; }
+.workflow-card { margin-top: 18px; }
+.workflow-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.workflow-summary div { display: grid; gap: 5px; padding: 14px; border-radius: 10px; background: #f7f8fb; }
+.workflow-summary strong { font-size: 24px; }
+.workflow-summary span { color: var(--muted); font-size: 11px; }
+.audit-filters { display: flex; align-items: end; gap: 12px; margin-bottom: 18px; padding: 14px; background: white; border: 1px solid var(--line); border-radius: 12px; }
+.audit-filters label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.audit-filters select { min-width: 190px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: white; color: var(--ink); }
+.audit-message { display: block; min-width: 280px; max-width: 520px; white-space: normal; line-height: 1.4; }
 .ranking-list { display: grid; gap: 4px; }
 .ranking-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; padding: 12px 4px; border-top: 1px solid #edf0f4; }
 .ranking-position { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: #fff0ed; color: #b80e17; font-size: 11px; font-weight: 850; }
 
 @media (max-width: 1050px) { .stats { grid-template-columns: repeat(2, 1fr); } .two-column { grid-template-columns: 1fr; } }
-@media (max-width: 760px) { .app-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .nav-list { grid-template-columns: repeat(2, 1fr); } .sidebar-note { display: none; } .topbar { padding: 0 20px; } .content { padding: 24px 18px; } .stats, .form-grid { grid-template-columns: 1fr; } .page-heading { align-items: start; flex-direction: column; } }
+@media (max-width: 760px) { .app-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .nav-list { grid-template-columns: repeat(2, 1fr); } .sidebar-note { display: none; } .topbar { padding: 0 20px; } .content { padding: 24px 18px; } .stats, .form-grid, .workflow-summary { grid-template-columns: 1fr; } .page-heading { align-items: start; flex-direction: column; } .audit-filters { align-items: stretch; flex-direction: column; } }
