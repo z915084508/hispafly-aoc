@@ -66,6 +66,10 @@ Imports are idempotent through the unique `vamsysPirepId`. Existing PIREPs may b
 
 Apply committed migrations with `pnpm prisma migrate deploy` before using synchronization.
 
+## vAMSYS Operations API
+
+Task 8 uses OAuth Client Credentials exclusively on the server. Configure `VAMSYS_OPERATIONS_CLIENT_ID` and `VAMSYS_OPERATIONS_CLIENT_SECRET` in the deployment environment, then use `/settings/operations` to test health or manually synchronize `GET /pilots`, `GET /pilots/{pilot_id}` and read-only pilot notes. The token is cached server-side and never rendered. Fleet, Aircraft and Route models are placeholders only; no endpoint is called until vAMSYS confirms those contracts.
+
 ## Development staff and permissions
 
 Set `MOCK_STAFF_EMAIL` in `.env` and restart the development server to select the current staff identity:
