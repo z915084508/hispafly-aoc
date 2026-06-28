@@ -68,6 +68,19 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .field label { font-size: 11px; font-weight: 800; color: #4f5f73; }
 .field input, .field select { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: #fbfcfe; color: var(--ink); }
 .notice { padding: 14px 16px; background: #fff8e1; border: 1px solid #ffe39a; border-left: 4px solid var(--yellow); border-radius: 12px; color: #6d5100; font-size: 12px; line-height: 1.5; margin-bottom: 18px; }
+.actions { display: flex; gap: 5px; }
+.actions form { margin: 0; }
+.action-button { border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; background: white; color: var(--ink); font-size: 10px; font-weight: 750; cursor: pointer; }
+.action-button.approve { color: #08774e; border-color: #b9e2d2; }
+.action-button.reject { color: #b42318; border-color: #f2c2be; }
+.action-button.pay { color: #0758bf; border-color: #bdd5f7; }
+.action-button:disabled { opacity: .32; cursor: not-allowed; }
+.amount-positive { color: #08774e; font-weight: 700; }
+.amount-negative { color: #b42318; font-weight: 700; }
+.ranking-card { margin-top: 18px; max-width: 720px; }
+.ranking-list { display: grid; gap: 4px; }
+.ranking-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; padding: 12px 4px; border-top: 1px solid #edf0f4; }
+.ranking-position { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: #fff0ed; color: #b80e17; font-size: 11px; font-weight: 850; }
 
 @media (max-width: 1050px) { .stats { grid-template-columns: repeat(2, 1fr); } .two-column { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .app-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .nav-list { grid-template-columns: repeat(2, 1fr); } .sidebar-note { display: none; } .topbar { padding: 0 20px; } .content { padding: 24px 18px; } .stats, .form-grid { grid-template-columns: 1fr; } .page-heading { align-items: start; flex-direction: column; } }
