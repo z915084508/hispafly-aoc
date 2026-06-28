@@ -51,35 +51,96 @@ model StaffUser {
 }
 
 model Pilot {
-  id                 String              @id @default(cuid())
-  vamsysPilotId      String              @unique
-  vamsysUserId       String?             @unique
-  username           String?
-  firstName          String?
-  lastName           String?
-  callsign           String?             @unique
-  displayName        String
-  email              String?             @unique
-  vatsimId           String?
-  ivaoId             String?
-  discordId          String?
-  rankName           String?
-  rankAbbreviation   String?
-  hubId              String?
-  rank               String?
-  base               String?
-  status             PilotStatus         @default(active)
-  walletBalanceCents Int                 @default(0)
-  pireps             Pirep[]
-  payrollRecords     PayrollRecord[]
-  walletTransactions WalletTransaction[]
-  vamsysOAuthToken   VamsysOAuthToken?
-  lastPirepSyncAt    DateTime?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  id                   String              @id @default(cuid())
+  vamsysPilotId        String              @unique
+  vamsysUserId         String?             @unique
+  username             String?
+  firstName            String?
+  lastName             String?
+  callsign             String?             @unique
+  displayName          String
+  email                String?             @unique
+  vatsimId             String?
+  ivaoId               String?
+  discordId            String?
+  rankName             String?
+  rankAbbreviation     String?
+  hubId                String?
+  rank                 String?
+  base                 String?
+  status               PilotStatus         @default(active)
+  walletBalanceCents   Int                 @default(0)
+  pireps               Pirep[]
+  payrollRecords       PayrollRecord[]
+  walletTransactions   WalletTransaction[]
+  vamsysOAuthToken     VamsysOAuthToken?
+  lastPirepSyncAt      DateTime?
+  lastOperationsSyncAt DateTime?
+  operationsRawData    Json?
+  notes                PilotNote[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
   @@index([status])
   @@index([base])
+}
+
+model PilotNote {
+  id              String    @id @default(cuid())
+  vamsysNoteId    String    @unique
+  pilotId         String
+  pilot           Pilot     @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  content         String?
+  authorName      String?
+  rawData         Json?
+  sourceCreatedAt DateTime?
+  sourceUpdatedAt DateTime?
+  synchronizedAt  DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([pilotId, sourceCreatedAt])
+}
+
+model OperationsApiState {
+  id              String    @id @default("vamsys")
+  status          String    @default("unknown")
+  lastCheckedAt   DateTime?
+  lastSuccessAt   DateTime?
+  lastPilotSyncAt DateTime?
+  lastError       String?
+  updatedAt       DateTime  @updatedAt
+}
+
+// Prepared for future confirmed Operations API endpoints. No synchronization is implemented yet.
+model Fleet {
+  id            String   @id @default(cuid())
+  vamsysFleetId String   @unique
+  name          String?
+  rawData       Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Aircraft {
+  id               String   @id @default(cuid())
+  vamsysAircraftId String   @unique
+  registration     String?
+  aircraftType     String?
+  rawData          Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Route {
+  id            String   @id @default(cuid())
+  vamsysRouteId String   @unique
+  departure     String?
+  arrival       String?
+  flightNumber  String?
+  rawData       Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model VamsysOAuthToken {
