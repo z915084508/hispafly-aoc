@@ -1,5 +1,1 @@
-import { redirect } from "next/navigation";
-
-export default function StaffVamsysSettingsRedirect() {
-  redirect("/settings/vamsys");
-}
+export { default } from "../../../settings/vamsys/page";
