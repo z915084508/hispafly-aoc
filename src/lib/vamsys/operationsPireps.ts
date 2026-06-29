@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { calculatePayroll, creditsToCents } from "@/lib/payroll/calculatePayroll";
 import { payrollRulesFromStoredRule } from "@/lib/payroll/rules";
+import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
 import { operationsRequest } from "./operations";
 import { nextVamsysCursor, nextVamsysPageUrl } from "./pagination";
@@ -31,6 +32,10 @@ export function mapOperationsPirep(raw: Row) {
   const passengers = passengersValue === null ? null : Math.round(passengersValue);
   const flightDistanceNm = distanceValue === null ? null : Math.round(distanceValue);
   const passengerRevenueCents = passengers !== null && flightDistanceNm !== null ? calculatePassengerRevenue(passengers, flightDistanceNm).revenueCents : null;
+  const cargoValue = num(source, "cargo", "cargo_kg", "cargoKg", "cargo_weight", "cargoWeight", "freight", "freight_kg", "freight_weight", "freightWeight", "payload", "payload_kg")
+    ?? (booking ? num(booking, "cargo", "cargo_kg", "cargoKg", "cargo_weight", "cargoWeight", "freight", "freight_kg", "freight_weight", "freightWeight", "payload", "payload_kg") : null);
+  const fuelUsed = num(source, "fuel_used") === null ? null : Math.round(num(source, "fuel_used")!);
+  const cargoKg = cargoValue === null ? null : Math.round(cargoValue);
   return {
     pilotExternalId: str(source, "pilot_id", "pilotId"),
     data: {
@@ -40,12 +45,17 @@ export function mapOperationsPirep(raw: Row) {
       aircraftType: fleet ? str(fleet, "code", "icao", "name") : aircraft ? str(aircraft, "type", "icao") : null,
       network: str(source, "network"), flightTimeMinutes: minutes(num(source, "flight_length")), blockTimeMinutes: minutes(num(source, "block_length")),
       landingRate: num(source, "landing_rate") === null ? null : Math.round(num(source, "landing_rate")!), score: num(source, "points") === null ? null : Math.round(num(source, "points")!),
-      fuelUsed: num(source, "fuel_used") === null ? null : Math.round(num(source, "fuel_used")!), points: num(source, "points"), credits: num(source, "bonus_sum"),
-      passengers, flightDistanceNm, passengerRevenueCents,
+      fuelUsed, points: num(source, "points"), credits: num(source, "bonus_sum"),
+      passengers, cargoKg, flightDistanceNm, passengerRevenueCents,
       status: "accepted" as const, acarsSoftware: str(source, "acars_version"), source: "vamsys_operations",
       flownAt: date(source, "landing_time", "on_blocks_time", "created_at"), acceptedAt: date(source, "updated_at"), vamsysCreatedAt: date(source, "created_at"), vamsysUpdatedAt: date(source, "updated_at"), rawData: raw as Prisma.InputJsonValue, synchronizedAt: new Date(),
     },
   };
+}
+
+async function withFuelEconomics<T extends { departure: string | null; fuelUsed: number | null; flownAt: Date | null; vamsysUpdatedAt: Date | null }>(data: T) {
+  const economics = await calculateFuelCostSnapshot({ departure: data.departure, fuelUsedKg: data.fuelUsed, at: data.flownAt ?? data.vamsysUpdatedAt });
+  return { ...data, ...economics };
 }
 
 async function fetchAllAccepted() {
@@ -72,10 +82,11 @@ export async function syncAcceptedOperationsPireps(staffUserId?: string): Promis
       const summaryMapped = mapOperationsPirep(summary); const detailBody = rec(await operationsRequest(`/pireps/${encodeURIComponent(summaryMapped.data.vamsysPirepId)}`)); const detail = rec(detailBody?.data) ?? summary; const mapped = mapOperationsPirep(mergeOperationsPirepRecords(summary, detail));
       if (!mapped.pilotExternalId) throw new Error(`PIREP ${mapped.data.vamsysPirepId} sin pilot_id.`);
       const pilot = await prisma.pilot.upsert({ where: { vamsysPilotId: mapped.pilotExternalId }, update: {}, create: { vamsysPilotId: mapped.pilotExternalId, displayName: `Piloto ${mapped.pilotExternalId}` } });
+      const pirepData = await withFuelEconomics(mapped.data);
       const existing = await prisma.pirep.findUnique({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, select: { id: true } });
-      const stored = await prisma.pirep.upsert({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, update: { ...mapped.data, pilotId: pilot.id }, create: { ...mapped.data, pilotId: pilot.id }, include: { payrollRecord: true } });
+      const stored = await prisma.pirep.upsert({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, update: { ...pirepData, pilotId: pilot.id }, create: { ...pirepData, pilotId: pilot.id }, include: { payrollRecord: true } });
       if (existing) result.updatedCount++; else result.importedCount++;
-      const d = mapped.data;
+      const d = pirepData;
       if (!stored.payrollRecord && rule && d.aircraftType && d.flightTimeMinutes !== null && d.network && d.landingRate !== null && d.score !== null && d.flownAt) {
         const calc = calculatePayroll({ aircraftType: d.aircraftType, flightTimeMinutes: d.flightTimeMinutes, network: d.network, landingRate: d.landingRate, score: d.score, status: d.status }, payrollRulesFromStoredRule(rule));
         try { await prisma.payrollRecord.create({ data: { pirepId: stored.id, pilotId: pilot.id, payrollRuleId: rule.id, basePayCents: creditsToCents(calc.basePay), bonusCents: creditsToCents(calc.totalBonus), penaltyCents: creditsToCents(calc.penalties), amountCents: creditsToCents(calc.finalAmount), calculationDetails: { ...calc }, settlementMonth: d.flownAt.toISOString().slice(0, 7) } }); result.payrollGeneratedCount++; } catch (error) { if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error; }
@@ -130,10 +141,11 @@ export async function syncAcceptedOperationsPirepsIncremental(options: { limit?:
       const mapped = mapOperationsPirep(mergeOperationsPirepRecords(summary, detail));
       if (!mapped.pilotExternalId) throw new Error(`PIREP ${mapped.data.vamsysPirepId} sin pilot_id.`);
       const pilot = await prisma.pilot.upsert({ where: { vamsysPilotId: mapped.pilotExternalId }, update: {}, create: { vamsysPilotId: mapped.pilotExternalId, displayName: `Piloto ${mapped.pilotExternalId}` } });
+      const pirepData = await withFuelEconomics(mapped.data);
       const existing = await prisma.pirep.findUnique({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, select: { id: true } });
-      const stored = await prisma.pirep.upsert({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, update: { ...mapped.data, pilotId: pilot.id }, create: { ...mapped.data, pilotId: pilot.id }, include: { payrollRecord: true } });
+      const stored = await prisma.pirep.upsert({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, update: { ...pirepData, pilotId: pilot.id }, create: { ...pirepData, pilotId: pilot.id }, include: { payrollRecord: true } });
       if (existing) result.updatedCount++; else result.importedCount++;
-      const d = mapped.data;
+      const d = pirepData;
       if (!stored.payrollRecord && rule && d.aircraftType && d.flightTimeMinutes !== null && d.network && d.landingRate !== null && d.score !== null && d.flownAt) {
         const calc = calculatePayroll({ aircraftType: d.aircraftType, flightTimeMinutes: d.flightTimeMinutes, network: d.network, landingRate: d.landingRate, score: d.score, status: d.status }, payrollRulesFromStoredRule(rule));
         try {
