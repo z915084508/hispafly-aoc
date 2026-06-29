@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { cronUnauthorizedResponse, isCronAuthorized } from "@/lib/cron/auth";
-import { syncOperationsPilotsIncremental } from "@/lib/vamsys/operations";
+import { syncOperationsPilotsIncremental } from "@/lib/vamsys/operationsPilotsIncremental";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
