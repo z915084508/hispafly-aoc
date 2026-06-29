@@ -105,6 +105,20 @@ export async function syncOperationsFleetData(staffUserId?: string) {
     update: { status: result.errors.length ? "degraded" : "healthy", lastSuccessAt: new Date(), lastError: result.errors[0]?.slice(0, 180) ?? null },
     create: { id: "vamsys", status: result.errors.length ? "degraded" : "healthy", lastSuccessAt: new Date(), lastError: result.errors[0]?.slice(0, 180) },
   });
-  await writeAuditLogSafely({ staffUserId, action: "VAMSYS_OPERATIONS_FLEET_SYNCED", entityType: "Aircraft", message: `Operations fleet sync: ${result.fleetsImported} fleets imported, ${result.fleetsUpdated} fleets updated, ${result.aircraftImported} aircraft imported, ${result.aircraftUpdated} aircraft updated.`, metadata: result });
+  await writeAuditLogSafely({
+    staffUserId,
+    action: "VAMSYS_OPERATIONS_FLEET_SYNCED",
+    entityType: "Aircraft",
+    message: `Operations fleet sync: ${result.fleetsImported} fleets imported, ${result.fleetsUpdated} fleets updated, ${result.aircraftImported} aircraft imported, ${result.aircraftUpdated} aircraft updated.`,
+    metadata: {
+      fleetsImported: result.fleetsImported,
+      fleetsUpdated: result.fleetsUpdated,
+      aircraftImported: result.aircraftImported,
+      aircraftUpdated: result.aircraftUpdated,
+      skipped: result.skipped,
+      errors: result.errors.length,
+      firstError: result.errors[0]?.slice(0, 180) ?? null,
+    },
+  });
   return result;
 }
