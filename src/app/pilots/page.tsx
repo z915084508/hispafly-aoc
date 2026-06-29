@@ -2,6 +2,8 @@ import { Badge, DataTable, Identity } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 function statusLabel(status: string) {
   if (status === "active") return { label: "Activo", tone: "green" as const };
   if (status === "on_leave") return { label: "De permiso", tone: "amber" as const };
