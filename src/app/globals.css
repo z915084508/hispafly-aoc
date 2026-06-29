@@ -169,3 +169,18 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .pilot-access-actions { display: grid; justify-items: end; gap: 10px; min-width: 260px; }
 .pilot-access-actions .meta { max-width: 320px; text-align: right; line-height: 1.45; }
 @media (max-width: 760px) { .portal-choices, .login-panel { grid-template-columns: 1fr; } .portal-gateway { padding-top: 28px; } .pilot-welcome-card { align-items: flex-start; flex-direction: column; } .pilot-access-actions { justify-items: start; min-width: 0; } .pilot-access-actions .meta { text-align: left; } .pilot-header nav a:first-child { display: none; } .login-actions { align-items: stretch; flex-direction: column; } }
+
+@media (max-width: 980px) {
+  .calculation-details[open] .calculation-panel {
+    position: fixed;
+    left: 14px;
+    right: 14px;
+    top: 96px;
+    width: auto;
+    max-height: calc(100vh - 126px);
+    overflow: auto;
+    z-index: 1000;
+  }
+
+  .calculation-grid { grid-template-columns: 1fr; }
+}
