@@ -179,8 +179,13 @@ model Pirep {
   score                 Int?
   fuelUsed              Int?
   passengers            Int?
+  cargoKg               Int?
   flightDistanceNm      Int?
   passengerRevenueCents Int?
+  fuelCostCents         Int?
+  fuelPricePerKgCents   Int?
+  fuelPriceRegion       String?
+  fuelPriceSource       String?
   points                Float?
   credits               Float?
   status                PirepStatus
@@ -200,6 +205,22 @@ model Pirep {
   @@index([status, flownAt])
   @@index([source, synchronizedAt])
   @@index([flownAt, passengerRevenueCents])
+  @@index([flownAt, fuelCostCents])
+}
+
+model FuelPrice {
+  id                 String   @id @default(cuid())
+  region             String
+  pricePerKgCents    Int
+  currency           String   @default("EUR")
+  source             String   @default("IATA Jet Fuel Price Monitor")
+  sourceUrl          String?
+  effectiveFrom      DateTime @default(now())
+  manuallyMaintained Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([region, effectiveFrom])
 }
 
 model PayrollRecord {
