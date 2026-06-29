@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/vamsys-pireps",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/vamsys-pilots",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
