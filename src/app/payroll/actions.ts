@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { calculatePayroll, creditsToCents } from "@/lib/payroll/calculatePayroll";
 import { payrollRulesFromStoredRule } from "@/lib/payroll/rules";
+import type { PayrollPirepInput } from "@/lib/payroll/types";
 import { requireStaffPermission } from "@/lib/staff/authorization";
 
 function payrollId(formData: FormData) {
@@ -15,6 +16,35 @@ function payrollId(formData: FormData) {
 
 function readableError(error: unknown) {
   return error instanceof Error ? error.message : "No se pudo completar la acción.";
+}
+
+function payrollPirepInputFromRecord(pirep: {
+  aircraftType: string | null;
+  flightTimeMinutes: number | null;
+  network: string | null;
+  landingRate: number | null;
+  score: number | null;
+  status?: string;
+}): PayrollPirepInput {
+  const missingFields: string[] = [];
+  if (!pirep.aircraftType) missingFields.push("tipo de aeronave");
+  if (pirep.flightTimeMinutes === null) missingFields.push("tiempo de vuelo");
+  if (!pirep.network) missingFields.push("red online");
+  if (pirep.landingRate === null) missingFields.push("landing rate");
+  if (pirep.score === null) missingFields.push("puntuación");
+
+  if (missingFields.length > 0) {
+    throw new Error(`El PIREP no tiene datos suficientes para calcular la nómina: ${missingFields.join(", ")}.`);
+  }
+
+  return {
+    aircraftType: pirep.aircraftType,
+    flightTimeMinutes: pirep.flightTimeMinutes,
+    network: pirep.network,
+    landingRate: pirep.landingRate,
+    score: pirep.score,
+    status: pirep.status,
+  };
 }
 
 async function runPayrollAction(
@@ -66,7 +96,7 @@ export async function recalculatePayroll(formData: FormData) {
       if (record.pirep.status !== "accepted") throw new Error("Solo los PIREPs aceptados pueden generar nómina.");
       if (!activeRule) throw new Error("No hay ninguna regla de nómina activa.");
 
-      const calculation = calculatePayroll(record.pirep, payrollRulesFromStoredRule(activeRule));
+      const calculation = calculatePayroll(payrollPirepInputFromRecord(record.pirep), payrollRulesFromStoredRule(activeRule));
       const amountCents = creditsToCents(calculation.finalAmount);
       const result = await tx.payrollRecord.updateMany({
         where: { id, status: "pending" },
