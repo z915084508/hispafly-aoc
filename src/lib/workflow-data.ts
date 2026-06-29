@@ -129,21 +129,39 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
   return mockPayrollRecords.map((row) => ({ id: row.id, pilot: row.pilot.displayName, flightNumber: row.flightNumber, aircraftType: row.aircraftType, basePayCents: creditsToCents(row.calculation.basePay), bonusCents: creditsToCents(row.calculation.totalBonus), penaltyCents: creditsToCents(row.calculation.totalPenalty), amountCents: creditsToCents(row.calculation.finalAmount), status: row.status, settlementMonth: row.settlementMonth, calculation: calculationView(row.calculation) }));
 }
 
+const mockAircraftPassengers: Record<string, number> = { A320: 150, A321: 185, A359: 290, A388: 480, B772: 320 };
+const mockRouteDistances: Record<string, number> = {
+  "LEMD-LEBL": 270,
+  "LEVC-LEMD": 160,
+  "LEBL-GCTS": 1180,
+  "LEMD-EGLL": 680,
+  "LEVC-LEPA": 170,
+};
+
+function mockPirepPassengers(row: (typeof mockPireps)[number]) {
+  return mockAircraftPassengers[row.aircraftType] ?? 150;
+}
+
+function mockPirepDistance(row: (typeof mockPireps)[number]) {
+  return mockRouteDistances[`${row.departure}-${row.arrival}`] ?? Math.max(100, Math.round(row.flightTimeMinutes * 7));
+}
+
 function mockAnnualCompanySummary(year: number, payroll: PayrollRow[]): AnnualCompanySummary {
   const yearPireps = mockPireps.filter((row) => row.status === "accepted" && new Date(row.flownAt).getUTCFullYear() === year);
-  const revenueCents = yearPireps.reduce((sum, row) => sum + calculatePassengerRevenue(row.passengers ?? 0, row.flightDistanceNm ?? 0).revenueCents, 0);
+  const enrichedPireps = yearPireps.map((row) => ({ passengers: mockPirepPassengers(row), distanceNm: mockPirepDistance(row), flightTimeMinutes: row.flightTimeMinutes }));
+  const revenueCents = enrichedPireps.reduce((sum, row) => sum + calculatePassengerRevenue(row.passengers, row.distanceNm).revenueCents, 0);
   const expenseCents = payroll.filter((row) => row.settlementMonth.startsWith(String(year))).reduce((sum, row) => sum + row.amountCents, 0);
-  const flightTimeMinutes = yearPireps.reduce((sum, row) => sum + (row.flightTimeMinutes ?? 0), 0);
+  const flightTimeMinutes = enrichedPireps.reduce((sum, row) => sum + row.flightTimeMinutes, 0);
   return {
     year,
     revenueCents,
     expenseCents,
     profitCents: revenueCents - expenseCents,
     flightCount: yearPireps.length,
-    passengers: yearPireps.reduce((sum, row) => sum + (row.passengers ?? 0), 0),
+    passengers: enrichedPireps.reduce((sum, row) => sum + row.passengers, 0),
     cargoKg: 0,
     flightHours: Math.round((flightTimeMinutes / 60) * 10) / 10,
-    distanceNm: yearPireps.reduce((sum, row) => sum + (row.flightDistanceNm ?? 0), 0),
+    distanceNm: enrichedPireps.reduce((sum, row) => sum + row.distanceNm, 0),
     averageRevenuePerFlightCents: yearPireps.length ? Math.round(revenueCents / yearPireps.length) : 0,
     cargoDataAvailable: false,
   };
