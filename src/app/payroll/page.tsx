@@ -9,19 +9,67 @@ const credits = (cents: number) => `${new Intl.NumberFormat("es-ES", { maximumFr
 const statusLabels: Record<string, string> = { pending: "Pendiente", approved: "Aprobado", rejected: "Rechazado", paid: "Pagado" };
 const statusTones = { pending: "amber", approved: "blue", rejected: "red", paid: "green" } as const;
 
-export default async function PayrollPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
-  const [payroll, staff, feedback] = await Promise.all([getPayrollRows(), getCurrentStaff(), searchParams]);
+type PayrollSearchParams = { success?: string; error?: string; q?: string; status?: string; month?: string; aircraft?: string };
+
+function includesText(value: unknown, query: string) {
+  return String(value ?? "").toLowerCase().includes(query);
+}
+
+export default async function PayrollPage({ searchParams }: { searchParams: Promise<PayrollSearchParams> }) {
+  const [payroll, staff, filters] = await Promise.all([getPayrollRows(), getCurrentStaff(), searchParams]);
   const canReview = Boolean(canMutatePayroll && staff?.active && hasStaffPermission(staff.role, "PAYROLL_APPROVE"));
   const canPay = Boolean(canMutatePayroll && staff?.active && hasStaffPermission(staff.role, "PAYROLL_MARK_PAID"));
+  const q = (filters.q ?? "").trim().toLowerCase();
+  const selectedStatus = filters.status ?? "";
+  const selectedMonth = filters.month ?? "";
+  const selectedAircraft = filters.aircraft ?? "";
+  const monthOptions = [...new Set(payroll.map((record) => record.settlementMonth).filter(Boolean))].sort().reverse();
+  const aircraftOptions = [...new Set(payroll.map((record) => record.aircraftType).filter(Boolean))].sort();
+  const filteredPayroll = payroll.filter((record) => {
+    const textMatch = !q || includesText(record.pilot, q) || includesText(record.flightNumber, q) || includesText(record.aircraftType, q) || includesText(record.id, q);
+    const statusMatch = !selectedStatus || record.status === selectedStatus;
+    const monthMatch = !selectedMonth || record.settlementMonth === selectedMonth;
+    const aircraftMatch = !selectedAircraft || record.aircraftType === selectedAircraft;
+    return textMatch && statusMatch && monthMatch && aircraftMatch;
+  });
 
   return <>
+    <style>{`
+      .staff-data-tools { display: grid; gap: 14px; margin-bottom: 18px; }
+      .filter-card { display: grid; grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(150px, .7fr)) auto auto; gap: 12px; align-items: end; }
+      .filter-field { display: grid; gap: 7px; }
+      .filter-field label { color: var(--muted); font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+      .filter-field input, .filter-field select { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: #fbfcfe; color: var(--ink); }
+      .filter-meta { color: var(--muted); font-size: 12px; }
+      .data-card { overflow: hidden; padding: 0; }
+      .data-card .table-wrap { width: 100%; max-width: 100%; overflow-x: auto; padding: 18px 20px 20px; }
+      .data-card table { min-width: 1260px; }
+      .data-card th, .data-card td { padding-left: 10px; padding-right: 10px; }
+      .actions { flex-wrap: wrap; }
+      .calculation-panel { right: auto; left: 0; }
+      .empty-state { padding: 24px; color: var(--muted); font-size: 13px; }
+      @media (max-width: 1280px) { .content { padding: 28px 24px; max-width: none; } .data-card table { min-width: 1180px; } }
+      @media (max-width: 1180px) { .app-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .nav-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } .sidebar-note { display: none; } .filter-card { grid-template-columns: 1fr 1fr; } }
+      @media (max-width: 720px) { .filter-card { grid-template-columns: 1fr; } .content { padding: 22px 14px; } .topbar { height: auto; padding: 16px; align-items: flex-start; gap: 14px; flex-direction: column; } .data-card .table-wrap { padding: 14px; } }
+    `}</style>
     <PageHeading eyebrow="COMPENSACIÓN VIRTUAL" title="Nóminas" copy="Acciones protegidas por rol y registradas para auditoría." />
-    {feedback.success && <div className="feedback success">{feedback.success}</div>}
-    {feedback.error && <div className="feedback error">{feedback.error}</div>}
+    {filters.success && <div className="feedback success">{filters.success}</div>}
+    {filters.error && <div className="feedback error">{filters.error}</div>}
     {!canMutatePayroll && <div className="notice">Vista de demostración: configura PostgreSQL y ejecuta la semilla para activar las acciones de nómina.</div>}
-    <div className="card"><DataTable
+    <div className="staff-data-tools">
+      <form className="card filter-card" method="get">
+        <div className="filter-field"><label>Buscar</label><input name="q" defaultValue={filters.q ?? ""} placeholder="Piloto, vuelo, aeronave, ID..." /></div>
+        <div className="filter-field"><label>Estado</label><select name="status" defaultValue={selectedStatus}><option value="">Todos</option>{Object.entries(statusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></div>
+        <div className="filter-field"><label>Mes</label><select name="month" defaultValue={selectedMonth}><option value="">Todos</option>{monthOptions.map((month) => <option value={month} key={month}>{month}</option>)}</select></div>
+        <div className="filter-field"><label>Aeronave</label><select name="aircraft" defaultValue={selectedAircraft}><option value="">Todas</option>{aircraftOptions.map((aircraft) => <option value={aircraft} key={aircraft}>{aircraft}</option>)}</select></div>
+        <button className="action-button approve" type="submit">Filtrar</button>
+        <a className="action-button" href="?">Limpiar</a>
+      </form>
+      <div className="filter-meta">Mostrando {filteredPayroll.length} de {payroll.length} nóminas.</div>
+    </div>
+    <div className="card data-card">{filteredPayroll.length ? <DataTable
       headers={["Piloto", "Vuelo", "Aeronave", "Base", "Bonificación", "Penalización", "Importe final", "Estado", "Mes", "Cálculo y acciones"]}
-      rows={payroll.map((record) => {
+      rows={filteredPayroll.map((record) => {
         const actionsAvailable = (record.status === "pending" && canReview) || (record.status === "approved" && canPay);
         return [
           <Identity key="pilot" primary={record.pilot} secondary={record.id} />,
@@ -59,6 +107,6 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
           </div>,
         ];
       })}
-    /></div>
+    /> : <div className="empty-state">No hay nóminas que coincidan con los filtros.</div>}</div>
   </>;
 }
