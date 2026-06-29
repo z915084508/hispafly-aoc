@@ -13,43 +13,60 @@ export function calculatePayroll(
   input: PayrollPirepInput,
   rules: PayrollRules = DEFAULT_PAYROLL_RULES,
 ): PayrollCalculationResult {
-  if (!Number.isFinite(input.flightTimeMinutes) || input.flightTimeMinutes < 0) {
+  const aircraftTypeValue = input.aircraftType;
+  const flightTimeMinutes = input.flightTimeMinutes;
+  const networkValue = input.network;
+  const landingRate = input.landingRate;
+  const score = input.score;
+
+  const missingFields: string[] = [];
+  if (!aircraftTypeValue) missingFields.push("aircraftType");
+  if (flightTimeMinutes === null) missingFields.push("flightTimeMinutes");
+  if (!networkValue) missingFields.push("network");
+  if (landingRate === null) missingFields.push("landingRate");
+  if (score === null) missingFields.push("score");
+
+  if (!aircraftTypeValue || flightTimeMinutes === null || !networkValue || landingRate === null || score === null) {
+    throw new Error(`PIREP is missing required payroll fields: ${missingFields.join(", ")}.`);
+  }
+
+  if (!Number.isFinite(flightTimeMinutes) || flightTimeMinutes < 0) {
     throw new Error("Flight time must be a non-negative number.");
   }
-  if (!Number.isFinite(input.landingRate) || !Number.isFinite(input.score)) {
+  if (!Number.isFinite(landingRate) || !Number.isFinite(score)) {
     throw new Error("Landing rate and score must be valid numbers.");
   }
 
-  const aircraftType = input.aircraftType.toUpperCase() as AircraftType;
+  const aircraftType = aircraftTypeValue.toUpperCase() as AircraftType;
   const hourlyRate = rules.aircraftHourlyRates[aircraftType];
-  if (hourlyRate === undefined) throw new Error(`Unsupported aircraft type: ${input.aircraftType}`);
+  if (hourlyRate === undefined) throw new Error(`Unsupported aircraft type: ${aircraftTypeValue}`);
 
-  const basePay = roundCredits((input.flightTimeMinutes / 60) * hourlyRate);
+  const basePay = roundCredits((flightTimeMinutes / 60) * hourlyRate);
   const aircraftBonus = 0;
-  const network = input.network.toUpperCase();
+  const network = networkValue.toUpperCase();
   const networkBonus = rules.onlineNetworks.includes(network)
     ? roundCredits(basePay * (rules.networkBonusPercent / 100))
     : 0;
-  const landingBonus = input.landingRate >= rules.landingBonusMinimum && input.landingRate <= rules.landingBonusMaximum
+  const landingBonus = landingRate >= rules.landingBonusMinimum && landingRate <= rules.landingBonusMaximum
     ? rules.landingBonusCredits
     : 0;
-  const scoreBonus = input.score >= rules.scoreBonusMinimum ? rules.scoreBonusCredits : 0;
-  const landingPenalty = input.landingRate < rules.hardLandingThreshold ? rules.hardLandingPenaltyCredits : 0;
-  const scorePenalty = input.score < rules.lowScoreThreshold ? rules.lowScorePenaltyCredits : 0;
+  const scoreBonus = score >= rules.scoreBonusMinimum ? rules.scoreBonusCredits : 0;
+  const landingPenalty = landingRate < rules.hardLandingThreshold ? rules.hardLandingPenaltyCredits : 0;
+  const scorePenalty = score < rules.lowScoreThreshold ? rules.lowScorePenaltyCredits : 0;
   const totalBonus = roundCredits(aircraftBonus + networkBonus + landingBonus + scoreBonus);
   const penalties = roundCredits(landingPenalty + scorePenalty);
   const finalAmount = roundCredits(Math.max(0, basePay + totalBonus - penalties));
 
   const explanation = [
-    `Pago base: ${formatHours(input.flightTimeMinutes)} h × tarifa ${aircraftType} ${formatCredits(hourlyRate)} = ${formatCredits(basePay)} créditos`,
+    `Pago base: ${formatHours(flightTimeMinutes)} h x tarifa ${aircraftType} ${formatCredits(hourlyRate)} = ${formatCredits(basePay)} creditos`,
   ];
-  if (aircraftBonus) explanation.push(`Bonificación de aeronave: +${formatCredits(aircraftBonus)} créditos`);
-  if (networkBonus) explanation.push(`Bonificación de red: ${network} +${rules.networkBonusPercent}% = ${formatCredits(networkBonus)} créditos`);
-  if (landingBonus) explanation.push(`Bonificación de aterrizaje: ${input.landingRate} fpm = +${formatCredits(landingBonus)} créditos`);
-  if (scoreBonus) explanation.push(`Bonificación de puntuación: ${input.score} = +${formatCredits(scoreBonus)} créditos`);
-  if (landingPenalty) explanation.push(`Penalización de aterrizaje: ${input.landingRate} fpm = -${formatCredits(landingPenalty)} créditos`);
-  if (scorePenalty) explanation.push(`Penalización de puntuación: ${input.score} = -${formatCredits(scorePenalty)} créditos`);
-  explanation.push(`Importe final: ${formatCredits(finalAmount)} créditos`);
+  if (aircraftBonus) explanation.push(`Bonificacion de aeronave: +${formatCredits(aircraftBonus)} creditos`);
+  if (networkBonus) explanation.push(`Bonificacion de red: ${network} +${rules.networkBonusPercent}% = ${formatCredits(networkBonus)} creditos`);
+  if (landingBonus) explanation.push(`Bonificacion de aterrizaje: ${landingRate} fpm = +${formatCredits(landingBonus)} creditos`);
+  if (scoreBonus) explanation.push(`Bonificacion de puntuacion: ${score} = +${formatCredits(scoreBonus)} creditos`);
+  if (landingPenalty) explanation.push(`Penalizacion de aterrizaje: ${landingRate} fpm = -${formatCredits(landingPenalty)} creditos`);
+  if (scorePenalty) explanation.push(`Penalizacion de puntuacion: ${score} = -${formatCredits(scorePenalty)} creditos`);
+  explanation.push(`Importe final: ${formatCredits(finalAmount)} creditos`);
 
   return {
     hourlyRate,
