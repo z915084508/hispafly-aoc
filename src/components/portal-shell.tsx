@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getCurrentStaff } from "@/lib/staff/currentStaff";
 import { roleLabels } from "@/lib/staff/permissions";
+import { logoutAdmin } from "@/app/admin-login/actions";
 
 const navItems = [
   ["Panel de control", "/staff"],
@@ -32,7 +33,7 @@ export async function PortalShell({ children }: { children: React.ReactNode }) {
       <main className="main">
         <header className="topbar">
           <div className="environment">Portal AOC · Entorno de desarrollo</div>
-          <div className="user"><div><div className="primary">{staff?.name ?? "Usuario no configurado"}</div><span className="secondary">{staff ? roleLabels[staff.role] : "Sin acceso"}{staff && !staff.active ? " · Inactivo" : ""}</span></div><div className="avatar">{initials}</div></div>
+          <div className="user user-session"><div><div className="primary">{staff?.name ?? "Usuario no configurado"}</div><span className="secondary">{staff ? roleLabels[staff.role] : "Sin acceso"}{staff && !staff.active ? " · Inactivo" : ""}</span></div><div className="avatar">{initials}</div><form action={logoutAdmin}><button className="logout-button" type="submit">Salir</button></form></div>
         </header>
         <div className="content">{children}</div>
       </main>

@@ -19,7 +19,17 @@ export async function getOperationsAccessToken(force = false) {
 
 export async function operationsRequest(path: string, retry = true): Promise<unknown> {
   const token = await getOperationsAccessToken();
-  const response = await fetch(`${env("VAMSYS_OPERATIONS_API_BASE_URL", "https://vamsys.io/api/v3/operations")}${path}`, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` }, cache: "no-store" });
+  const baseUrl = env("VAMSYS_OPERATIONS_API_BASE_URL", "https://vamsys.io/api/v3/operations");
+  const base = new URL(baseUrl);
+  const target = /^https?:\/\//i.test(path)
+    ? new URL(path)
+    : path.startsWith(base.pathname)
+      ? new URL(path, base.origin)
+      : new URL(`${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}`);
+  if (target.origin !== base.origin || !target.pathname.startsWith(`${base.pathname.replace(/\/$/, "")}/`)) {
+    throw new Error("vAMSYS devolvió una URL de paginación fuera del API Operations configurado.");
+  }
+  const response = await fetch(target, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` }, cache: "no-store" });
   if (response.status === 401 && retry) { cached = null; await getOperationsAccessToken(true); return operationsRequest(path, false); }
   if (response.status === 429) throw new Error("vAMSYS ha alcanzado el límite de 100 solicitudes por minuto.");
   if (!response.ok) throw new Error(`vAMSYS Operations respondió ${response.status}.`);

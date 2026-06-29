@@ -12,7 +12,7 @@ export async function requireAdminStaff(): Promise<StaffIdentity> {
       message: "Se denegó un intento de acceso al STAFF PORTAL.",
       metadata: { role: staff?.role ?? "none", active: staff?.active ?? false },
     });
-    redirect("/?error=staff_access_denied");
+    redirect("/admin-login?error=staff_access_denied");
   }
   return staff;
 }

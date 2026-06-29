@@ -5,6 +5,8 @@ import { calculatePayroll, creditsToCents } from "@/lib/payroll/calculatePayroll
 import { payrollRulesFromStoredRule } from "@/lib/payroll/rules";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
 import { operationsRequest } from "./operations";
+import { nextVamsysCursor, nextVamsysPageUrl } from "./pagination";
+import { isCompletedOperationsPirep, mergeOperationsPirepRecords, operationsPirepStatus } from "./operationsPirepPayload";
 
 type Row = Record<string, unknown>;
 export interface OperationsPirepSyncResult { importedCount: number; updatedCount: number; skippedCount: number; payrollGeneratedCount: number; errors: string[] }
@@ -17,38 +19,46 @@ const minutes = (seconds: number | null) => seconds === null ? null : Math.round
 
 export function mapOperationsPirep(raw: Row) {
   const id = str(raw, "id", "pirep_id"); if (!id) throw new Error("PIREP Operations sin identificador.");
-  const status = (str(raw, "status") ?? "").toLowerCase(); if (status !== "accepted") throw new Error(`PIREP ${id} no aceptado.`);
-  const booking = nested(raw, "booking"), fleet = nested(raw, "fleet") ?? (booking ? nested(booking, "fleet") : null), aircraft = nested(raw, "aircraft") ?? (booking ? nested(booking, "aircraft") : null);
-  const departure = nested(raw, "departure_airport") ?? (booking ? nested(booking, "departure") : null);
-  const arrival = nested(raw, "arrival_airport") ?? (booking ? nested(booking, "arrival") : null);
-  const passengersValue = num(raw, "passengers") ?? (booking ? num(booking, "passengers") : null);
-  const distanceValue = num(raw, "flight_distance");
+  const attributes = rec(raw.attributes) ?? {};
+  const source = { ...attributes, ...raw };
+  const status = operationsPirepStatus(raw);
+  if (!isCompletedOperationsPirep(raw)) throw new Error(`PIREP ${id} omitido por estado ${status ?? "desconocido"}.`);
+  const booking = nested(source, "booking"), fleet = nested(source, "fleet") ?? (booking ? nested(booking, "fleet") : null), aircraft = nested(source, "aircraft") ?? (booking ? nested(booking, "aircraft") : null);
+  const departure = nested(source, "departure_airport") ?? (booking ? nested(booking, "departure") : null);
+  const arrival = nested(source, "arrival_airport") ?? (booking ? nested(booking, "arrival") : null);
+  const passengersValue = num(source, "passengers") ?? (booking ? num(booking, "passengers") : null);
+  const distanceValue = num(source, "flight_distance");
   const passengers = passengersValue === null ? null : Math.round(passengersValue);
   const flightDistanceNm = distanceValue === null ? null : Math.round(distanceValue);
   const passengerRevenueCents = passengers !== null && flightDistanceNm !== null ? calculatePassengerRevenue(passengers, flightDistanceNm).revenueCents : null;
   return {
-    pilotExternalId: str(raw, "pilot_id", "pilotId"),
+    pilotExternalId: str(source, "pilot_id", "pilotId"),
     data: {
-      vamsysPirepId: id, flightNumber: str(raw, "flight_number"), callsign: str(raw, "callsign"),
-      departure: departure ? str(departure, "icao", "ident", "code", "id") : str(raw, "departure_airport_id"),
-      arrival: arrival ? str(arrival, "icao", "ident", "code", "id") : str(raw, "arrival_airport_id"),
+      vamsysPirepId: id, flightNumber: str(source, "flight_number"), callsign: str(source, "callsign"),
+      departure: departure ? str(departure, "icao", "ident", "code", "id") : str(source, "departure_airport_id"),
+      arrival: arrival ? str(arrival, "icao", "ident", "code", "id") : str(source, "arrival_airport_id"),
       aircraftType: fleet ? str(fleet, "code", "icao", "name") : aircraft ? str(aircraft, "type", "icao") : null,
-      network: str(raw, "network"), flightTimeMinutes: minutes(num(raw, "flight_length")), blockTimeMinutes: minutes(num(raw, "block_length")),
-      landingRate: num(raw, "landing_rate") === null ? null : Math.round(num(raw, "landing_rate")!), score: num(raw, "points") === null ? null : Math.round(num(raw, "points")!),
-      fuelUsed: num(raw, "fuel_used") === null ? null : Math.round(num(raw, "fuel_used")!), points: num(raw, "points"), credits: num(raw, "bonus_sum"),
+      network: str(source, "network"), flightTimeMinutes: minutes(num(source, "flight_length")), blockTimeMinutes: minutes(num(source, "block_length")),
+      landingRate: num(source, "landing_rate") === null ? null : Math.round(num(source, "landing_rate")!), score: num(source, "points") === null ? null : Math.round(num(source, "points")!),
+      fuelUsed: num(source, "fuel_used") === null ? null : Math.round(num(source, "fuel_used")!), points: num(source, "points"), credits: num(source, "bonus_sum"),
       passengers, flightDistanceNm, passengerRevenueCents,
-      status: "accepted" as const, acarsSoftware: str(raw, "acars_version"), source: "vamsys_operations",
-      flownAt: date(raw, "landing_time", "on_blocks_time", "created_at"), acceptedAt: date(raw, "updated_at"), vamsysCreatedAt: date(raw, "created_at"), vamsysUpdatedAt: date(raw, "updated_at"), rawData: raw as Prisma.InputJsonValue, synchronizedAt: new Date(),
+      status: "accepted" as const, acarsSoftware: str(source, "acars_version"), source: "vamsys_operations",
+      flownAt: date(source, "landing_time", "on_blocks_time", "created_at"), acceptedAt: date(source, "updated_at"), vamsysCreatedAt: date(source, "created_at"), vamsysUpdatedAt: date(source, "updated_at"), rawData: raw as Prisma.InputJsonValue, synchronizedAt: new Date(),
     },
   };
 }
 
 async function fetchAllAccepted() {
-  const rows: Row[] = []; let cursor: string | null = null;
+  const rows: Row[] = []; let nextRequest: string | null = null;
   for (let page = 0; page < 100; page++) {
-    const query = new URLSearchParams({ "filter[status]": "accepted", "page[size]": "50", sort: "-created_at" }); if (cursor) query.set("page[cursor]", cursor);
-    const body = rec(await operationsRequest(`/pireps?${query}`)); const data = Array.isArray(body?.data) ? body.data.map(rec).filter(Boolean) as Row[] : [];
-    rows.push(...data); const meta = rec(body?.meta); cursor = meta ? str(meta, "next_cursor") : null; if (!cursor) return rows;
+    const query = new URLSearchParams({ "filter[status]": "accepted", "page[size]": "50", sort: "-created_at" });
+    const request = nextRequest ?? `/pireps?${query}`;
+    const body = rec(await operationsRequest(request)); const data = Array.isArray(body?.data) ? body.data.map(rec).filter(Boolean) as Row[] : [];
+    const nextUrl = body ? nextVamsysPageUrl(body) : null;
+    const cursor = body ? nextVamsysCursor(body) : null;
+    nextRequest = nextUrl ?? (cursor ? `/pireps?${new URLSearchParams({ "filter[status]": "accepted", "page[size]": "50", sort: "-created_at", "page[cursor]": cursor })}` : null);
+    console.info(`[vAMSYS PIREP sync] page=${page + 1} records=${data.length} next=${nextRequest ?? "none"}`);
+    rows.push(...data); if (!nextRequest) return rows;
   }
   throw new Error("La paginación de PIREPs superó el límite de seguridad.");
 }
@@ -59,7 +69,7 @@ export async function syncAcceptedOperationsPireps(staffUserId?: string): Promis
   try {
     const [rows, rule] = await Promise.all([fetchAllAccepted(), prisma.payrollRule.findFirst({ where: { isActive: true }, orderBy: [{ effectiveFrom: "desc" }, { version: "desc" }] })]);
     for (const summary of rows) try {
-      const summaryMapped = mapOperationsPirep(summary); const detailBody = rec(await operationsRequest(`/pireps/${encodeURIComponent(summaryMapped.data.vamsysPirepId)}`)); const detail = rec(detailBody?.data) ?? summary; const mapped = mapOperationsPirep(detail);
+      const summaryMapped = mapOperationsPirep(summary); const detailBody = rec(await operationsRequest(`/pireps/${encodeURIComponent(summaryMapped.data.vamsysPirepId)}`)); const detail = rec(detailBody?.data) ?? summary; const mapped = mapOperationsPirep(mergeOperationsPirepRecords(summary, detail));
       if (!mapped.pilotExternalId) throw new Error(`PIREP ${mapped.data.vamsysPirepId} sin pilot_id.`);
       const pilot = await prisma.pilot.upsert({ where: { vamsysPilotId: mapped.pilotExternalId }, update: {}, create: { vamsysPilotId: mapped.pilotExternalId, displayName: `Piloto ${mapped.pilotExternalId}` } });
       const existing = await prisma.pirep.findUnique({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, select: { id: true } });
@@ -71,6 +81,7 @@ export async function syncAcceptedOperationsPireps(staffUserId?: string): Promis
         try { await prisma.payrollRecord.create({ data: { pirepId: stored.id, pilotId: pilot.id, payrollRuleId: rule.id, basePayCents: creditsToCents(calc.basePay), bonusCents: creditsToCents(calc.totalBonus), penaltyCents: creditsToCents(calc.penalties), amountCents: creditsToCents(calc.finalAmount), calculationDetails: { ...calc }, settlementMonth: d.flownAt.toISOString().slice(0, 7) } }); result.payrollGeneratedCount++; } catch (error) { if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error; }
       }
     } catch (error) { result.skippedCount++; result.errors.push(error instanceof Error ? error.message : "Error desconocido."); }
+    console.info(`[vAMSYS PIREP sync] completed fetched=${rows.length} imported=${result.importedCount} updated=${result.updatedCount} skipped=${result.skippedCount}`);
     await writeAuditLogSafely({ staffUserId, action: "VAMSYS_OPERATIONS_PIREP_SYNC_COMPLETED", entityType: "Pirep", message: `Operations API: ${result.importedCount} PIREPs nuevos, ${result.updatedCount} actualizados y ${result.payrollGeneratedCount} nóminas.`, metadata: { imported: result.importedCount, updated: result.updatedCount, skipped: result.skippedCount, payroll: result.payrollGeneratedCount } });
   } catch (error) { const message = error instanceof Error ? error.message : "Error desconocido."; result.errors.push(message); await writeAuditLogSafely({ staffUserId, action: "VAMSYS_OPERATIONS_PIREP_SYNC_FAILED", entityType: "Pirep", message: `Falló la sincronización global de PIREPs: ${message}` }); }
   return result;

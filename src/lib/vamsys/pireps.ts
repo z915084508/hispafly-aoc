@@ -7,6 +7,7 @@ import { getVamsysPilotConfig } from "./config";
 import { getValidVamsysAccessToken } from "./token";
 import { VamsysApiError } from "./client";
 import { mapVamsysPirep } from "./pirepMapper";
+import { nextVamsysCursor } from "./pagination";
 export { mapVamsysPirep } from "./pirepMapper";
 
 export interface VamsysPirepFetchOptions {
@@ -43,22 +44,6 @@ function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
-function text(value: Record<string, unknown>, keys: string[]): string | null {
-  for (const key of keys) if (typeof value[key] === "string" && value[key]) return value[key] as string;
-  return null;
-}
-
-
-function nextCursorFrom(payload: Record<string, unknown>): string | null {
-  const meta = record(payload.meta);
-  const direct = text(payload, ["next_cursor", "nextCursor"]) ?? (meta ? text(meta, ["next_cursor", "nextCursor"]) : null);
-  if (direct) return direct;
-  const links = record(payload.links);
-  const next = links && typeof links.next === "string" ? links.next : null;
-  if (!next) return null;
-  try { return new URL(next).searchParams.get("page[cursor]"); } catch { return null; }
-}
-
 export async function fetchVamsysPireps(accessToken: string, options: VamsysPirepFetchOptions = {}): Promise<VamsysPirepPage> {
   const { apiBaseUrl } = getVamsysPilotConfig();
   const url = new URL(`${apiBaseUrl}/pireps`);
@@ -76,7 +61,7 @@ export async function fetchVamsysPireps(accessToken: string, options: VamsysPire
   const data = Array.isArray(body.data) ? body.data : Array.isArray(body.pireps) ? body.pireps : Array.isArray(body.results) ? body.results : null;
   if (!data) throw new VamsysApiError("La respuesta de vAMSYS no contiene una lista de PIREPs.", 502, "invalid_response");
   const items = data.map(record).filter((item): item is Record<string, unknown> => Boolean(item));
-  return { items, nextCursor: nextCursorFrom(body) };
+  return { items, nextCursor: nextVamsysCursor(body) };
 }
 
 export async function fetchAcceptedVamsysPirepsForPilot(pilotId: string) {
