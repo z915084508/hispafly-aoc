@@ -1,0 +1,23 @@
+ALTER TABLE "Pilot" ADD COLUMN "lastPirepSyncAt" TIMESTAMP(3);
+
+ALTER TABLE "Pirep"
+ALTER COLUMN "flightNumber" DROP NOT NULL,
+ALTER COLUMN "callsign" DROP NOT NULL,
+ALTER COLUMN "departure" DROP NOT NULL,
+ALTER COLUMN "arrival" DROP NOT NULL,
+ALTER COLUMN "aircraftType" DROP NOT NULL,
+ALTER COLUMN "network" DROP NOT NULL,
+ALTER COLUMN "flightTimeMinutes" DROP NOT NULL,
+ALTER COLUMN "blockTimeMinutes" DROP NOT NULL,
+ALTER COLUMN "landingRate" DROP NOT NULL,
+ALTER COLUMN "score" DROP NOT NULL,
+ALTER COLUMN "fuelUsed" DROP NOT NULL,
+ALTER COLUMN "flownAt" DROP NOT NULL,
+ADD COLUMN "points" DOUBLE PRECISION,
+ADD COLUMN "credits" DOUBLE PRECISION,
+ADD COLUMN "acarsSoftware" TEXT,
+ADD COLUMN "source" TEXT NOT NULL DEFAULT 'mock',
+ADD COLUMN "vamsysCreatedAt" TIMESTAMP(3),
+ADD COLUMN "vamsysUpdatedAt" TIMESTAMP(3);
+
+CREATE INDEX "Pirep_source_synchronizedAt_idx" ON "Pirep"("source", "synchronizedAt");
