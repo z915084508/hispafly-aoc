@@ -14,6 +14,13 @@ function payrollId(formData: FormData) {
   return id;
 }
 
+function payrollIds(formData: FormData) {
+  const ids = formData.getAll("payrollIds").filter((id): id is string => typeof id === "string" && id.length > 0);
+  const uniqueIds = [...new Set(ids)];
+  if (!uniqueIds.length) throw new Error("Selecciona al menos una nómina.");
+  return uniqueIds;
+}
+
 function readableError(error: unknown) {
   return error instanceof Error ? error.message : "No se pudo completar la acción.";
 }
@@ -43,21 +50,19 @@ function payrollPirepInputFromRecord(pirep: {
     throw new Error(`El PIREP no tiene datos suficientes para calcular la nómina: ${missingFields.join(", ")}.`);
   }
 
-  return {
-    aircraftType,
-    flightTimeMinutes,
-    network,
-    landingRate,
-    score,
-    status: pirep.status,
-  };
+  return { aircraftType, flightTimeMinutes, network, landingRate, score, status: pirep.status };
 }
 
-async function runPayrollAction(
-  formData: FormData,
-  successMessage: string,
-  action: (id: string) => Promise<void>,
-) {
+function revalidatePayrollViews() {
+  revalidatePath("/payroll");
+  revalidatePath("/staff/payroll");
+  revalidatePath("/audit");
+  revalidatePath("/staff/audit");
+  revalidatePath("/");
+  revalidatePath("/staff");
+}
+
+async function runPayrollAction(formData: FormData, successMessage: string, action: (id: string) => Promise<void>) {
   let feedback: { type: "success" | "error"; message: string };
   try {
     await action(payrollId(formData));
@@ -65,10 +70,20 @@ async function runPayrollAction(
   } catch (error) {
     feedback = { type: "error", message: readableError(error) };
   }
-  revalidatePath("/payroll");
-  revalidatePath("/audit");
-  revalidatePath("/");
-  redirect(`/payroll?${feedback.type}=${encodeURIComponent(feedback.message)}`);
+  revalidatePayrollViews();
+  redirect(`/staff/payroll?${feedback.type}=${encodeURIComponent(feedback.message)}`);
+}
+
+async function runBulkPayrollAction(formData: FormData, success: (count: number) => string, action: (ids: string[]) => Promise<number>) {
+  let feedback: { type: "success" | "error"; message: string };
+  try {
+    const count = await action(payrollIds(formData));
+    feedback = { type: "success", message: success(count) };
+  } catch (error) {
+    feedback = { type: "error", message: readableError(error) };
+  }
+  revalidatePayrollViews();
+  redirect(`/staff/payroll?${feedback.type}=${encodeURIComponent(feedback.message)}`);
 }
 
 export async function approvePayroll(formData: FormData) {
@@ -104,17 +119,14 @@ export async function recalculatePayroll(formData: FormData) {
 
       const calculation = calculatePayroll(payrollPirepInputFromRecord(record.pirep), payrollRulesFromStoredRule(activeRule));
       const amountCents = creditsToCents(calculation.finalAmount);
-      const result = await tx.payrollRecord.updateMany({
-        where: { id, status: "pending" },
-        data: {
-          payrollRuleId: activeRule.id,
-          basePayCents: creditsToCents(calculation.basePay),
-          bonusCents: creditsToCents(calculation.totalBonus),
-          penaltyCents: creditsToCents(calculation.penalties),
-          amountCents,
-          calculationDetails: { ...calculation },
-        },
-      });
+      const result = await tx.payrollRecord.updateMany({ where: { id, status: "pending" }, data: {
+        payrollRuleId: activeRule.id,
+        basePayCents: creditsToCents(calculation.basePay),
+        bonusCents: creditsToCents(calculation.totalBonus),
+        penaltyCents: creditsToCents(calculation.penalties),
+        amountCents,
+        calculationDetails: { ...calculation },
+      } });
       if (result.count !== 1) throw new Error("La nómina cambió de estado antes del recálculo.");
       await tx.aocAuditLog.create({ data: {
         staffUserId: staff.id, action: "PAYROLL_RECALCULATED", entityType: "PayrollRecord", entityId: id,
@@ -160,17 +172,83 @@ export async function markPayrollPaid(formData: FormData) {
       } });
       await tx.pilot.update({ where: { id: record.pilotId }, data: { walletBalanceCents: { increment: record.amountCents } } });
       await tx.aocAuditLog.createMany({ data: [
-        {
-          staffUserId: staff.id, action: "PAYROLL_MARKED_PAID", entityType: "PayrollRecord", entityId: id,
-          message: `${staff.name} marcó como pagada la nómina ${id} del piloto ${record.pilot.callsign ?? record.pilot.displayName}.`,
-          metadata: { pilotId: record.pilotId, amountCents: record.amountCents, walletTransactionId: walletTransaction.id },
-        },
-        {
-          staffUserId: staff.id, action: "WALLET_TRANSACTION_CREATED", entityType: "WalletTransaction", entityId: walletTransaction.id,
-          message: `${staff.name} creó el movimiento de cartera ${walletTransaction.id} por la nómina ${id}.`,
-          metadata: { payrollRecordId: id, pilotId: record.pilotId, amountCents: record.amountCents },
-        },
+        { staffUserId: staff.id, action: "PAYROLL_MARKED_PAID", entityType: "PayrollRecord", entityId: id, message: `${staff.name} marcó como pagada la nómina ${id} del piloto ${record.pilot.callsign ?? record.pilot.displayName}.`, metadata: { pilotId: record.pilotId, amountCents: record.amountCents, walletTransactionId: walletTransaction.id } },
+        { staffUserId: staff.id, action: "WALLET_TRANSACTION_CREATED", entityType: "WalletTransaction", entityId: walletTransaction.id, message: `${staff.name} creó el movimiento de cartera ${walletTransaction.id} por la nómina ${id}.`, metadata: { payrollRecordId: id, pilotId: record.pilotId, amountCents: record.amountCents } },
       ] });
+    });
+  });
+}
+
+export async function bulkApprovePayroll(formData: FormData) {
+  return runBulkPayrollAction(formData, (count) => `Se aprobaron ${count} nóminas seleccionadas.`, async (ids) => {
+    const staff = await requireStaffPermission("PAYROLL_APPROVE", { entityType: "PayrollRecord", entityId: "bulk", attemptedAction: "aprobar nóminas en lote" });
+    return prisma.$transaction(async (tx) => {
+      const records = await tx.payrollRecord.findMany({ where: { id: { in: ids }, status: "pending" }, include: { pilot: true } });
+      if (!records.length) throw new Error("No hay nóminas pendientes entre las seleccionadas.");
+      let processed = 0;
+      for (const record of records) {
+        const claimed = await tx.payrollRecord.updateMany({ where: { id: record.id, status: "pending" }, data: { status: "approved", approvedAt: new Date() } });
+        if (claimed.count !== 1) continue;
+        processed += 1;
+        await tx.aocAuditLog.create({ data: {
+          staffUserId: staff.id, action: "PAYROLL_APPROVED", entityType: "PayrollRecord", entityId: record.id,
+          message: `${staff.name} aprobó en lote la nómina ${record.id} del piloto ${record.pilot.callsign ?? record.pilot.displayName}.`,
+          metadata: { pilotId: record.pilotId, previousStatus: "pending", newStatus: "approved", bulk: true },
+        } });
+      }
+      if (!processed) throw new Error("Las nóminas seleccionadas cambiaron de estado antes de aprobarse.");
+      return processed;
+    });
+  });
+}
+
+export async function bulkRejectPayroll(formData: FormData) {
+  return runBulkPayrollAction(formData, (count) => `Se rechazaron ${count} nóminas seleccionadas.`, async (ids) => {
+    const staff = await requireStaffPermission("PAYROLL_REJECT", { entityType: "PayrollRecord", entityId: "bulk", attemptedAction: "rechazar nóminas en lote" });
+    return prisma.$transaction(async (tx) => {
+      const records = await tx.payrollRecord.findMany({ where: { id: { in: ids }, status: "pending" }, include: { pilot: true } });
+      if (!records.length) throw new Error("No hay nóminas pendientes entre las seleccionadas.");
+      let processed = 0;
+      for (const record of records) {
+        const claimed = await tx.payrollRecord.updateMany({ where: { id: record.id, status: "pending" }, data: { status: "rejected" } });
+        if (claimed.count !== 1) continue;
+        processed += 1;
+        await tx.aocAuditLog.create({ data: {
+          staffUserId: staff.id, action: "PAYROLL_REJECTED", entityType: "PayrollRecord", entityId: record.id,
+          message: `${staff.name} rechazó en lote la nómina ${record.id} del piloto ${record.pilot.callsign ?? record.pilot.displayName}.`,
+          metadata: { pilotId: record.pilotId, previousStatus: "pending", newStatus: "rejected", bulk: true },
+        } });
+      }
+      if (!processed) throw new Error("Las nóminas seleccionadas cambiaron de estado antes de rechazarse.");
+      return processed;
+    });
+  });
+}
+
+export async function bulkMarkPayrollPaid(formData: FormData) {
+  return runBulkPayrollAction(formData, (count) => `Se marcaron como pagadas ${count} nóminas seleccionadas.`, async (ids) => {
+    const staff = await requireStaffPermission("PAYROLL_MARK_PAID", { entityType: "PayrollRecord", entityId: "bulk", attemptedAction: "marcar nóminas como pagadas en lote" });
+    return prisma.$transaction(async (tx) => {
+      const records = await tx.payrollRecord.findMany({ where: { id: { in: ids }, status: "approved" }, include: { pirep: true, pilot: true, walletTransaction: true } });
+      const payableRecords = records.filter((record) => !record.walletTransaction);
+      if (!payableRecords.length) throw new Error("No hay nóminas aprobadas y pendientes de pago entre las seleccionadas.");
+      let processed = 0;
+      for (const record of payableRecords) {
+        const claimed = await tx.payrollRecord.updateMany({ where: { id: record.id, status: "approved" }, data: { status: "paid", paidAt: new Date() } });
+        if (claimed.count !== 1) continue;
+        const walletTransaction = await tx.walletTransaction.create({ data: {
+          pilotId: record.pilotId, payrollRecordId: record.id, type: "payroll", amountCents: record.amountCents,
+          description: `Nómina ${record.pirep.flightNumber}`, reference: record.pirep.vamsysPirepId,
+        } });
+        await tx.pilot.update({ where: { id: record.pilotId }, data: { walletBalanceCents: { increment: record.amountCents } } });
+        processed += 1;
+        await tx.aocAuditLog.createMany({ data: [
+          { staffUserId: staff.id, action: "PAYROLL_MARKED_PAID", entityType: "PayrollRecord", entityId: record.id, message: `${staff.name} marcó en lote como pagada la nómina ${record.id} del piloto ${record.pilot.callsign ?? record.pilot.displayName}.`, metadata: { pilotId: record.pilotId, amountCents: record.amountCents, walletTransactionId: walletTransaction.id, bulk: true } },
+          { staffUserId: staff.id, action: "WALLET_TRANSACTION_CREATED", entityType: "WalletTransaction", entityId: walletTransaction.id, message: `${staff.name} creó el movimiento de cartera ${walletTransaction.id} por la nómina ${record.id}.`, metadata: { payrollRecordId: record.id, pilotId: record.pilotId, amountCents: record.amountCents, bulk: true } },
+        ] });
+      }
+      if (!processed) throw new Error("Las nóminas seleccionadas cambiaron de estado antes de pagarse.");
+      return processed;
     });
   });
 }
