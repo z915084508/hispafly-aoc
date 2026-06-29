@@ -1,5 +1,1 @@
-import { redirect } from "next/navigation";
-
-export default function StaffPirepsRedirect() {
-  redirect("/pireps");
-}
+export { default } from "../../pireps/page";
