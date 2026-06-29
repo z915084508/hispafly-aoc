@@ -1,0 +1,205 @@
+/* Responsive layout fixes for the STAFF portal. */
+
+.app-shell,
+.main,
+.content,
+.card,
+.table-wrap {
+  min-width: 0;
+}
+
+.content {
+  width: 100%;
+  max-width: min(1500px, 100%);
+}
+
+.card {
+  max-width: 100%;
+}
+
+.table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-wrap table {
+  width: 100%;
+}
+
+.table-wrap::-webkit-scrollbar {
+  height: 9px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb {
+  background: #ccd4df;
+  border-radius: 999px;
+}
+
+.table-wrap::-webkit-scrollbar-track {
+  background: #f1f4f8;
+  border-radius: 999px;
+}
+
+.filter-card {
+  max-width: 100%;
+}
+
+@media (max-width: 1500px) {
+  .app-shell {
+    grid-template-columns: 210px minmax(0, 1fr) !important;
+  }
+
+  .sidebar {
+    padding: 24px 16px !important;
+  }
+
+  .brand {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+
+  .nav-item {
+    padding: 10px 9px !important;
+    font-size: 13px !important;
+  }
+
+  .content {
+    max-width: none !important;
+    padding: 24px !important;
+  }
+
+  .topbar {
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+  }
+
+  .data-card .table-wrap {
+    padding: 16px !important;
+  }
+
+  .data-card table {
+    min-width: 1040px !important;
+    font-size: 12px !important;
+  }
+
+  .data-card th,
+  .data-card td {
+    padding: 11px 8px !important;
+  }
+
+  .data-card .secondary {
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .filter-card {
+    grid-template-columns: minmax(210px, 1.3fr) repeat(3, minmax(120px, .8fr)) auto auto !important;
+    gap: 10px !important;
+  }
+
+  .filter-field input,
+  .filter-field select {
+    padding: 10px 11px !important;
+  }
+
+  .action-button {
+    padding: 7px 9px !important;
+    font-size: 10px !important;
+  }
+}
+
+@media (max-width: 1280px) {
+  .app-shell {
+    grid-template-columns: 1fr !important;
+  }
+
+  .sidebar {
+    position: static !important;
+    height: auto !important;
+    padding: 18px !important;
+  }
+
+  .brand {
+    max-width: 210px;
+    padding-bottom: 16px !important;
+  }
+
+  .nav-list {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .sidebar-note {
+    display: none !important;
+  }
+
+  .topbar {
+    position: static !important;
+  }
+
+  .content {
+    padding: 22px 18px !important;
+  }
+
+  .filter-card {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .data-card table {
+    min-width: 980px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    height: auto !important;
+    padding: 14px 16px !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    flex-direction: column !important;
+  }
+
+  .user {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .content {
+    padding: 18px 12px !important;
+  }
+
+  .page-heading {
+    margin-bottom: 18px !important;
+  }
+
+  h1 {
+    font-size: 25px !important;
+  }
+
+  .filter-card {
+    grid-template-columns: 1fr !important;
+    padding: 14px !important;
+  }
+
+  .data-card .table-wrap {
+    padding: 12px !important;
+  }
+
+  .data-card table {
+    min-width: 860px !important;
+    font-size: 11px !important;
+  }
+
+  .data-card th,
+  .data-card td {
+    padding: 10px 7px !important;
+  }
+
+  .actions {
+    gap: 6px !important;
+  }
+}
