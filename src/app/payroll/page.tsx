@@ -1,9 +1,10 @@
 import { Badge, DataTable, Identity } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
+import { SelectAllCheckbox } from "@/components/bulk-select";
 import { canMutatePayroll, getPayrollRows } from "@/lib/workflow-data";
 import { getCurrentStaff } from "@/lib/staff/currentStaff";
 import { hasStaffPermission } from "@/lib/staff/permissions";
-import { approvePayroll, markPayrollPaid, recalculatePayroll, rejectPayroll } from "./actions";
+import { approvePayroll, bulkApprovePayroll, bulkMarkPayrollPaid, bulkRejectPayroll, markPayrollPaid, recalculatePayroll, rejectPayroll } from "./actions";
 
 const credits = (cents: number) => `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(cents / 100)} cr`;
 const statusLabels: Record<string, string> = { pending: "Pendiente", approved: "Aprobado", rejected: "Rechazado", paid: "Pagado" };
@@ -19,6 +20,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
   const [payroll, staff, filters] = await Promise.all([getPayrollRows(), getCurrentStaff(), searchParams]);
   const canReview = Boolean(canMutatePayroll && staff?.active && hasStaffPermission(staff.role, "PAYROLL_APPROVE"));
   const canPay = Boolean(canMutatePayroll && staff?.active && hasStaffPermission(staff.role, "PAYROLL_MARK_PAID"));
+  const bulkEnabled = canReview || canPay;
   const q = (filters.q ?? "").trim().toLowerCase();
   const selectedStatus = filters.status ?? "";
   const selectedMonth = filters.month ?? "";
@@ -41,16 +43,25 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
       .filter-field label { color: var(--muted); font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
       .filter-field input, .filter-field select { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: #fbfcfe; color: var(--ink); }
       .filter-meta { color: var(--muted); font-size: 12px; }
+      .bulk-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; padding: 14px 16px; }
+      .bulk-toolbar-main { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+      .bulk-toolbar-title { font-size: 12px; font-weight: 850; color: #152238; }
+      .bulk-toolbar-hint { color: var(--muted); font-size: 11px; }
+      .bulk-check { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 850; color: #152238; white-space: nowrap; }
+      .bulk-check input, .row-check input { width: 16px; height: 16px; accent-color: #d71920; }
+      .row-check { display: inline-flex; align-items: center; justify-content: center; width: 22px; }
+      .row-check input:disabled { opacity: .3; cursor: not-allowed; }
+      .bulk-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .data-card { overflow: hidden; padding: 0; }
       .data-card .table-wrap { width: 100%; max-width: 100%; overflow-x: auto; padding: 18px 20px 20px; }
-      .data-card table { min-width: 1260px; }
+      .data-card table { min-width: 1320px; }
       .data-card th, .data-card td { padding-left: 10px; padding-right: 10px; }
       .actions { flex-wrap: wrap; }
       .calculation-panel { right: auto; left: 0; }
       .empty-state { padding: 24px; color: var(--muted); font-size: 13px; }
-      @media (max-width: 1280px) { .content { padding: 28px 24px; max-width: none; } .data-card table { min-width: 1180px; } }
+      @media (max-width: 1280px) { .content { padding: 28px 24px; max-width: none; } .data-card table { min-width: 1240px; } .bulk-toolbar { align-items: flex-start; flex-direction: column; } }
       @media (max-width: 1180px) { .app-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .nav-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } .sidebar-note { display: none; } .filter-card { grid-template-columns: 1fr 1fr; } }
-      @media (max-width: 720px) { .filter-card { grid-template-columns: 1fr; } .content { padding: 22px 14px; } .topbar { height: auto; padding: 16px; align-items: flex-start; gap: 14px; flex-direction: column; } .data-card .table-wrap { padding: 14px; } }
+      @media (max-width: 720px) { .filter-card { grid-template-columns: 1fr; } .content { padding: 22px 14px; } .topbar { height: auto; padding: 16px; align-items: flex-start; gap: 14px; flex-direction: column; } .data-card .table-wrap { padding: 14px; } .bulk-actions { width: 100%; } .bulk-actions .action-button { flex: 1; text-align: center; justify-content: center; } }
     `}</style>
     <PageHeading eyebrow="COMPENSACIÓN VIRTUAL" title="Nóminas" copy="Acciones protegidas por rol y registradas para auditoría." />
     {filters.success && <div className="feedback success">{filters.success}</div>}
@@ -67,11 +78,24 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
       </form>
       <div className="filter-meta">Mostrando {filteredPayroll.length} de {payroll.length} nóminas.</div>
     </div>
+    {bulkEnabled && <form id="bulk-payroll-form" className="card bulk-toolbar" action={bulkApprovePayroll}>
+      <div>
+        <div className="bulk-toolbar-title">Acciones en lote</div>
+        <div className="bulk-toolbar-hint">Selecciona varias nóminas de la tabla y aplica una acción común. Aprobar/Rechazar aplica a pendientes; Pagar aplica a aprobadas.</div>
+      </div>
+      <div className="bulk-actions">
+        {canReview && <button className="action-button approve" formAction={bulkApprovePayroll}>Aprobar seleccionadas</button>}
+        {canPay && <button className="action-button pay" formAction={bulkMarkPayrollPaid}>Pagar seleccionadas</button>}
+        {canReview && <button className="action-button reject" formAction={bulkRejectPayroll}>Rechazar seleccionadas</button>}
+      </div>
+    </form>}
     <div className="card data-card">{filteredPayroll.length ? <DataTable
-      headers={["Piloto", "Vuelo", "Aeronave", "Base", "Bonificación", "Penalización", "Importe final", "Estado", "Mes", "Cálculo y acciones"]}
+      headers={[bulkEnabled ? <SelectAllCheckbox key="select-all" group="payroll" label="Todos" /> : "", "Piloto", "Vuelo", "Aeronave", "Base", "Bonificación", "Penalización", "Importe final", "Estado", "Mes", "Cálculo y acciones"]}
       rows={filteredPayroll.map((record) => {
         const actionsAvailable = (record.status === "pending" && canReview) || (record.status === "approved" && canPay);
+        const isBulkSelectable = (record.status === "pending" && canReview) || (record.status === "approved" && canPay);
         return [
+          bulkEnabled ? <label className="row-check" key="select"><input form="bulk-payroll-form" data-select-group="payroll" type="checkbox" name="payrollIds" value={record.id} disabled={!isBulkSelectable} aria-label={`Seleccionar nómina ${record.flightNumber}`} /></label> : null,
           <Identity key="pilot" primary={record.pilot} secondary={record.id} />,
           record.flightNumber,
           record.aircraftType,
