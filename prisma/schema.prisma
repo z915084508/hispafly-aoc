@@ -51,34 +51,55 @@ model StaffUser {
 }
 
 model Pilot {
-  id                 String              @id @default(cuid())
-  vamsysPilotId      String              @unique
-  vamsysUserId       String?             @unique
-  username           String?
-  firstName          String?
-  lastName           String?
-  callsign           String?             @unique
-  displayName        String
-  email              String?             @unique
-  vatsimId           String?
-  ivaoId             String?
-  discordId          String?
-  rankName           String?
-  rankAbbreviation   String?
-  hubId              String?
-  rank               String?
-  base               String?
-  status             PilotStatus         @default(active)
-  walletBalanceCents Int                 @default(0)
-  pireps             Pirep[]
-  payrollRecords     PayrollRecord[]
-  walletTransactions WalletTransaction[]
-  vamsysOAuthToken   VamsysOAuthToken?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  id                   String              @id @default(cuid())
+  vamsysPilotId        String              @unique
+  vamsysUserId         String?             @unique
+  username             String?
+  firstName            String?
+  lastName             String?
+  callsign             String?             @unique
+  displayName          String
+  email                String?             @unique
+  vatsimId             String?
+  ivaoId               String?
+  discordId            String?
+  rankName             String?
+  rankAbbreviation     String?
+  hubId                String?
+  rank                 String?
+  base                 String?
+  status               PilotStatus         @default(active)
+  walletBalanceCents   Int                 @default(0)
+  pireps               Pirep[]
+  payrollRecords       PayrollRecord[]
+  walletTransactions   WalletTransaction[]
+  vamsysOAuthToken     VamsysOAuthToken?
+  lastPirepSyncAt      DateTime?
+  lastOperationsSyncAt DateTime?
+  operationsRawData    Json?
+  notes                PilotNote[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
   @@index([status])
   @@index([base])
+}
+
+model PilotNote {
+  id              String    @id @default(cuid())
+  vamsysNoteId    String    @unique
+  pilotId         String
+  pilot           Pilot     @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  content         String?
+  authorName      String?
+  rawData         Json?
+  sourceCreatedAt DateTime?
+  sourceUpdatedAt DateTime?
+  synchronizedAt  DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([pilotId, sourceCreatedAt])
 }
 
 model OperationsApiState {
@@ -92,6 +113,37 @@ model OperationsApiState {
   lastCronPilotSyncAt  DateTime?
   lastError            String?
   updatedAt            DateTime  @updatedAt
+}
+
+// Prepared for future confirmed Operations API endpoints. No synchronization is implemented yet.
+model Fleet {
+  id            String   @id @default(cuid())
+  vamsysFleetId String   @unique
+  name          String?
+  rawData       Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Aircraft {
+  id               String   @id @default(cuid())
+  vamsysAircraftId String   @unique
+  registration     String?
+  aircraftType     String?
+  rawData          Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Route {
+  id            String   @id @default(cuid())
+  vamsysRouteId String   @unique
+  departure     String?
+  arrival       String?
+  flightNumber  String?
+  rawData       Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model VamsysOAuthToken {
@@ -111,32 +163,43 @@ model VamsysOAuthToken {
 }
 
 model Pirep {
-  id                String         @id @default(cuid())
-  vamsysPirepId     String         @unique
-  pilotId           String
-  pilot             Pilot          @relation(fields: [pilotId], references: [id], onDelete: Restrict)
-  flightNumber      String
-  callsign          String
-  departure         String
-  arrival           String
-  aircraftType      String
-  network           String
-  flightTimeMinutes Int
-  blockTimeMinutes  Int
-  landingRate       Int
-  score             Int
-  fuelUsed          Int
-  status            PirepStatus
-  flownAt           DateTime
-  acceptedAt        DateTime?
-  sourcePayload     Json?
-  synchronizedAt    DateTime       @default(now())
-  payrollRecord     PayrollRecord?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id                    String         @id @default(cuid())
+  vamsysPirepId         String         @unique
+  pilotId               String
+  pilot                 Pilot          @relation(fields: [pilotId], references: [id], onDelete: Restrict)
+  flightNumber          String?
+  callsign              String?
+  departure             String?
+  arrival               String?
+  aircraftType          String?
+  network               String?
+  flightTimeMinutes     Int?
+  blockTimeMinutes      Int?
+  landingRate           Int?
+  score                 Int?
+  fuelUsed              Int?
+  passengers            Int?
+  flightDistanceNm      Int?
+  passengerRevenueCents Int?
+  points                Float?
+  credits               Float?
+  status                PirepStatus
+  acarsSoftware         String?
+  source                String         @default("mock")
+  flownAt               DateTime?
+  acceptedAt            DateTime?
+  vamsysCreatedAt       DateTime?
+  vamsysUpdatedAt       DateTime?
+  rawData               Json?          @map("sourcePayload")
+  synchronizedAt        DateTime       @default(now())
+  payrollRecord         PayrollRecord?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
   @@index([pilotId, flownAt])
   @@index([status, flownAt])
+  @@index([source, synchronizedAt])
+  @@index([flownAt, passengerRevenueCents])
 }
 
 model PayrollRecord {
