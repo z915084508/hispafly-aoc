@@ -203,3 +203,27 @@
     gap: 6px !important;
   }
 }
+
+.calculation-details[open] .calculation-panel {
+  position: fixed !important;
+  z-index: 1000 !important;
+  right: 24px !important;
+  top: 178px !important;
+  width: min(460px, calc(100vw - 48px)) !important;
+  max-height: calc(100vh - 210px) !important;
+  overflow: auto !important;
+}
+
+@media (max-width: 980px) {
+  .calculation-details[open] .calculation-panel {
+    left: 14px !important;
+    right: 14px !important;
+    top: 96px !important;
+    width: auto !important;
+    max-height: calc(100vh - 126px) !important;
+  }
+
+  .calculation-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
