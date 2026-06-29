@@ -81,6 +81,19 @@ model Pilot {
   @@index([base])
 }
 
+model OperationsApiState {
+  id                   String    @id @default("vamsys")
+  status               String    @default("unknown")
+  lastCheckedAt        DateTime?
+  lastSuccessAt        DateTime?
+  lastPirepSyncAt      DateTime?
+  lastCronPirepSyncAt  DateTime?
+  lastPilotSyncAt      DateTime?
+  lastCronPilotSyncAt  DateTime?
+  lastError            String?
+  updatedAt            DateTime  @updatedAt
+}
+
 model VamsysOAuthToken {
   id           String    @id @default(cuid())
   pilotId      String    @unique
