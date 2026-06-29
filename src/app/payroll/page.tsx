@@ -5,6 +5,7 @@ import { canMutatePayroll, getPayrollRows } from "@/lib/workflow-data";
 import { getCurrentStaff } from "@/lib/staff/currentStaff";
 import { hasStaffPermission } from "@/lib/staff/permissions";
 import { approvePayroll, bulkApprovePayroll, bulkMarkPayrollPaid, bulkRejectPayroll, markPayrollPaid, recalculatePayroll, rejectPayroll } from "./actions";
+import { generateMissingPayroll } from "./backfill-actions";
 
 const credits = (cents: number) => `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(cents / 100)} cr`;
 const statusLabels: Record<string, string> = { pending: "Pendiente", approved: "Aprobado", rejected: "Rechazado", paid: "Pagado" };
@@ -20,7 +21,8 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
   const [payroll, staff, filters] = await Promise.all([getPayrollRows(), getCurrentStaff(), searchParams]);
   const canReview = Boolean(canMutatePayroll && staff?.active && hasStaffPermission(staff.role, "PAYROLL_APPROVE"));
   const canPay = Boolean(canMutatePayroll && staff?.active && hasStaffPermission(staff.role, "PAYROLL_MARK_PAID"));
-  const bulkEnabled = canReview || canPay;
+  const canBackfill = Boolean(canMutatePayroll && staff?.active && hasStaffPermission(staff.role, "PAYROLL_RECALCULATE"));
+  const bulkEnabled = canReview || canPay || canBackfill;
   const q = (filters.q ?? "").trim().toLowerCase();
   const selectedStatus = filters.status ?? "";
   const selectedMonth = filters.month ?? "";
@@ -81,9 +83,10 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
     {bulkEnabled && <form id="bulk-payroll-form" className="card bulk-toolbar" action={bulkApprovePayroll}>
       <div>
         <div className="bulk-toolbar-title">Acciones en lote</div>
-        <div className="bulk-toolbar-hint">Selecciona varias nóminas de la tabla y aplica una acción común. Aprobar/Rechazar aplica a pendientes; Pagar aplica a aprobadas.</div>
+        <div className="bulk-toolbar-hint">Selecciona varias nóminas para aprobar, pagar o rechazar. Si faltan nóminas de PIREPs aceptados, genera las pendientes desde vAMSYS ya sincronizado.</div>
       </div>
       <div className="bulk-actions">
+        {canBackfill && <button className="action-button recalculate" formAction={generateMissingPayroll}>Generar nóminas faltantes</button>}
         {canReview && <button className="action-button approve" formAction={bulkApprovePayroll}>Aprobar seleccionadas</button>}
         {canPay && <button className="action-button pay" formAction={bulkMarkPayrollPaid}>Pagar seleccionadas</button>}
         {canReview && <button className="action-button reject" formAction={bulkRejectPayroll}>Rechazar seleccionadas</button>}
