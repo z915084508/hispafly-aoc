@@ -87,3 +87,5 @@ Use `/audit` to review staff actions, denied permission attempts and wallet tran
 - `prisma/schema.prisma` — PostgreSQL domain model and constraints
 - `prisma/seed.ts` — idempotent mock seed
 - `docs` — product boundary and payroll rules
+
+<!-- vercel-production-trigger: 2026-06-29T18:22:00Z -->
