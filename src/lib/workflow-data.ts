@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { mockPayrollRecords, mockPilots, mockPireps } from "./mock-workflow-data";
 import { creditsToCents } from "./payroll/calculatePayroll";
+import { calculatePassengerRevenue } from "./revenue/passengerRevenue";
 
 export interface PirepRow {
   id: string;
@@ -47,6 +48,20 @@ export interface AuditRow {
   entityType: string;
   entityId: string | null;
   message: string;
+}
+
+export interface AnnualCompanySummary {
+  year: number;
+  revenueCents: number;
+  expenseCents: number;
+  profitCents: number;
+  flightCount: number;
+  passengers: number;
+  cargoKg: number;
+  flightHours: number;
+  distanceNm: number;
+  averageRevenuePerFlightCents: number;
+  cargoDataAvailable: boolean;
 }
 
 function calculationView(details: unknown): PayrollRow["calculation"] {
@@ -114,6 +129,66 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
   return mockPayrollRecords.map((row) => ({ id: row.id, pilot: row.pilot.displayName, flightNumber: row.flightNumber, aircraftType: row.aircraftType, basePayCents: creditsToCents(row.calculation.basePay), bonusCents: creditsToCents(row.calculation.totalBonus), penaltyCents: creditsToCents(row.calculation.totalPenalty), amountCents: creditsToCents(row.calculation.finalAmount), status: row.status, settlementMonth: row.settlementMonth, calculation: calculationView(row.calculation) }));
 }
 
+function mockAnnualCompanySummary(year: number, payroll: PayrollRow[]): AnnualCompanySummary {
+  const yearPireps = mockPireps.filter((row) => row.status === "accepted" && new Date(row.flownAt).getUTCFullYear() === year);
+  const revenueCents = yearPireps.reduce((sum, row) => sum + calculatePassengerRevenue(row.passengers ?? 0, row.flightDistanceNm ?? 0).revenueCents, 0);
+  const expenseCents = payroll.filter((row) => row.settlementMonth.startsWith(String(year))).reduce((sum, row) => sum + row.amountCents, 0);
+  const flightTimeMinutes = yearPireps.reduce((sum, row) => sum + (row.flightTimeMinutes ?? 0), 0);
+  return {
+    year,
+    revenueCents,
+    expenseCents,
+    profitCents: revenueCents - expenseCents,
+    flightCount: yearPireps.length,
+    passengers: yearPireps.reduce((sum, row) => sum + (row.passengers ?? 0), 0),
+    cargoKg: 0,
+    flightHours: Math.round((flightTimeMinutes / 60) * 10) / 10,
+    distanceNm: yearPireps.reduce((sum, row) => sum + (row.flightDistanceNm ?? 0), 0),
+    averageRevenuePerFlightCents: yearPireps.length ? Math.round(revenueCents / yearPireps.length) : 0,
+    cargoDataAvailable: false,
+  };
+}
+
+async function getAnnualCompanySummary(payroll: PayrollRow[], year = new Date().getUTCFullYear()): Promise<AnnualCompanySummary> {
+  if (databaseConfigured) {
+    try {
+      const start = new Date(Date.UTC(year, 0, 1));
+      const end = new Date(Date.UTC(year + 1, 0, 1));
+      const [pirepStats, payrollStats] = await Promise.all([
+        prisma.pirep.aggregate({
+          where: { status: "accepted", flownAt: { gte: start, lt: end } },
+          _count: { _all: true },
+          _sum: { passengers: true, passengerRevenueCents: true, flightTimeMinutes: true, flightDistanceNm: true },
+        }),
+        prisma.payrollRecord.aggregate({
+          where: { settlementMonth: { startsWith: String(year) } },
+          _sum: { amountCents: true },
+        }),
+      ]);
+      const flightCount = pirepStats._count._all;
+      const revenueCents = pirepStats._sum.passengerRevenueCents ?? 0;
+      const expenseCents = payrollStats._sum.amountCents ?? 0;
+      const flightTimeMinutes = pirepStats._sum.flightTimeMinutes ?? 0;
+      return {
+        year,
+        revenueCents,
+        expenseCents,
+        profitCents: revenueCents - expenseCents,
+        flightCount,
+        passengers: pirepStats._sum.passengers ?? 0,
+        cargoKg: 0,
+        flightHours: Math.round((flightTimeMinutes / 60) * 10) / 10,
+        distanceNm: pirepStats._sum.flightDistanceNm ?? 0,
+        averageRevenuePerFlightCents: flightCount ? Math.round(revenueCents / flightCount) : 0,
+        cargoDataAvailable: false,
+      };
+    } catch (error) {
+      console.error("Unable to load annual company metrics from PostgreSQL; using mock data.", error);
+    }
+  }
+  return mockAnnualCompanySummary(year, payroll);
+}
+
 export async function getDashboardSummary() {
   const [pireps, payroll] = await Promise.all([getPirepRows(), getPayrollRows()]);
   const month = new Date().toISOString().slice(0, 7);
@@ -122,6 +197,7 @@ export async function getDashboardSummary() {
   const totals = new Map<string, number>();
   for (const row of monthPayroll) totals.set(row.pilot, (totals.get(row.pilot) ?? 0) + row.amountCents);
   const topPilots = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const annualCompany = await getAnnualCompanySummary(payroll);
   return {
     acceptedPireps: pireps.filter((row) => row.status === "accepted" && row.flownAt.toISOString().startsWith(month)).length,
     pendingCents: amountFor("pending"),
@@ -132,6 +208,7 @@ export async function getDashboardSummary() {
     approvedPaymentCount: payroll.filter((row) => row.status === "approved").length,
     paidThisMonthCount: monthPayroll.filter((row) => row.status === "paid").length,
     topPilots,
+    annualCompany,
   };
 }
 
