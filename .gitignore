@@ -9,3 +9,7 @@ out/
 prisma/dev.db
 .pnpm-home/
 .pnpm-store/
+tmp/
+*.tsbuildinfo
+
+.vercel

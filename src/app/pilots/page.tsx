@@ -1,5 +1,16 @@
 import { Badge, DataTable, Identity } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
-import { pilots } from "@/lib/mock-data";
+import { getPilotRows } from "@/lib/workflow-data";
 
-export default function PilotsPage() { return <><PageHeading eyebrow="DIRECTORIO DE TRIPULACIONES" title="Pilotos" copy="Consulta el estado, la asignación y el saldo virtual de cada piloto." action="Añadir piloto"/><div className="card"><DataTable headers={["Piloto", "Rango", "Base", "Estado", "Saldo"]} rows={pilots.map((p) => [<Identity key="i" primary={p.name} secondary={p.id}/>, p.rank === "Captain" ? "Comandante" : "Primer oficial", p.base, <Badge key="b" tone={p.status === "Active" ? "green" : "amber"}>{p.status === "Active" ? "Activo" : "De permiso"}</Badge>, `${p.balance.toLocaleString("es-ES")} €`])}/></div></> }
+export default async function PilotsPage() {
+  const pilots = await getPilotRows();
+  return <>
+    <PageHeading eyebrow="DIRECTORIO DE TRIPULACIONES" title="Pilotos" copy="Directorio operativo de pilotos de HISPAFLY." />
+    <div className="card"><DataTable headers={["Piloto", "Rango", "Base", "Estado"]} rows={pilots.map((pilot) => [
+      <Identity key="identity" primary={pilot.name} secondary={pilot.callsign ?? pilot.externalId} />,
+      pilot.rank,
+      pilot.base,
+      <Badge key="status" tone={pilot.status === "active" ? "green" : "amber"}>{pilot.status === "active" ? "Activo" : "Inactivo"}</Badge>,
+    ])} /></div>
+  </>;
+}

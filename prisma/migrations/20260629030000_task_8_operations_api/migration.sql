@@ -1,0 +1,12 @@
+ALTER TABLE "Pilot" ADD COLUMN "lastOperationsSyncAt" TIMESTAMP(3), ADD COLUMN "operationsRawData" JSONB;
+CREATE TABLE "PilotNote" ("id" TEXT NOT NULL, "vamsysNoteId" TEXT NOT NULL, "pilotId" TEXT NOT NULL, "content" TEXT, "authorName" TEXT, "rawData" JSONB, "sourceCreatedAt" TIMESTAMP(3), "sourceUpdatedAt" TIMESTAMP(3), "synchronizedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "PilotNote_pkey" PRIMARY KEY ("id"));
+CREATE UNIQUE INDEX "PilotNote_vamsysNoteId_key" ON "PilotNote"("vamsysNoteId");
+CREATE INDEX "PilotNote_pilotId_sourceCreatedAt_idx" ON "PilotNote"("pilotId", "sourceCreatedAt");
+ALTER TABLE "PilotNote" ADD CONSTRAINT "PilotNote_pilotId_fkey" FOREIGN KEY ("pilotId") REFERENCES "Pilot"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+CREATE TABLE "OperationsApiState" ("id" TEXT NOT NULL DEFAULT 'vamsys', "status" TEXT NOT NULL DEFAULT 'unknown', "lastCheckedAt" TIMESTAMP(3), "lastSuccessAt" TIMESTAMP(3), "lastPilotSyncAt" TIMESTAMP(3), "lastError" TEXT, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "OperationsApiState_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "Fleet" ("id" TEXT NOT NULL, "vamsysFleetId" TEXT NOT NULL, "name" TEXT, "rawData" JSONB, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "Fleet_pkey" PRIMARY KEY ("id"));
+CREATE UNIQUE INDEX "Fleet_vamsysFleetId_key" ON "Fleet"("vamsysFleetId");
+CREATE TABLE "Aircraft" ("id" TEXT NOT NULL, "vamsysAircraftId" TEXT NOT NULL, "registration" TEXT, "aircraftType" TEXT, "rawData" JSONB, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "Aircraft_pkey" PRIMARY KEY ("id"));
+CREATE UNIQUE INDEX "Aircraft_vamsysAircraftId_key" ON "Aircraft"("vamsysAircraftId");
+CREATE TABLE "Route" ("id" TEXT NOT NULL, "vamsysRouteId" TEXT NOT NULL, "departure" TEXT, "arrival" TEXT, "flightNumber" TEXT, "rawData" JSONB, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "Route_pkey" PRIMARY KEY ("id"));
+CREATE UNIQUE INDEX "Route_vamsysRouteId_key" ON "Route"("vamsysRouteId");

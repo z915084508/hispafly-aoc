@@ -1,28 +1,70 @@
-# Virtual Payroll Rules
+# Reglas de nómina virtual — Versión 1
 
-## Principles
+HISPAFLY AOC genera nómina únicamente para PIREPs con estado `accepted` procedente de vAMSYS. La restricción única `PayrollRecord.pirepId` garantiza un solo registro por PIREP. Volver a ejecutar la generación crea los registros que falten y recalcula únicamente los que sigan `pending`; nunca modifica automáticamente registros aprobados, rechazados o pagados.
 
-Payroll is virtual and derived only from accepted PIREPs. Calculations must be deterministic, reproducible and tied to a versioned rule set. Stored money values use integer cents.
+## Fórmula
 
-## Initial mock formula
+`importe final = max(0, pago base + bonificaciones - penalizaciones)`
 
-For design and UI demonstration only:
+`pago base = flightTimeMinutes / 60 × tarifa horaria de la aeronave`
 
-`eligible pay = accepted block hours × configured hourly rate + approved bonuses`
+Todos los importes persistidos se guardan como céntimos enteros. El resultado detallado, su explicación y la versión de la regla se guardan con el registro para facilitar auditorías.
 
-Block minutes are converted to hours at calculation time and the final line is rounded to the nearest cent. Rejected, pending, duplicated or deleted source PIREPs are not eligible.
+## Tarifas por aeronave
 
-## Lifecycle
+| Aeronave | Créditos/hora |
+| --- | ---: |
+| A320 | 80 |
+| A321 | 85 |
+| B772 | 120 |
+| A359 | 130 |
+| A388 | 150 |
 
-- **Draft:** calculated and may be safely recalculated with the same rule version.
-- **Review:** an exception requires staff attention.
-- **Approved:** reviewed and locked for period closing.
-- **Posted:** represented by an immutable wallet transaction.
+## Bonificaciones
 
-## Adjustments and reversals
+- Vuelo realizado en VATSIM o IVAO: 10 % del pago base.
+- Toma entre -50 y -300 fpm, ambos incluidos: 100 créditos.
+- Puntuación igual o superior a 95: 150 créditos.
 
-Staff must not edit posted transactions. Corrections create a new adjustment or reversal that references the original record, includes a reason and captures the responsible staff identity.
+## Penalizaciones
 
-## Future decisions
+- Toma peor que -600 fpm: 200 créditos.
+- Puntuación inferior a 70: 150 créditos.
+- El importe final nunca puede ser negativo.
 
-Rates by rank or aircraft, route and event bonuses, minimum block time, training rules, inactivity policy, period closing authority, retroactive PIREP changes and currency display all require business approval before production implementation.
+## Ejemplos verificables
+
+### A320 normal en VATSIM
+
+120 minutos, toma -180 fpm y puntuación 90: base 160 + red 16 + toma 100 = **276 créditos**.
+
+### A388 de largo recorrido
+
+600 minutos, fuera de red, toma -400 fpm y puntuación 96: base 1.500 + puntuación 150 = **1.650 créditos**.
+
+### Toma dura
+
+A320, 60 minutos, toma -601 fpm y puntuación 90: base 80 - penalización 200; el mínimo de cero produce **0 créditos**.
+
+### Puntuación baja
+
+A321, 120 minutos, toma -400 fpm y puntuación 69: base 170 - penalización 150 = **20 créditos**.
+
+### PIREP rechazado
+
+Un PIREP con estado `rejected` no es elegible y no genera ningún `PayrollRecord`.
+
+Ejecutar los cinco casos: `pnpm test:payroll`.
+
+## Generación desde vAMSYS
+
+Solo un PIREP importado con estado `accepted` y con aeronave, tiempo de vuelo, red, toma, puntuación y fecha completos puede generar una nómina pendiente. La sincronización crea el registro únicamente si no existe ninguno para ese PIREP. Volver a sincronizar actualiza el PIREP, pero nunca recalcula ni sustituye una nómina existente.
+
+## Flujo del personal
+
+- `pending`: puede recalcularse con la regla activa, aprobarse o rechazarse.
+- `approved`: revisado y listo para liquidación; no se recalcula automáticamente.
+- `rejected`: excluido por el personal; no se recalcula automáticamente.
+- `paid`: liquidado una sola vez mediante una transacción de cartera inmutable.
+
+Recalcular, aprobar, rechazar y pagar producen entradas en `AocAuditLog`. El pago es transaccional y solo puede reclamar una nómina aprobada una vez.
