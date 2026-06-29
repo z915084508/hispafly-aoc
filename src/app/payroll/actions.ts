@@ -26,23 +26,29 @@ function payrollPirepInputFromRecord(pirep: {
   score: number | null;
   status?: string;
 }): PayrollPirepInput {
-  const missingFields: string[] = [];
-  if (!pirep.aircraftType) missingFields.push("tipo de aeronave");
-  if (pirep.flightTimeMinutes === null) missingFields.push("tiempo de vuelo");
-  if (!pirep.network) missingFields.push("red online");
-  if (pirep.landingRate === null) missingFields.push("landing rate");
-  if (pirep.score === null) missingFields.push("puntuación");
+  const aircraftType = pirep.aircraftType;
+  const flightTimeMinutes = pirep.flightTimeMinutes;
+  const network = pirep.network;
+  const landingRate = pirep.landingRate;
+  const score = pirep.score;
 
-  if (missingFields.length > 0) {
+  const missingFields: string[] = [];
+  if (!aircraftType) missingFields.push("tipo de aeronave");
+  if (flightTimeMinutes === null) missingFields.push("tiempo de vuelo");
+  if (!network) missingFields.push("red online");
+  if (landingRate === null) missingFields.push("landing rate");
+  if (score === null) missingFields.push("puntuación");
+
+  if (!aircraftType || flightTimeMinutes === null || !network || landingRate === null || score === null) {
     throw new Error(`El PIREP no tiene datos suficientes para calcular la nómina: ${missingFields.join(", ")}.`);
   }
 
   return {
-    aircraftType: pirep.aircraftType,
-    flightTimeMinutes: pirep.flightTimeMinutes,
-    network: pirep.network,
-    landingRate: pirep.landingRate,
-    score: pirep.score,
+    aircraftType,
+    flightTimeMinutes,
+    network,
+    landingRate,
+    score,
     status: pirep.status,
   };
 }
