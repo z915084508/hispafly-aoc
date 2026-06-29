@@ -10,10 +10,11 @@ export default async function StaffDashboard() {
   const annual = summary.annualCompany;
   const monthlyStats = [
     ["PIREPs aceptados este mes", String(summary.acceptedPireps), "Solo registros aceptados"],
-    ["Nómina pendiente", credits(summary.pendingCents), "Pendiente de revisión"],
-    ["Nómina aprobada", credits(summary.approvedCents), "Lista para pagar"],
-    ["Nómina pagada", credits(summary.paidCents), "Abonada en carteras"],
-    ["Coste virtual del mes", credits(summary.totalCostCents), "Total calculado"],
+    ["Pendiente total", credits(summary.pendingCents), "Pendiente de revisión"],
+    ["Aprobada total", credits(summary.approvedCents), "Lista para pagar"],
+    ["Pagado este mes", credits(summary.paidCents), "Según fecha de pago"],
+    ["Pagado hoy", credits(summary.paidTodayCents), `${summary.paidTodayCount} nóminas pagadas hoy`],
+    ["Coste periodo actual", credits(summary.totalCostCents), "Según mes de liquidación"],
   ];
   const annualStats = [
     ["Ingresos anuales", credits(annual.revenueCents), "Revenue virtual por pasajeros"],
@@ -48,11 +49,11 @@ export default async function StaffDashboard() {
       <div className="workflow-summary">
         <div><strong>{summary.pendingReviewCount}</strong><span>Pendientes de revisión OPS</span></div>
         <div><strong>{summary.approvedPaymentCount}</strong><span>Aprobadas para pago FINANCE</span></div>
-        <div><strong>{summary.paidThisMonthCount}</strong><span>Pagadas este mes</span></div>
+        <div><strong>{summary.paidThisMonthCount}</strong><span>Pagadas este mes por fecha de pago</span></div>
       </div>
     </section>
     <section className="card ranking-card">
-      <div className="card-header"><h2 className="card-title">Top 5 pilotos por nómina</h2><span className="meta">Mes actual</span></div>
+      <div className="card-header"><h2 className="card-title">Top 5 pilotos por nómina pagada</h2><span className="meta">Mes actual</span></div>
       <div className="ranking-list">{summary.topPilots.map(([pilot, amount], index) => <div className="ranking-row" key={pilot}><span className="ranking-position">{index + 1}</span><span className="primary">{pilot}</span><strong>{credits(amount)}</strong></div>)}</div>
     </section>
   </>;
