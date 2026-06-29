@@ -12,6 +12,8 @@ function finish(request: NextRequest, target: "/pilot" | "/pilot/dashboard", typ
   const url = new URL(target, request.url);
   if (type && message) url.searchParams.set(type, message);
   const response = NextResponse.redirect(url);
+  response.cookies.set("hispafly_vamsys_oauth_state", "", { httpOnly: true, path: "/", maxAge: 0 });
+  response.cookies.set("hispafly_vamsys_code_verifier", "", { httpOnly: true, path: "/", maxAge: 0 });
   response.cookies.set("hispafly_vamsys_oauth_state", "", { httpOnly: true, path: "/api/vamsys/oauth", maxAge: 0 });
   response.cookies.set("hispafly_vamsys_code_verifier", "", { httpOnly: true, path: "/api/vamsys/oauth", maxAge: 0 });
   return response;
