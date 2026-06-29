@@ -119,6 +119,11 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .table-action { border: 1px solid #bdd5f7; border-radius: 7px; padding: 6px 8px; background: white; color: #0758bf; font-size: 10px; font-weight: 750; cursor: pointer; }
 .success-notice { color: #08774e; background: #e8f7f0; border-color: #b9e2d2; border-left-color: #08774e; }
 .error-notice { color: #b42318; background: #ffebea; border-color: #f2c2be; border-left-color: #b42318; }
+.empty-state { padding: 22px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); background: #fbfcfe; font-size: 13px; text-align: center; }
+.pilot-portal-shell .pilot-sidebar { background: linear-gradient(180deg, #fffdf8 0%, #f8efe4 100%); }
+.pilot-topbar { background: rgba(255,255,255,.92); }
+.pilot-user-summary { display: flex; gap: 12px; align-items: center; text-align: right; }
+.pilot-user-summary .secondary { margin-top: 3px; }
 
 @media (max-width: 1050px) { .stats { grid-template-columns: repeat(2, 1fr); } .two-column { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .app-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .nav-list { grid-template-columns: repeat(2, 1fr); } .sidebar-note { display: none; } .topbar { padding: 0 20px; } .content { padding: 24px 18px; } .stats, .form-grid, .workflow-summary { grid-template-columns: 1fr; } .page-heading { align-items: start; flex-direction: column; } .audit-filters, .oauth-connect-card, .sync-toolbar { align-items: stretch; flex-direction: column; } }

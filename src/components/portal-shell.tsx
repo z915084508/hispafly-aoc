@@ -16,7 +16,7 @@ const navItems = [
   ["Operations API", "/staff/settings/operations"],
 ] as const;
 
-export async function PortalShell({ children }: { children: React.ReactNode }) {
+export async function StaffPortalShell({ children }: { children: React.ReactNode }) {
   const staff = await getCurrentStaff();
   const initials = staff?.name.split(" ").map((word) => word[0]).slice(0, 2).join("").toUpperCase() ?? "AOC";
   return (
@@ -40,3 +40,5 @@ export async function PortalShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+export const PortalShell = StaffPortalShell;
