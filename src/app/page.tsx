@@ -1,31 +1,35 @@
-import { PageHeading } from "@/components/page-heading";
-import { getDashboardSummary } from "@/lib/workflow-data";
+import Image from "next/image";
+import Link from "next/link";
 
-const credits = (cents: number) => `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(cents / 100)} cr`;
-
-export default async function Dashboard() {
-  const summary = await getDashboardSummary();
-  const stats = [
-    ["PIREPs aceptados este mes", String(summary.acceptedPireps), "Solo registros aceptados"],
-    ["Nómina pendiente", credits(summary.pendingCents), "Pendiente de revisión"],
-    ["Nómina aprobada", credits(summary.approvedCents), "Lista para pagar"],
-    ["Nómina pagada", credits(summary.paidCents), "Abonada en carteras"],
-    ["Coste virtual del mes", credits(summary.totalCostCents), "Total calculado"],
-  ];
-  return <>
-    <PageHeading eyebrow="RESUMEN DE OPERACIONES" title="Panel AOC" copy="PIREPs aceptados, estado de nóminas y clasificación mensual." />
-    <section className="grid stats">{stats.map(([label, value, note]) => <div className="card" key={label}><div className="stat-label">{label}</div><div className="stat-value">{value}</div><div className="stat-note">{note}</div></div>)}</section>
-    <section className="card workflow-card">
-      <div className="card-header"><h2 className="card-title">Cola de trabajo por rol</h2><span className="meta">Estado actual</span></div>
-      <div className="workflow-summary">
-        <div><strong>{summary.pendingReviewCount}</strong><span>Pendientes de revisión OPS</span></div>
-        <div><strong>{summary.approvedPaymentCount}</strong><span>Aprobadas para pago FINANCE</span></div>
-        <div><strong>{summary.paidThisMonthCount}</strong><span>Pagadas este mes</span></div>
+export default function PortalGateway() {
+  return (
+    <main className="portal-gateway portal-selection">
+      <div className="gateway-brand">
+        <Image src="/logo-hispafly-full.png" alt="HISPAFLY" width={1800} height={400} priority />
+        <p>AOC · AIRLINE OPERATIONS CENTER</p>
       </div>
-    </section>
-    <section className="card ranking-card">
-      <div className="card-header"><h2 className="card-title">Top 5 pilotos por nómina</h2><span className="meta">Mes actual</span></div>
-      <div className="ranking-list">{summary.topPilots.map(([pilot, amount], index) => <div className="ranking-row" key={pilot}><span className="ranking-position">{index + 1}</span><span className="primary">{pilot}</span><strong>{credits(amount)}</strong></div>)}</div>
-    </section>
-  </>;
+
+      <section className="gateway-hero">
+        <p className="eyebrow">SELECCIONA TU PORTAL</p>
+        <h1>HISPAFLY AOC</h1>
+        <p className="page-copy">Acceso separado para pilotos y personal STAFF.</p>
+      </section>
+
+      <section className="gateway-portal-grid">
+        <article className="gateway-card pilot-entry-card">
+          <span className="gateway-card-label">PILOT PORTAL</span>
+          <h2>Entrada Piloto</h2>
+          <p>Accede con vAMSYS para consultar tu panel, roster, cartera y nómina personal.</p>
+          <Link className="button" href="/pilot">ENTRAR COMO PILOTO →</Link>
+        </article>
+
+        <article className="gateway-card staff-entry-card">
+          <span className="gateway-card-label">STAFF PORTAL</span>
+          <h2>Entrada STAFF</h2>
+          <p>Acceso administrativo mediante usuario y contraseña para gestionar AOC, PIREPs, nóminas y configuración.</p>
+          <Link className="button" href="/admin-login?next=/staff">ENTRAR COMO STAFF →</Link>
+        </article>
+      </section>
+    </main>
+  );
 }
