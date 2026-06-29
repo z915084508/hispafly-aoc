@@ -61,12 +61,28 @@ function calculationView(details: unknown): PayrollRow["calculation"] {
 }
 
 const databaseConfigured = Boolean(process.env.DATABASE_URL);
+const fallbackText = (value: string | null | undefined, fallback = "—") => value && value.trim() ? value : fallback;
+const fallbackNumber = (value: number | null | undefined) => value ?? 0;
+const fallbackDate = (value: Date | null | undefined, fallback?: Date) => value ?? fallback ?? new Date(0);
 
 export async function getPirepRows(): Promise<PirepRow[]> {
   if (databaseConfigured) {
     try {
-      const rows = await prisma.pirep.findMany({ include: { pilot: true }, orderBy: { flownAt: "desc" } });
-      return rows.map((row) => ({ id: row.id, pilot: row.pilot.displayName, flightNumber: row.flightNumber, callsign: row.callsign, route: `${row.departure}-${row.arrival}`, aircraftType: row.aircraftType, network: row.network, flightTimeMinutes: row.flightTimeMinutes, landingRate: row.landingRate, score: row.score, status: row.status, flownAt: row.flownAt }));
+      const rows = await prisma.pirep.findMany({ include: { pilot: true }, orderBy: { flownAt: "desc" }, take: 200 });
+      return rows.map((row) => ({
+        id: row.id,
+        pilot: row.pilot.displayName,
+        flightNumber: fallbackText(row.flightNumber),
+        callsign: fallbackText(row.callsign),
+        route: `${fallbackText(row.departure)}-${fallbackText(row.arrival)}`,
+        aircraftType: fallbackText(row.aircraftType),
+        network: fallbackText(row.network),
+        flightTimeMinutes: fallbackNumber(row.flightTimeMinutes),
+        landingRate: fallbackNumber(row.landingRate),
+        score: fallbackNumber(row.score),
+        status: row.status,
+        flownAt: fallbackDate(row.flownAt, row.createdAt),
+      }));
     } catch (error) {
       console.error("Unable to load PIREPs from PostgreSQL; using mock data.", error);
     }
@@ -77,8 +93,20 @@ export async function getPirepRows(): Promise<PirepRow[]> {
 export async function getPayrollRows(): Promise<PayrollRow[]> {
   if (databaseConfigured) {
     try {
-      const rows = await prisma.payrollRecord.findMany({ include: { pilot: true, pirep: true }, orderBy: { createdAt: "desc" } });
-      return rows.map((row) => ({ id: row.id, pilot: row.pilot.displayName, flightNumber: row.pirep.flightNumber, aircraftType: row.pirep.aircraftType, basePayCents: row.basePayCents, bonusCents: row.bonusCents, penaltyCents: row.penaltyCents, amountCents: row.amountCents, status: row.status, settlementMonth: row.settlementMonth, calculation: calculationView(row.calculationDetails) }));
+      const rows = await prisma.payrollRecord.findMany({ include: { pilot: true, pirep: true }, orderBy: { createdAt: "desc" }, take: 200 });
+      return rows.map((row) => ({
+        id: row.id,
+        pilot: row.pilot.displayName,
+        flightNumber: fallbackText(row.pirep.flightNumber),
+        aircraftType: fallbackText(row.pirep.aircraftType),
+        basePayCents: row.basePayCents,
+        bonusCents: row.bonusCents,
+        penaltyCents: row.penaltyCents,
+        amountCents: row.amountCents,
+        status: row.status,
+        settlementMonth: row.settlementMonth,
+        calculation: calculationView(row.calculationDetails),
+      }));
     } catch (error) {
       console.error("Unable to load payroll from PostgreSQL; using mock data.", error);
     }
@@ -131,8 +159,8 @@ export async function getAuditFilterOptions() {
   if (!databaseConfigured) return { actions: ["PAYROLL_APPROVED", "PAYROLL_MARKED_PAID"], staff: [] as { id: string; name: string }[] };
   try {
     const [actions, staff] = await Promise.all([
-      prisma.aocAuditLog.findMany({ distinct: ["action"], select: { action: true }, orderBy: { action: "asc" } }),
-      prisma.staffUser.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+      prisma.aocAuditLog.findMany({ distinct: ["action"], select: { action: true }, orderBy: { action: "asc" }, take: 100 }),
+      prisma.staffUser.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" }, take: 100 }),
     ]);
     return { actions: actions.map((row) => row.action), staff };
   } catch (error) {

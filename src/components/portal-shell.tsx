@@ -2,19 +2,21 @@ import Link from "next/link";
 import Image from "next/image";
 import { getCurrentStaff } from "@/lib/staff/currentStaff";
 import { roleLabels } from "@/lib/staff/permissions";
+import { logoutAdmin } from "@/app/admin-login/actions";
 
 const navItems = [
-  ["Panel de control", "/"],
-  ["Pilotos", "/pilots"],
-  ["PIREPs", "/pireps"],
-  ["Nóminas", "/payroll"],
-  ["Carteras", "/wallet"],
-  ["Registro de auditoría", "/audit"],
-  ["Conexión vAMSYS", "/settings/vamsys"],
-  ["Configuración", "/settings"],
+  ["Panel de control", "/staff"],
+  ["Pilotos", "/staff/pilots"],
+  ["PIREPs", "/staff/pireps"],
+  ["Nóminas", "/staff/payroll"],
+  ["Economía de la compañía", "/staff/wallet"],
+  ["Registro de auditoría", "/staff/audit"],
+  ["Conexión vAMSYS", "/staff/settings/vamsys"],
+  ["Configuración", "/staff/settings"],
+  ["Operations API", "/staff/settings/operations"],
 ] as const;
 
-export async function PortalShell({ children }: { children: React.ReactNode }) {
+export async function StaffPortalShell({ children }: { children: React.ReactNode }) {
   const staff = await getCurrentStaff();
   const initials = staff?.name.split(" ").map((word) => word[0]).slice(0, 2).join("").toUpperCase() ?? "AOC";
   return (
@@ -31,10 +33,12 @@ export async function PortalShell({ children }: { children: React.ReactNode }) {
       <main className="main">
         <header className="topbar">
           <div className="environment">Portal AOC · Entorno de desarrollo</div>
-          <div className="user"><div><div className="primary">{staff?.name ?? "Usuario no configurado"}</div><span className="secondary">{staff ? roleLabels[staff.role] : "Sin acceso"}{staff && !staff.active ? " · Inactivo" : ""}</span></div><div className="avatar">{initials}</div></div>
+          <div className="user user-session"><div><div className="primary">{staff?.name ?? "Usuario no configurado"}</div><span className="secondary">{staff ? roleLabels[staff.role] : "Sin acceso"}{staff && !staff.active ? " · Inactivo" : ""}</span></div><div className="avatar">{initials}</div><form action={logoutAdmin}><button className="logout-button" type="submit">Salir</button></form></div>
         </header>
         <div className="content">{children}</div>
       </main>
     </div>
   );
 }
+
+export const PortalShell = StaffPortalShell;
