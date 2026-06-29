@@ -87,7 +87,7 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .feedback.error { color: #b42318; background: #ffebea; border: 1px solid #f2c2be; }
 .calculation-details summary { list-style: none; cursor: pointer; border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; font-size: 10px; font-weight: 750; color: #4c385f; }
 .calculation-details summary::-webkit-details-marker { display: none; }
-.calculation-panel { position: absolute; z-index: 20; right: 0; top: calc(100% + 8px); width: min(440px, 80vw); padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: white; box-shadow: 0 16px 45px rgba(22,38,58,.18); white-space: normal; }
+.calculation-panel { position: fixed; z-index: 1000; right: 24px; top: 178px; width: min(460px, calc(100vw - 48px)); max-height: calc(100vh - 210px); overflow: auto; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: white; box-shadow: 0 16px 45px rgba(22,38,58,.18); white-space: normal; }
 .calculation-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 11px; }
 .calculation-grid span { display: flex; justify-content: space-between; gap: 12px; padding: 7px; background: #f7f8fb; border-radius: 7px; }
 .calculation-panel ul { margin: 12px 0 0; padding: 10px 0 0 18px; border-top: 1px solid #edf0f4; color: var(--muted); font-size: 11px; line-height: 1.55; }
@@ -172,14 +172,11 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 
 @media (max-width: 980px) {
   .calculation-details[open] .calculation-panel {
-    position: fixed;
     left: 14px;
     right: 14px;
     top: 96px;
     width: auto;
     max-height: calc(100vh - 126px);
-    overflow: auto;
-    z-index: 1000;
   }
 
   .calculation-grid { grid-template-columns: 1fr; }
