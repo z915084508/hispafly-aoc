@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { cronUnauthorizedResponse, isCronAuthorized } from "@/lib/cron/auth";
-import { syncAcceptedOperationsPirepsIncremental } from "@/lib/vamsys/operationsPireps";
+import { syncAcceptedOperationsPirepsIncremental } from "@/lib/vamsys/operationsPirepsIncremental";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
