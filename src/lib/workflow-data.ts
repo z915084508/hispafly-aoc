@@ -29,6 +29,7 @@ export interface PayrollRow {
   amountCents: number;
   status: string;
   settlementMonth: string;
+  paidAt: Date | null;
   calculation: {
     aircraftBonusCents: number;
     networkBonusCents: number;
@@ -79,6 +80,9 @@ const databaseConfigured = Boolean(process.env.DATABASE_URL);
 const fallbackText = (value: string | null | undefined, fallback = "—") => value && value.trim() ? value : fallback;
 const fallbackNumber = (value: number | null | undefined) => value ?? 0;
 const fallbackDate = (value: Date | null | undefined, fallback?: Date) => value ?? fallback ?? new Date(0);
+const centsSum = (rows: PayrollRow[]) => rows.reduce((sum, row) => sum + row.amountCents, 0);
+const sameUtcDay = (date: Date | null, target: Date) => Boolean(date && date.toISOString().slice(0, 10) === target.toISOString().slice(0, 10));
+const sameUtcMonth = (date: Date | null, month: string) => Boolean(date && date.toISOString().slice(0, 7) === month);
 
 export async function getPirepRows(): Promise<PirepRow[]> {
   if (databaseConfigured) {
@@ -120,13 +124,14 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
         amountCents: row.amountCents,
         status: row.status,
         settlementMonth: row.settlementMonth,
+        paidAt: row.paidAt,
         calculation: calculationView(row.calculationDetails),
       }));
     } catch (error) {
       console.error("Unable to load payroll from PostgreSQL; using mock data.", error);
     }
   }
-  return mockPayrollRecords.map((row) => ({ id: row.id, pilot: row.pilot.displayName, flightNumber: row.flightNumber, aircraftType: row.aircraftType, basePayCents: creditsToCents(row.calculation.basePay), bonusCents: creditsToCents(row.calculation.totalBonus), penaltyCents: creditsToCents(row.calculation.totalPenalty), amountCents: creditsToCents(row.calculation.finalAmount), status: row.status, settlementMonth: row.settlementMonth, calculation: calculationView(row.calculation) }));
+  return mockPayrollRecords.map((row) => ({ id: row.id, pilot: row.pilot.displayName, flightNumber: row.flightNumber, aircraftType: row.aircraftType, basePayCents: creditsToCents(row.calculation.basePay), bonusCents: creditsToCents(row.calculation.totalBonus), penaltyCents: creditsToCents(row.calculation.totalPenalty), amountCents: creditsToCents(row.calculation.finalAmount), status: row.status, settlementMonth: row.settlementMonth, paidAt: row.status === "paid" ? new Date() : null, calculation: calculationView(row.calculation) }));
 }
 
 const mockAircraftPassengers: Record<string, number> = { A320: 150, A321: 185, A359: 290, A388: 480, B772: 320 };
@@ -209,22 +214,29 @@ async function getAnnualCompanySummary(payroll: PayrollRow[], year = new Date().
 
 export async function getDashboardSummary() {
   const [pireps, payroll] = await Promise.all([getPirepRows(), getPayrollRows()]);
-  const month = new Date().toISOString().slice(0, 7);
+  const now = new Date();
+  const month = now.toISOString().slice(0, 7);
   const monthPayroll = payroll.filter((row) => row.settlementMonth === month);
-  const amountFor = (status: string) => monthPayroll.filter((row) => row.status === status).reduce((sum, row) => sum + row.amountCents, 0);
+  const paidThisMonth = payroll.filter((row) => row.status === "paid" && sameUtcMonth(row.paidAt, month));
+  const paidToday = payroll.filter((row) => row.status === "paid" && sameUtcDay(row.paidAt, now));
+  const pendingPayroll = payroll.filter((row) => row.status === "pending");
+  const approvedPayroll = payroll.filter((row) => row.status === "approved");
+  const rankingSource = paidThisMonth.length ? paidThisMonth : monthPayroll;
   const totals = new Map<string, number>();
-  for (const row of monthPayroll) totals.set(row.pilot, (totals.get(row.pilot) ?? 0) + row.amountCents);
+  for (const row of rankingSource) totals.set(row.pilot, (totals.get(row.pilot) ?? 0) + row.amountCents);
   const topPilots = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   const annualCompany = await getAnnualCompanySummary(payroll);
   return {
     acceptedPireps: pireps.filter((row) => row.status === "accepted" && row.flownAt.toISOString().startsWith(month)).length,
-    pendingCents: amountFor("pending"),
-    approvedCents: amountFor("approved"),
-    paidCents: amountFor("paid"),
-    totalCostCents: monthPayroll.reduce((sum, row) => sum + row.amountCents, 0),
-    pendingReviewCount: payroll.filter((row) => row.status === "pending").length,
-    approvedPaymentCount: payroll.filter((row) => row.status === "approved").length,
-    paidThisMonthCount: monthPayroll.filter((row) => row.status === "paid").length,
+    pendingCents: centsSum(pendingPayroll),
+    approvedCents: centsSum(approvedPayroll),
+    paidCents: centsSum(paidThisMonth),
+    paidTodayCents: centsSum(paidToday),
+    totalCostCents: centsSum(monthPayroll),
+    pendingReviewCount: pendingPayroll.length,
+    approvedPaymentCount: approvedPayroll.length,
+    paidThisMonthCount: paidThisMonth.length,
+    paidTodayCount: paidToday.length,
     topPilots,
     annualCompany,
   };
