@@ -1,12 +1,12 @@
 export type AircraftType = "A320" | "A321" | "B772" | "A359" | "A388";
 
 export interface PayrollPirepInput {
-  aircraftType: string;
-  flightTimeMinutes: number;
-  network: string;
-  landingRate: number;
-  score: number;
-  status?: string;
+  aircraftType: string | null;
+  flightTimeMinutes: number | null;
+  network: string | null;
+  landingRate: number | null;
+  score: number | null;
+  status?: string | null;
 }
 
 export interface PayrollRules {
