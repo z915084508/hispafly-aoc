@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-export function DataTable({ headers, rows }: { headers: string[]; rows: ReactNode[][] }) {
-  return <div className="table-wrap"><table><thead><tr>{headers.map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>;
+export function DataTable({ headers, rows }: { headers: ReactNode[]; rows: ReactNode[][] }) {
+  return <div className="table-wrap"><table><thead><tr>{headers.map((h, index) => <th key={typeof h === "string" ? h : index}>{h}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>;
 }
 
 export function Identity({ primary, secondary }: { primary: string; secondary: string }) {
