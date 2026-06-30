@@ -12,7 +12,8 @@ const num = (r: Record<string, unknown>, ...keys: string[]) => { const value = s
 const nested = (r: Record<string, unknown>, key: string) => rec(r[key]);
 const list = (v: unknown, resource: string) => {
   const root = rec(v);
-  const data = root?.data ?? root?.[resource] ?? root?.[`${resource}s`] ?? root?.items ?? v;
+  const singular = resource.endsWith("s") ? resource.slice(0, -1) : resource;
+  const data = root?.data ?? root?.[resource] ?? root?.[singular] ?? root?.[`${resource}s`] ?? root?.items ?? root?.results ?? v;
   return Array.isArray(data) ? data.map(rec).filter(Boolean) as Record<string, unknown>[] : [];
 };
 const nextCursor = (v: unknown) => {
@@ -22,8 +23,9 @@ const nextCursor = (v: unknown) => {
   return str(meta ?? {}, "next_cursor", "nextCursor") ?? str(links ?? {}, "next_cursor", "nextCursor");
 };
 
-function configuredPath(name: string, fallback: string) {
-  return process.env[name]?.trim() || fallback;
+function configuredPaths(name: string, fallbacks: string[]) {
+  const configured = process.env[name]?.trim();
+  return configured ? [configured] : fallbacks;
 }
 
 async function requestWithTimeout(path: string, resource: string) {
@@ -47,12 +49,26 @@ async function fetchAll(path: string, resource: string) {
     const separator = path.includes("?") ? "&" : "?";
     const requestPath = `${path}${separator}${query}`;
     const body = await requestWithTimeout(requestPath, resource);
-    records.push(...list(body, resource));
+    const rows = list(body, resource);
+    records.push(...rows);
     cursor = nextCursor(body);
-    console.info(`[vAMSYS Operations ${resource}] page=${page + 1} records=${records.length} next=${cursor ?? "none"}`);
+    console.info(`[vAMSYS Operations ${resource}] path=${path} page=${page + 1} pageRecords=${rows.length} total=${records.length} next=${cursor ?? "none"}`);
     if (!cursor) return records;
   }
   throw new Error(`Operations ${resource} pagination exceeded the ${MAX_SYNC_PAGES} page safety limit.`);
+}
+
+async function fetchAllFromFirstAvailable(paths: string[], resource: string) {
+  const errors: string[] = [];
+  for (const path of paths) {
+    try {
+      const rows = await fetchAll(path, resource);
+      return { path, rows, errors };
+    } catch (error) {
+      errors.push(`${path}: ${error instanceof Error ? error.message : "unknown error"}`);
+    }
+  }
+  throw new Error(errors.join(" | "));
 }
 
 function icao(value: string | null | undefined) {
@@ -75,7 +91,7 @@ function fleetId(row: Record<string, unknown>) {
 }
 
 function aircraftId(row: Record<string, unknown>) {
-  return str(row, "aircraft_id", "aircraftId", "id", "uuid", "identifier");
+  return str(row, "aircraft_id", "aircraftId", "id", "uuid", "identifier", "registration", "reg", "tail", "tail_number", "tailNumber");
 }
 
 function aircraftType(row: Record<string, unknown>) {
@@ -90,12 +106,13 @@ function airportIcao(row: Record<string, unknown>) {
 
 export async function syncOperationsFleetData(staffUserId?: string) {
   const result = { fleetsImported: 0, fleetsUpdated: 0, aircraftImported: 0, aircraftUpdated: 0, airportsImported: 0, airportsUpdated: 0, skipped: 0, errors: [] as string[] };
-  const fleetPath = configuredPath("VAMSYS_OPERATIONS_FLEETS_PATH", "/fleets");
-  const aircraftPath = configuredPath("VAMSYS_OPERATIONS_AIRCRAFT_PATH", "/aircraft");
-  const airportPath = configuredPath("VAMSYS_OPERATIONS_AIRPORTS_PATH", "/airports");
+  const fleetPaths = configuredPaths("VAMSYS_OPERATIONS_FLEETS_PATH", ["/fleets", "/fleet"]);
+  const aircraftPaths = configuredPaths("VAMSYS_OPERATIONS_AIRCRAFT_PATH", ["/aircraft", "/aircrafts"]);
+  const airportPaths = configuredPaths("VAMSYS_OPERATIONS_AIRPORTS_PATH", ["/airports"]);
 
   try {
-    const fleets = await fetchAll(fleetPath, "fleets");
+    const { path: usedFleetPath, rows: fleets, errors } = await fetchAllFromFirstAvailable(fleetPaths, "fleets");
+    if (errors.length) console.warn(`[vAMSYS Operations fleets] fallback used ${usedFleetPath}; previous errors: ${errors.join(" | ")}`);
     for (const row of fleets) {
       try {
         const id = fleetId(row);
@@ -113,11 +130,12 @@ export async function syncOperationsFleetData(staffUserId?: string) {
       }
     }
   } catch (error) {
-    result.errors.push(`Fleet endpoint ${fleetPath}: ${error instanceof Error ? error.message : "unknown error"}`);
+    result.errors.push(`Fleet endpoints ${fleetPaths.join(", ")}: ${error instanceof Error ? error.message : "unknown error"}`);
   }
 
   try {
-    const aircraft = await fetchAll(aircraftPath, "aircraft");
+    const { path: usedAircraftPath, rows: aircraft, errors } = await fetchAllFromFirstAvailable(aircraftPaths, "aircraft");
+    if (errors.length) console.warn(`[vAMSYS Operations aircraft] fallback used ${usedAircraftPath}; previous errors: ${errors.join(" | ")}`);
     for (const row of aircraft) {
       try {
         const id = aircraftId(row);
@@ -157,11 +175,12 @@ export async function syncOperationsFleetData(staffUserId?: string) {
       }
     }
   } catch (error) {
-    result.errors.push(`Aircraft endpoint ${aircraftPath}: ${error instanceof Error ? error.message : "unknown error"}`);
+    result.errors.push(`Aircraft endpoints ${aircraftPaths.join(", ")}: ${error instanceof Error ? error.message : "unknown error"}`);
   }
 
   try {
-    const airports = await fetchAll(airportPath, "airports");
+    const { path: usedAirportPath, rows: airports, errors } = await fetchAllFromFirstAvailable(airportPaths, "airports");
+    if (errors.length) console.warn(`[vAMSYS Operations airports] fallback used ${usedAirportPath}; previous errors: ${errors.join(" | ")}`);
     for (const row of airports) {
       try {
         const code = airportIcao(row);
@@ -200,7 +219,7 @@ export async function syncOperationsFleetData(staffUserId?: string) {
       }
     }
   } catch (error) {
-    result.errors.push(`Airport endpoint ${airportPath}: ${error instanceof Error ? error.message : "unknown error"}`);
+    result.errors.push(`Airport endpoints ${airportPaths.join(", ")}: ${error instanceof Error ? error.message : "unknown error"}`);
   }
 
   await prisma.operationsApiState.upsert({
