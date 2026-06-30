@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge, DataTable } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
@@ -19,7 +20,7 @@ export default async function PilotPayrollPage() {
     <div className="card">
       {payroll.length === 0
         ? <div className="empty-state">Todavía no hay registros de nómina.</div>
-        : <DataTable headers={["Vuelo", "Aeronave", "Base", "Bonificación", "Penalización", "Importe", "Estado", "Mes"]} rows={payroll.map((row) => [
+        : <DataTable headers={["Vuelo", "Aeronave", "Base", "Bonificación", "Penalización", "Importe", "Estado", "Mes", "Detalle"]} rows={payroll.map((row) => [
           row.pirep.flightNumber ?? "—",
           row.pirep.aircraftType ?? "—",
           credits(row.basePayCents),
@@ -28,6 +29,7 @@ export default async function PilotPayrollPage() {
           <strong key="amount">{credits(row.amountCents)}</strong>,
           <Badge key="status" tone={statusTones[row.status as keyof typeof statusTones] ?? "gray"}>{statusLabels[row.status] ?? row.status}</Badge>,
           row.settlementMonth,
+          <Link key="detail" className="action-button" href={`/pilot/payroll/${row.id}`}>Ver detalle</Link>,
         ])} />}
     </div>
   </PilotPortalShell>;
