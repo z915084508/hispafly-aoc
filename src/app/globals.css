@@ -101,6 +101,10 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .audit-filters select { min-width: 190px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: white; color: var(--ink); }
 .audit-message { display: block; min-width: 280px; max-width: 520px; white-space: normal; line-height: 1.4; }
 .settings-link { margin-top: 18px; }
+.inline-action-form { display: flex; align-items: center; gap: 8px; }
+.inline-action-form input { width: 96px; border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; background: #fbfcfe; color: var(--ink); font-size: 12px; }
+.detail-list { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.detail-list li + li { margin-top: 6px; }
 .oauth-connect-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
 .disabled-button { opacity: .45; cursor: not-allowed; box-shadow: none; }
 .legal-copy { max-width: 920px; line-height: 1.7; color: #344054; }
@@ -147,4 +151,4 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .user-session { gap: 14px; }
 
 @media (max-width: 1050px) { .stats { grid-template-columns: repeat(2, 1fr); } .two-column { grid-template-columns: 1fr; } .gateway-portal-grid { grid-template-columns: 1fr; } .login-panel { grid-template-columns: 1fr; } }
-@media (max-width: 760px) { .app-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .nav-list { grid-template-columns: repeat(2, 1fr); } .sidebar-note { display: none; } .topbar { padding: 0 20px; } .content { padding: 24px 18px; } .stats, .form-grid, .workflow-summary { grid-template-columns: 1fr; } .page-heading { align-items: start; flex-direction: column; } .audit-filters, .oauth-connect-card, .pilot-welcome-card { align-items: stretch; flex-direction: column; } .portal-gateway { padding: 30px 20px; } .gateway-card { padding: 28px; min-height: 260px; } }
+@media (max-width: 760px) { .app-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .nav-list { grid-template-columns: repeat(2, 1fr); } .sidebar-note { display: none; } .topbar { padding: 0 20px; } .content { padding: 24px 18px; } .stats, .form-grid, .workflow-summary { grid-template-columns: 1fr; } .page-heading { align-items: start; flex-direction: column; } .audit-filters, .oauth-connect-card, .pilot-welcome-card { align-items: stretch; flex-direction: column; } .portal-gateway { padding: 30px 20px; } .gateway-card { padding: 28px; min-height: 260px; } .inline-action-form { align-items: stretch; flex-direction: column; } }
