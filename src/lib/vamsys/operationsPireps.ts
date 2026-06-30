@@ -11,7 +11,15 @@ import { nextVamsysCursor, nextVamsysPageUrl } from "./pagination";
 import { isCompletedOperationsPirep, mergeOperationsPirepRecords, operationsPirepStatus } from "./operationsPirepPayload";
 
 type Row = Record<string, unknown>;
-export interface OperationsPirepSyncResult { importedCount: number; updatedCount: number; skippedCount: number; payrollGeneratedCount: number; errors: string[] }
+export interface OperationsPirepSyncResult {
+  importedCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  payrollGeneratedCount: number;
+  expensesGeneratedCount: number;
+  walletTransactionsCount: number;
+  errors: string[];
+}
 const rec = (v: unknown): Row | null => v && typeof v === "object" && !Array.isArray(v) ? v as Row : null;
 const str = (r: Row, ...keys: string[]) => { for (const k of keys) if (typeof r[k] === "string" || typeof r[k] === "number") return String(r[k]); return null; };
 const num = (r: Row, ...keys: string[]) => { const value = str(r, ...keys); if (value === null) return null; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : null; };
@@ -19,9 +27,32 @@ const date = (r: Row, ...keys: string[]) => { const value = str(r, ...keys); if 
 const nested = (r: Row, key: string) => rec(r[key]);
 const minutes = (seconds: number | null) => seconds === null ? null : Math.round(seconds / 60);
 
+function emptyResult(): OperationsPirepSyncResult {
+  return {
+    importedCount: 0,
+    updatedCount: 0,
+    skippedCount: 0,
+    payrollGeneratedCount: 0,
+    expensesGeneratedCount: 0,
+    walletTransactionsCount: 0,
+    errors: [],
+  };
+}
+
+function mergeResult(target: OperationsPirepSyncResult, source: OperationsPirepSyncResult) {
+  target.importedCount += source.importedCount;
+  target.updatedCount += source.updatedCount;
+  target.skippedCount += source.skippedCount;
+  target.payrollGeneratedCount += source.payrollGeneratedCount;
+  target.expensesGeneratedCount += source.expensesGeneratedCount;
+  target.walletTransactionsCount += source.walletTransactionsCount;
+  target.errors.push(...source.errors);
+}
+
 async function generateExpensesSafely(pirepId: string, result: OperationsPirepSyncResult) {
   try {
-    await generateCompanyExpensesForPirep(pirepId);
+    const generated = await generateCompanyExpensesForPirep(pirepId);
+    result.expensesGeneratedCount += generated.generated;
   } catch (error) {
     result.errors.push(`Company expense calculation failed for ${pirepId}: ${error instanceof Error ? error.message : "unknown error"}`);
   }
@@ -67,6 +98,137 @@ async function withFuelEconomics<T extends { departure: string | null; fuelUsed:
   return { ...data, ...economics };
 }
 
+async function loadActivePayrollRule() {
+  return prisma.payrollRule.findFirst({ where: { isActive: true }, orderBy: [{ effectiveFrom: "desc" }, { version: "desc" }] });
+}
+
+type ActivePayrollRule = NonNullable<Awaited<ReturnType<typeof loadActivePayrollRule>>>;
+
+async function createWalletTransactionIfMissing(input: {
+  payrollRecordId: string;
+  pilotId: string;
+  amountCents: number;
+  flightNumber: string | null;
+  vamsysPirepId: string;
+  result: OperationsPirepSyncResult;
+}) {
+  if (input.amountCents === 0) return;
+  try {
+    const created = await prisma.$transaction(async (tx) => {
+      const existing = await tx.walletTransaction.findUnique({
+        where: { payrollRecordId: input.payrollRecordId },
+        select: { id: true },
+      });
+      if (existing) return false;
+      await tx.walletTransaction.create({
+        data: {
+          pilotId: input.pilotId,
+          payrollRecordId: input.payrollRecordId,
+          type: "payroll",
+          amountCents: input.amountCents,
+          description: `Nómina automática${input.flightNumber ? ` ${input.flightNumber}` : ""}`,
+          reference: input.vamsysPirepId,
+        },
+      });
+      await tx.pilot.update({
+        where: { id: input.pilotId },
+        data: { walletBalanceCents: { increment: input.amountCents } },
+      });
+      return true;
+    });
+    if (created) input.result.walletTransactionsCount++;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return;
+    throw error;
+  }
+}
+
+async function generatePayrollAndWallet(input: {
+  stored: Awaited<ReturnType<typeof prisma.pirep.upsert>> & { payrollRecord?: { id: string; amountCents: number } | null };
+  pilotId: string;
+  rule: ActivePayrollRule | null;
+  pirepData: Awaited<ReturnType<typeof withFuelEconomics<ReturnType<typeof mapOperationsPirep>["data"]>>>;
+  result: OperationsPirepSyncResult;
+}) {
+  const existingPayroll = input.stored.payrollRecord;
+  if (existingPayroll) {
+    await createWalletTransactionIfMissing({
+      payrollRecordId: existingPayroll.id,
+      pilotId: input.pilotId,
+      amountCents: existingPayroll.amountCents,
+      flightNumber: input.pirepData.flightNumber,
+      vamsysPirepId: input.pirepData.vamsysPirepId,
+      result: input.result,
+    });
+    return;
+  }
+
+  const d = input.pirepData;
+  if (!input.rule || !d.aircraftType || d.flightTimeMinutes === null || !d.network || d.landingRate === null || d.score === null || !d.flownAt) return;
+
+  const calc = calculatePayroll({ aircraftType: d.aircraftType, flightTimeMinutes: d.flightTimeMinutes, network: d.network, landingRate: d.landingRate, score: d.score, status: d.status }, payrollRulesFromStoredRule(input.rule));
+  try {
+    const payrollRecord = await prisma.payrollRecord.create({
+      data: {
+        pirepId: input.stored.id,
+        pilotId: input.pilotId,
+        payrollRuleId: input.rule.id,
+        basePayCents: creditsToCents(calc.basePay),
+        bonusCents: creditsToCents(calc.totalBonus),
+        penaltyCents: creditsToCents(calc.penalties),
+        amountCents: creditsToCents(calc.finalAmount),
+        calculationDetails: { ...calc },
+        status: "paid",
+        settlementMonth: d.flownAt.toISOString().slice(0, 7),
+        approvedAt: new Date(),
+        paidAt: new Date(),
+      },
+    });
+    input.result.payrollGeneratedCount++;
+    await createWalletTransactionIfMissing({
+      payrollRecordId: payrollRecord.id,
+      pilotId: input.pilotId,
+      amountCents: payrollRecord.amountCents,
+      flightNumber: d.flightNumber,
+      vamsysPirepId: d.vamsysPirepId,
+      result: input.result,
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return;
+    throw error;
+  }
+}
+
+export async function processAcceptedOperationsPirep(pirepSummaryOrId: Row | string, options: { rule?: ActivePayrollRule | null } = {}): Promise<OperationsPirepSyncResult> {
+  const result = emptyResult();
+  const summary = typeof pirepSummaryOrId === "string" ? null : pirepSummaryOrId;
+  const vamsysPirepId = typeof pirepSummaryOrId === "string" ? pirepSummaryOrId : mapOperationsPirep(pirepSummaryOrId).data.vamsysPirepId;
+  const detailBody = rec(await operationsRequest(`/pireps/${encodeURIComponent(vamsysPirepId)}`));
+  const detail = rec(detailBody?.data);
+  if (!detail && !summary) throw new Error(`PIREP ${vamsysPirepId} detail not found.`);
+
+  const mapped = mapOperationsPirep(summary && detail ? mergeOperationsPirepRecords(summary, detail) : detail ?? summary!);
+  if (!mapped.pilotExternalId) throw new Error(`PIREP ${mapped.data.vamsysPirepId} sin pilot_id.`);
+
+  const pilot = await prisma.pilot.upsert({
+    where: { vamsysPilotId: mapped.pilotExternalId },
+    update: { lastOperationsSyncAt: new Date() },
+    create: { vamsysPilotId: mapped.pilotExternalId, displayName: `Piloto ${mapped.pilotExternalId}`, lastOperationsSyncAt: new Date() },
+  });
+  const pirepData = await withFuelEconomics(mapped.data);
+  const existing = await prisma.pirep.findUnique({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, select: { id: true } });
+  const stored = await prisma.pirep.upsert({
+    where: { vamsysPirepId: mapped.data.vamsysPirepId },
+    update: { ...pirepData, pilotId: pilot.id },
+    create: { ...pirepData, pilotId: pilot.id },
+    include: { payrollRecord: true },
+  });
+  await generateExpensesSafely(stored.id, result);
+  if (existing) result.updatedCount++; else result.importedCount++;
+  await generatePayrollAndWallet({ stored, pilotId: pilot.id, rule: options.rule ?? await loadActivePayrollRule(), pirepData, result });
+  return result;
+}
+
 async function fetchAllAccepted() {
   const rows: Row[] = []; let nextRequest: string | null = null;
   for (let page = 0; page < 100; page++) {
@@ -83,24 +245,12 @@ async function fetchAllAccepted() {
 }
 
 export async function syncAcceptedOperationsPireps(staffUserId?: string): Promise<OperationsPirepSyncResult> {
-  const result: OperationsPirepSyncResult = { importedCount: 0, updatedCount: 0, skippedCount: 0, payrollGeneratedCount: 0, errors: [] };
+  const result = emptyResult();
   await writeAuditLogSafely({ staffUserId, action: "VAMSYS_OPERATIONS_PIREP_SYNC_STARTED", entityType: "Pirep", message: "Se inició la sincronización global de PIREPs aceptados mediante Operations API." });
   try {
-    const [rows, rule] = await Promise.all([fetchAllAccepted(), prisma.payrollRule.findFirst({ where: { isActive: true }, orderBy: [{ effectiveFrom: "desc" }, { version: "desc" }] })]);
+    const [rows, rule] = await Promise.all([fetchAllAccepted(), loadActivePayrollRule()]);
     for (const summary of rows) try {
-      const summaryMapped = mapOperationsPirep(summary); const detailBody = rec(await operationsRequest(`/pireps/${encodeURIComponent(summaryMapped.data.vamsysPirepId)}`)); const detail = rec(detailBody?.data) ?? summary; const mapped = mapOperationsPirep(mergeOperationsPirepRecords(summary, detail));
-      if (!mapped.pilotExternalId) throw new Error(`PIREP ${mapped.data.vamsysPirepId} sin pilot_id.`);
-      const pilot = await prisma.pilot.upsert({ where: { vamsysPilotId: mapped.pilotExternalId }, update: {}, create: { vamsysPilotId: mapped.pilotExternalId, displayName: `Piloto ${mapped.pilotExternalId}` } });
-      const pirepData = await withFuelEconomics(mapped.data);
-      const existing = await prisma.pirep.findUnique({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, select: { id: true } });
-      const stored = await prisma.pirep.upsert({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, update: { ...pirepData, pilotId: pilot.id }, create: { ...pirepData, pilotId: pilot.id }, include: { payrollRecord: true } });
-      await generateExpensesSafely(stored.id, result);
-      if (existing) result.updatedCount++; else result.importedCount++;
-      const d = pirepData;
-      if (!stored.payrollRecord && rule && d.aircraftType && d.flightTimeMinutes !== null && d.network && d.landingRate !== null && d.score !== null && d.flownAt) {
-        const calc = calculatePayroll({ aircraftType: d.aircraftType, flightTimeMinutes: d.flightTimeMinutes, network: d.network, landingRate: d.landingRate, score: d.score, status: d.status }, payrollRulesFromStoredRule(rule));
-        try { await prisma.payrollRecord.create({ data: { pirepId: stored.id, pilotId: pilot.id, payrollRuleId: rule.id, basePayCents: creditsToCents(calc.basePay), bonusCents: creditsToCents(calc.totalBonus), penaltyCents: creditsToCents(calc.penalties), amountCents: creditsToCents(calc.finalAmount), calculationDetails: { ...calc }, settlementMonth: d.flownAt.toISOString().slice(0, 7) } }); result.payrollGeneratedCount++; } catch (error) { if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error; }
-      }
+      mergeResult(result, await processAcceptedOperationsPirep(summary, { rule }));
     } catch (error) { result.skippedCount++; result.errors.push(error instanceof Error ? error.message : "Error desconocido."); }
     console.info(`[vAMSYS PIREP sync] completed fetched=${rows.length} imported=${result.importedCount} updated=${result.updatedCount} skipped=${result.skippedCount}`);
     await prisma.operationsApiState.upsert({
@@ -133,7 +283,7 @@ async function fetchIncrementalAccepted(limit = 50, since?: Date) {
 
 export async function syncAcceptedOperationsPirepsIncremental(options: { limit?: number; cron?: boolean } = {}): Promise<OperationsPirepSyncResult> {
   const limit = Math.max(1, Math.min(options.limit ?? 50, 50));
-  const result: OperationsPirepSyncResult = { importedCount: 0, updatedCount: 0, skippedCount: 0, payrollGeneratedCount: 0, errors: [] };
+  const result = emptyResult();
   const state = await prisma.operationsApiState.findUnique({ where: { id: "vamsys" } }).catch(() => null);
   const since = state?.lastCronPirepSyncAt ?? state?.lastPirepSyncAt ?? undefined;
   const now = new Date();
@@ -142,30 +292,10 @@ export async function syncAcceptedOperationsPirepsIncremental(options: { limit?:
   try {
     const [rows, rule] = await Promise.all([
       fetchIncrementalAccepted(limit, since),
-      prisma.payrollRule.findFirst({ where: { isActive: true }, orderBy: [{ effectiveFrom: "desc" }, { version: "desc" }] }),
+      loadActivePayrollRule(),
     ]);
     for (const summary of rows) try {
-      const summaryMapped = mapOperationsPirep(summary);
-      const detailBody = rec(await operationsRequest(`/pireps/${encodeURIComponent(summaryMapped.data.vamsysPirepId)}`));
-      const detail = rec(detailBody?.data) ?? summary;
-      const mapped = mapOperationsPirep(mergeOperationsPirepRecords(summary, detail));
-      if (!mapped.pilotExternalId) throw new Error(`PIREP ${mapped.data.vamsysPirepId} sin pilot_id.`);
-      const pilot = await prisma.pilot.upsert({ where: { vamsysPilotId: mapped.pilotExternalId }, update: {}, create: { vamsysPilotId: mapped.pilotExternalId, displayName: `Piloto ${mapped.pilotExternalId}` } });
-      const pirepData = await withFuelEconomics(mapped.data);
-      const existing = await prisma.pirep.findUnique({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, select: { id: true } });
-      const stored = await prisma.pirep.upsert({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, update: { ...pirepData, pilotId: pilot.id }, create: { ...pirepData, pilotId: pilot.id }, include: { payrollRecord: true } });
-      await generateExpensesSafely(stored.id, result);
-      if (existing) result.updatedCount++; else result.importedCount++;
-      const d = pirepData;
-      if (!stored.payrollRecord && rule && d.aircraftType && d.flightTimeMinutes !== null && d.network && d.landingRate !== null && d.score !== null && d.flownAt) {
-        const calc = calculatePayroll({ aircraftType: d.aircraftType, flightTimeMinutes: d.flightTimeMinutes, network: d.network, landingRate: d.landingRate, score: d.score, status: d.status }, payrollRulesFromStoredRule(rule));
-        try {
-          await prisma.payrollRecord.create({ data: { pirepId: stored.id, pilotId: pilot.id, payrollRuleId: rule.id, basePayCents: creditsToCents(calc.basePay), bonusCents: creditsToCents(calc.totalBonus), penaltyCents: creditsToCents(calc.penalties), amountCents: creditsToCents(calc.finalAmount), calculationDetails: { ...calc }, settlementMonth: d.flownAt.toISOString().slice(0, 7) } });
-          result.payrollGeneratedCount++;
-        } catch (error) {
-          if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
-        }
-      }
+      mergeResult(result, await processAcceptedOperationsPirep(summary, { rule }));
     } catch (error) {
       result.skippedCount++;
       result.errors.push(error instanceof Error ? error.message : "Error desconocido.");
