@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge, DataTable } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
 import { prisma } from "@/lib/prisma";
@@ -50,7 +51,10 @@ export default async function StaffExpensesPage() {
   const atcTotal = expenses.filter((row) => row.type.startsWith("atc")).reduce((sum, row) => sum + row.amountCents, 0);
 
   return <>
-    <PageHeading eyebrow="COMPANY EXPENSES" title="Gastos de compañía" copy="Airport expenses y ATC expenses calculados desde PIREPs aceptados y reglas económicas AOC." />
+    <div className="card-header">
+      <PageHeading eyebrow="COMPANY EXPENSES" title="Gastos de compañía" copy="Airport expenses y ATC expenses calculados desde PIREPs aceptados y reglas económicas AOC." />
+      <Link className="action-button approve" href="/staff/expenses/rules">Gestionar reglas</Link>
+    </div>
     <section className="grid stats">
       <div className="card"><div className="stat-label">Total gastos</div><div className="stat-value">{money(total)}</div><div className="stat-note">Airport + ATC</div></div>
       <div className="card"><div className="stat-label">Airport / handling</div><div className="stat-value">{money(airportTotal)}</div><div className="stat-note">Landing, passenger, service, parking, handling</div></div>
