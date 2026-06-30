@@ -8,7 +8,7 @@ import { getPilotDashboardData } from "@/lib/pilot/portalData";
 export const dynamic = "force-dynamic";
 
 const number = (value: number) => new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(value);
-const credits = (cents: number | null) => cents === null ? "—" : `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(cents / 100)} cr`;
+const money = (cents: number | null) => cents === null ? "—" : new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(cents / 100);
 const route = (departure: string | null, arrival: string | null) => departure || arrival ? `${departure ?? "—"}-${arrival ?? "—"}` : "—";
 
 export default async function PilotDashboardPage() {
@@ -34,8 +34,8 @@ export default async function PilotDashboardPage() {
           row.aircraftType ?? "—",
           row.passengers ?? "—",
           row.cargoKg === null ? "—" : `${number(row.cargoKg)} kg`,
-          credits(row.passengerRevenueCents),
-          credits(row.fuelCostCents),
+          money(row.passengerRevenueCents),
+          money(row.fuelCostCents),
           new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(row.flownAt ?? row.createdAt),
           <Link key="detail" className="action-button" href={`/pilot/pireps/${row.id}`}>Ver detalle</Link>,
         ])} />}
