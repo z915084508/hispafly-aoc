@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge, DataTable, Identity } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
@@ -7,6 +8,8 @@ import { getPilotDashboardData } from "@/lib/pilot/portalData";
 export const dynamic = "force-dynamic";
 
 const number = (value: number) => new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(value);
+const credits = (cents: number | null) => cents === null ? "—" : `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(cents / 100)} cr`;
+const route = (departure: string | null, arrival: string | null) => departure || arrival ? `${departure ?? "—"}-${arrival ?? "—"}` : "—";
 
 export default async function PilotDashboardPage() {
   const pilot = await requirePilotSession();
@@ -20,6 +23,24 @@ export default async function PilotDashboardPage() {
       <div className="card"><div className="stat-label">Mercancía / carga total este mes</div><div className="stat-value">{number(summary.totalCargo)}</div><div className="stat-note">Según payload vAMSYS disponible</div></div>
       <div className="card"><div className="stat-label">Estado del perfil</div><div className="stat-value"><Badge tone={pilot.status === "active" ? "green" : "amber"}>{pilot.status}</Badge></div><div className="stat-note">{pilot.callsign ?? pilot.vamsysPilotId}</div></div>
     </div>
+
+    <div className="card ranking-card">
+      <div className="card-header"><h2 className="card-title">Tus últimos PIREPs aceptados</h2><span className="meta">Detalle por vuelo</span></div>
+      {summary.latestPireps.length === 0
+        ? <div className="empty-state">Todavía no hay PIREPs aceptados.</div>
+        : <DataTable headers={["Vuelo", "Ruta", "Aeronave", "Pasajeros", "Carga", "Ingresos", "Fuel cost", "Fecha", "Detalle"]} rows={summary.latestPireps.map((row) => [
+          row.flightNumber ?? row.vamsysPirepId,
+          route(row.departure, row.arrival),
+          row.aircraftType ?? "—",
+          row.passengers ?? "—",
+          row.cargoKg === null ? "—" : `${number(row.cargoKg)} kg`,
+          credits(row.passengerRevenueCents),
+          credits(row.fuelCostCents),
+          new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(row.flownAt ?? row.createdAt),
+          <Link key="detail" className="action-button" href={`/pilot/pireps/${row.id}`}>Ver detalle</Link>,
+        ])} />}
+    </div>
+
     <div className="card ranking-card">
       <div className="card-header"><h2 className="card-title">Top 5 pilotos por PIREP del mes actual</h2><span className="meta">Todos los pilotos</span></div>
       {summary.topPilots.length === 0
