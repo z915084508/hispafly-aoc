@@ -1,6 +1,8 @@
 import { CompanyExpenseType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+type AirportCategory = "mega_hub" | "major" | "medium" | "small" | "regional" | "standard";
+
 type ExpenseInput = {
   pirepId: string;
   type: CompanyExpenseType;
@@ -8,13 +10,71 @@ type ExpenseInput = {
   calculationDetails: Prisma.InputJsonValue;
 };
 
+type AircraftEconomics = {
+  mtowKg: number | null;
+  seatCapacity: number | null;
+  cargoCapacityKg: number | null;
+  aircraftType: string | null;
+  source: string;
+};
+
 const DEFAULT_AIRCRAFT_MTOW_KG = 70_000;
 const DEFAULT_HANDLING_CENTS = 0;
 const DEFAULT_CARGO_HANDLING_PER_TONNE_CENTS = 0;
 
+const AIRCRAFT_ALIASES: Record<string, string> = {
+  B77W: "B772",
+  B38M: "B738",
+  A20N: "A320",
+  A21N: "A321",
+  A35K: "A359",
+};
+
+const KNOWN_AIRPORT_CATEGORIES: Record<string, AirportCategory> = {
+  LEMD: "mega_hub",
+  LEBL: "mega_hub",
+  EGLL: "mega_hub",
+  LFPG: "mega_hub",
+  EHAM: "mega_hub",
+  EDDF: "mega_hub",
+  LEPA: "major",
+  GCTS: "major",
+  GCLP: "major",
+  LPPT: "major",
+  LIRF: "major",
+  LIMC: "major",
+  LEVC: "medium",
+  LEMG: "medium",
+  LEBB: "medium",
+  LERS: "medium",
+  LEGR: "medium",
+  LEAS: "small",
+  LEXJ: "small",
+  LELC: "small",
+  LEAL: "small",
+  LEGE: "small",
+};
+
 function icao(value: string | null | undefined) {
   const code = value?.trim().toUpperCase();
   return code && /^[A-Z0-9]{4}$/.test(code) ? code : null;
+}
+
+function normalizeAircraftType(value: string | null | undefined) {
+  const code = value?.trim().toUpperCase() ?? null;
+  return code ? AIRCRAFT_ALIASES[code] ?? code : null;
+}
+
+export function classifyAirportSize(airportIcao: string | null | undefined, usageCount = 0): AirportCategory {
+  const code = icao(airportIcao);
+  if (!code) return "standard";
+  const known = KNOWN_AIRPORT_CATEGORIES[code];
+  if (known) return known;
+  if (usageCount >= 250) return "mega_hub";
+  if (usageCount >= 100) return "major";
+  if (usageCount >= 25) return "medium";
+  if (usageCount >= 5) return "small";
+  return "standard";
 }
 
 function regionFromIcao(value: string | null | undefined) {
@@ -37,26 +97,47 @@ async function ensureAirport(code: string | null, source = "pirep") {
   });
 }
 
-async function aircraftEconomics(aircraftType: string | null) {
-  if (!aircraftType) return { mtowKg: DEFAULT_AIRCRAFT_MTOW_KG, seatCapacity: null as number | null, cargoCapacityKg: null as number | null, source: "default" };
+async function airportUsageCount(airportIcao: string | null) {
+  if (!airportIcao) return 0;
+  return prisma.pirep.count({
+    where: {
+      status: "accepted",
+      OR: [{ departure: airportIcao }, { arrival: airportIcao }],
+    },
+  }).catch(() => 0);
+}
+
+export async function resolveAircraftProfile(aircraftType: string | null): Promise<AircraftEconomics> {
+  const normalized = normalizeAircraftType(aircraftType);
+  if (!normalized) return { mtowKg: null, seatCapacity: null, cargoCapacityKg: null, aircraftType: null, source: "missing_aircraft_type" };
   const [aircraft, profile] = await Promise.all([
     prisma.aircraft.findFirst({
-      where: { aircraftType: { equals: aircraftType, mode: "insensitive" } },
+      where: { aircraftType: { equals: normalized, mode: "insensitive" } },
       orderBy: { updatedAt: "desc" },
     }).catch(() => null),
-    prisma.aircraftProfile.findUnique({ where: { aircraftType } }).catch(() => null),
+    prisma.aircraftProfile.findUnique({ where: { aircraftType: normalized } }).catch(() => null),
   ]);
   return {
     mtowKg: aircraft?.mtowKg ?? profile?.mtowKg ?? DEFAULT_AIRCRAFT_MTOW_KG,
     seatCapacity: aircraft?.seatCapacity ?? profile?.seatCapacity ?? null,
     cargoCapacityKg: aircraft?.cargoCapacityKg ?? profile?.cargoCapacityKg ?? null,
-    source: aircraft?.mtowKg ? "vamsys_aircraft" : profile?.mtowKg ? "aoc_aircraft_profile" : "default",
+    aircraftType: normalized,
+    source: aircraft?.mtowKg ? "vamsys_aircraft" : profile?.mtowKg ? "aoc_aircraft_profile" : "default_mtow_warning",
   };
 }
 
-async function airportProfile(airportIcao: string | null) {
-  if (!airportIcao) return null;
-  return prisma.airportChargeProfile.findUnique({ where: { airportIcao } }).catch(() => null);
+export async function resolveAirportChargeProfile(airportIcao: string | null) {
+  if (!airportIcao) return { profile: null, airportCategory: "standard" as AirportCategory, source: "missing_airport" };
+  const override = await prisma.airportChargeProfile.findUnique({ where: { airportIcao } }).catch(() => null);
+  if (override) return { profile: override, airportCategory: override.airportCategory as AirportCategory, source: "airport_override" };
+
+  const usageCount = await airportUsageCount(airportIcao);
+  const airportCategory = classifyAirportSize(airportIcao, usageCount);
+  const categoryProfile = await prisma.airportCategoryChargeProfile.findUnique({ where: { airportCategory } }).catch(() => null);
+  if (categoryProfile) return { profile: categoryProfile, airportCategory, source: "airport_category_profile", usageCount };
+
+  const standard = await prisma.airportCategoryChargeProfile.findUnique({ where: { airportCategory: "standard" } }).catch(() => null);
+  return { profile: standard, airportCategory: "standard" as AirportCategory, source: standard ? "airport_category_fallback" : "missing_airport_rule", usageCount };
 }
 
 async function airspaceProfile(region: string) {
@@ -77,8 +158,9 @@ export async function generateCompanyExpensesForPirep(pirepId: string) {
   const arrival = icao(pirep.arrival);
   await Promise.all([ensureAirport(departure), ensureAirport(arrival)]);
 
-  const aircraft = await aircraftEconomics(pirep.aircraftType);
-  const arrivalProfile = await airportProfile(arrival);
+  const aircraft = await resolveAircraftProfile(pirep.aircraftType);
+  const arrivalRule = await resolveAirportChargeProfile(arrival);
+  const arrivalProfile = arrivalRule.profile;
   const departureRegion = regionFromIcao(departure);
   const arrivalRegion = regionFromIcao(arrival);
   const enrouteProfile = await airspaceProfile(departureRegion);
@@ -86,10 +168,12 @@ export async function generateCompanyExpensesForPirep(pirepId: string) {
   const passengers = pirep.passengers ?? 0;
   const cargoKg = pirep.cargoKg ?? 0;
   const distanceNm = pirep.flightDistanceNm ?? 0;
+  const distanceKm = distanceNm * 1.852;
   const flightMinutes = pirep.flightTimeMinutes ?? 0;
   const blockMinutes = pirep.blockTimeMinutes ?? flightMinutes;
   const parkingHours = Math.max(0, (blockMinutes - flightMinutes) / 60);
-  const mtowTonnes = Math.max(1, aircraft.mtowKg / 1000);
+  const mtowKg = aircraft.mtowKg ?? DEFAULT_AIRCRAFT_MTOW_KG;
+  const mtowTonnes = Math.max(1, mtowKg / 1000);
   const sqrtWeightFactor = Math.sqrt(mtowTonnes / 50);
 
   const landingRate = arrivalProfile?.landingRatePerTonneCents ?? 0;
@@ -98,55 +182,56 @@ export async function generateCompanyExpensesForPirep(pirepId: string) {
   const parkingRate = arrivalProfile?.parkingRatePerHourCents ?? 0;
   const terminalRate = arrivalProfile?.terminalAtcUnitRateCents ?? 0;
   const enrouteRate = enrouteProfile?.unitRateCents ?? 0;
+  const commonAirportDetails = { airportIcao: arrival, airportCategory: arrivalRule.airportCategory, ruleSource: arrivalRule.source };
 
   const expenses: ExpenseInput[] = [
     expense({
       pirepId,
       type: "airport_landing",
       amountCents: Math.round(mtowTonnes * landingRate),
-      calculationDetails: { airportIcao: arrival, mtowKg: aircraft.mtowKg, mtowTonnes, landingRatePerTonneCents: landingRate, aircraftSource: aircraft.source },
+      calculationDetails: { ...commonAirportDetails, mtowKg, mtowTonnes, landingRatePerTonneCents: landingRate, aircraftSource: aircraft.source, aircraftType: aircraft.aircraftType },
     }),
     expense({
       pirepId,
       type: "airport_passenger",
       amountCents: Math.round(passengers * passengerFee),
-      calculationDetails: { airportIcao: arrival, passengers, passengerFeeCents: passengerFee },
+      calculationDetails: { ...commonAirportDetails, passengers, passengerFeeCents: passengerFee },
     }),
     expense({
       pirepId,
       type: "airport_service",
       amountCents: Math.round(passengers * serviceFee),
-      calculationDetails: { airportIcao: arrival, passengers, passengerServiceFeeCents: serviceFee },
+      calculationDetails: { ...commonAirportDetails, passengers, passengerServiceFeeCents: serviceFee },
     }),
     expense({
       pirepId,
       type: "airport_parking",
       amountCents: Math.round(parkingHours * parkingRate),
-      calculationDetails: { airportIcao: arrival, blockTimeMinutes: blockMinutes, flightTimeMinutes: flightMinutes, parkingHours, parkingRatePerHourCents: parkingRate },
+      calculationDetails: { ...commonAirportDetails, blockTimeMinutes: blockMinutes, flightTimeMinutes: flightMinutes, parkingHours, parkingRatePerHourCents: parkingRate },
     }),
     expense({
       pirepId,
       type: "handling",
       amountCents: DEFAULT_HANDLING_CENTS,
-      calculationDetails: { airportIcao: arrival, rule: "default_handling", configured: false, amountCents: DEFAULT_HANDLING_CENTS },
+      calculationDetails: { ...commonAirportDetails, rule: "default_handling", configured: false, amountCents: DEFAULT_HANDLING_CENTS },
     }),
     expense({
       pirepId,
       type: "cargo_handling",
       amountCents: Math.round((cargoKg / 1000) * DEFAULT_CARGO_HANDLING_PER_TONNE_CENTS),
-      calculationDetails: { airportIcao: arrival, cargoKg, cargoTonnes: cargoKg / 1000, ratePerTonneCents: DEFAULT_CARGO_HANDLING_PER_TONNE_CENTS, configured: false },
+      calculationDetails: { ...commonAirportDetails, cargoKg, cargoTonnes: cargoKg / 1000, ratePerTonneCents: DEFAULT_CARGO_HANDLING_PER_TONNE_CENTS, configured: false },
     }),
     expense({
       pirepId,
       type: "atc_enroute",
-      amountCents: Math.round((distanceNm / 100) * enrouteRate * sqrtWeightFactor),
-      calculationDetails: { region: departureRegion, distanceNm, unitRateCents: enrouteRate, mtowKg: aircraft.mtowKg, sqrtWeightFactor, source: enrouteProfile ? "airspace_profile" : "missing_profile" },
+      amountCents: Math.round((distanceKm / 100) * enrouteRate * sqrtWeightFactor),
+      calculationDetails: { region: departureRegion, distanceNm, distanceKm, unitRateCents: enrouteRate, mtowKg, sqrtWeightFactor, source: enrouteProfile ? "airspace_profile" : "missing_profile" },
     }),
     expense({
       pirepId,
       type: "atc_terminal",
       amountCents: Math.round(terminalRate * sqrtWeightFactor),
-      calculationDetails: { airportIcao: arrival, region: arrivalRegion, terminalAtcUnitRateCents: terminalRate, mtowKg: aircraft.mtowKg, sqrtWeightFactor, source: arrivalProfile ? "airport_charge_profile" : "missing_profile" },
+      calculationDetails: { ...commonAirportDetails, region: arrivalRegion, terminalAtcUnitRateCents: terminalRate, mtowKg, sqrtWeightFactor },
     }),
   ];
 
