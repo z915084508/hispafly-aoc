@@ -35,7 +35,7 @@ export async function syncAllPireps() {
   try {
     const staff = await requireStaffPermission("VAMSYS_PIREP_SYNC", { entityType: "VamsysPirepSync", attemptedAction: "sincronizar los PIREPs de todos los pilotos" });
     const result = await syncAcceptedOperationsPireps(staff.id);
-    const message = `${result.importedCount} importados, ${result.updatedCount} actualizados y ${result.payrollGeneratedCount} nóminas generadas${errorSummary(result.errors)}.`;
+    const message = `${result.importedCount} importados, ${result.updatedCount} actualizados, ${result.payrollGeneratedCount} nóminas, ${result.walletTransactionsCount} movimientos de cartera y ${result.expensesGeneratedCount} gastos generados${errorSummary(result.errors)}.`;
     feedback = { type: result.errors.length > 0 && result.importedCount + result.updatedCount === 0 ? "error" : "success", message };
   } catch (error) {
     feedback = { type: "error", message: error instanceof Error ? error.message : "No se pudo iniciar la sincronización." };

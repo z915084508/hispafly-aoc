@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
     updated: result.updatedCount,
     skipped: result.skippedCount,
     payrollGenerated: result.payrollGeneratedCount,
+    expensesGenerated: result.expensesGeneratedCount,
+    walletTransactions: result.walletTransactionsCount,
     errors: result.errors,
   }, { status: ok ? 200 : 500 });
 }

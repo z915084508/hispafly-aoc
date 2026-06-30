@@ -39,6 +39,17 @@ enum WalletTransactionType {
   manual_adjustment
 }
 
+enum CompanyExpenseType {
+  airport_landing
+  airport_passenger
+  airport_service
+  airport_parking
+  handling
+  cargo_handling
+  atc_enroute
+  atc_terminal
+}
+
 model StaffUser {
   id        String        @id @default(cuid())
   name      String        @map("displayName")
@@ -135,6 +146,25 @@ model Aircraft {
   updatedAt        DateTime @updatedAt
 }
 
+model Airport {
+  id        String   @id @default(cuid())
+  icao      String   @unique
+  iata      String?
+  name      String?
+  city      String?
+  country   String?
+  region    String?
+  latitude  Float?
+  longitude Float?
+  source    String   @default("vamsys_operations")
+  rawData   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([iata])
+  @@index([region])
+}
+
 model Route {
   id            String   @id @default(cuid())
   vamsysRouteId String   @unique
@@ -179,8 +209,13 @@ model Pirep {
   score                 Int?
   fuelUsed              Int?
   passengers            Int?
+  cargoKg               Int?
   flightDistanceNm      Int?
   passengerRevenueCents Int?
+  fuelCostCents         Int?
+  fuelPricePerKgCents   Int?
+  fuelPriceRegion       String?
+  fuelPriceSource       String?
   points                Float?
   credits               Float?
   status                PirepStatus
@@ -193,6 +228,7 @@ model Pirep {
   rawData               Json?          @map("sourcePayload")
   synchronizedAt        DateTime       @default(now())
   payrollRecord         PayrollRecord?
+  companyExpenses       CompanyExpense[]
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 
@@ -200,6 +236,39 @@ model Pirep {
   @@index([status, flownAt])
   @@index([source, synchronizedAt])
   @@index([flownAt, passengerRevenueCents])
+  @@index([flownAt, fuelCostCents])
+}
+
+model FuelPrice {
+  id                 String   @id @default(cuid())
+  region             String
+  pricePerKgCents    Int
+  currency           String   @default("EUR")
+  source             String   @default("IATA Jet Fuel Price Monitor")
+  sourceUrl          String?
+  effectiveFrom      DateTime @default(now())
+  manuallyMaintained Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([region, effectiveFrom])
+}
+
+model CompanyExpense {
+  id                 String             @id @default(cuid())
+  pirepId            String
+  pirep              Pirep              @relation(fields: [pirepId], references: [id], onDelete: Cascade)
+  type               CompanyExpenseType
+  amountCents        Int
+  currency           String             @default("EUR")
+  source             String             @default("aoc_economy_rules")
+  calculationDetails Json?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([pirepId, type])
+  @@index([type])
+  @@index([createdAt])
 }
 
 model PayrollRecord {
