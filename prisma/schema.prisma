@@ -50,6 +50,30 @@ enum CompanyExpenseType {
   atc_terminal
 }
 
+enum FlightOfferStatus {
+  DRAFT
+  PUBLISHED
+  DISPATCHED
+  FLOWN
+  EXPIRED
+  CANCELLED
+}
+
+enum FlightDispatchStatus {
+  DISPATCHING
+  DISPATCHED
+  FLOWN
+  REWARDED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum FlightOfferRewardType {
+  FIXED
+  PERCENTAGE
+}
+
 model StaffUser {
   id        String        @id @default(cuid())
   name      String        @map("displayName")
@@ -57,6 +81,7 @@ model StaffUser {
   role      StaffRole     @default(OPS)
   active    Boolean       @default(true) @map("isActive")
   auditLogs AocAuditLog[]
+  flightOffers FlightOffer[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 }
@@ -89,6 +114,7 @@ model Pilot {
   lastOperationsSyncAt DateTime?
   operationsRawData    Json?
   notes                PilotNote[]
+  flightDispatches     FlightDispatch[]
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
@@ -251,6 +277,7 @@ model VamsysOAuthToken {
 model Pirep {
   id                    String           @id @default(cuid())
   vamsysPirepId         String           @unique
+  vamsysBookingId       String?
   pilotId               String
   pilot                 Pilot            @relation(fields: [pilotId], references: [id], onDelete: Restrict)
   flightNumber          String?
@@ -285,12 +312,14 @@ model Pirep {
   synchronizedAt        DateTime         @default(now())
   payrollRecord         PayrollRecord?
   companyExpenses       CompanyExpense[]
+  flightDispatch        FlightDispatch?
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
   @@index([pilotId, flownAt])
   @@index([status, flownAt])
   @@index([source, synchronizedAt])
+  @@index([vamsysBookingId])
   @@index([flownAt, passengerRevenueCents])
   @@index([flownAt, fuelCostCents])
 }
@@ -359,6 +388,8 @@ model WalletTransaction {
   pilot           Pilot                 @relation(fields: [pilotId], references: [id], onDelete: Restrict)
   payrollRecordId String?               @unique
   payrollRecord   PayrollRecord?        @relation(fields: [payrollRecordId], references: [id], onDelete: Restrict)
+  flightDispatchId String?              @unique
+  flightDispatch FlightDispatch?        @relation(fields: [flightDispatchId], references: [id], onDelete: Restrict)
   type            WalletTransactionType
   amountCents     Int
   currency        String                @default("EUR")
@@ -368,6 +399,63 @@ model WalletTransaction {
 
   @@index([pilotId, createdAt])
   @@index([type])
+}
+
+model FlightOffer {
+  id                   String                @id @default(cuid())
+  title                String
+  flightNumber         String?
+  callsign             String?
+  departureIcao        String
+  arrivalIcao          String
+  vamsysRouteId        String
+  vamsysAircraftId     String
+  vamsysFleetId        String?
+  scheduledDeparture   DateTime
+  scheduledArrival     DateTime?
+  aircraftType         String?
+  aircraftRegistration String?
+  passengers           Int?
+  cargoKg              Int?
+  altitude             Int?
+  network              String?
+  userRoute            String?
+  rewardCents          Int                   @default(0)
+  rewardType           FlightOfferRewardType @default(FIXED)
+  validUntil           DateTime
+  status               FlightOfferStatus     @default(DRAFT)
+  createdByStaffId     String
+  createdByStaff       StaffUser             @relation(fields: [createdByStaffId], references: [id], onDelete: Restrict)
+  dispatches           FlightDispatch[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  @@index([status, validUntil])
+  @@index([scheduledDeparture])
+}
+
+model FlightDispatch {
+  id                        String               @id @default(cuid())
+  flightOfferId             String               @unique
+  flightOffer               FlightOffer          @relation(fields: [flightOfferId], references: [id], onDelete: Restrict)
+  pilotId                   String
+  pilot                     Pilot                @relation(fields: [pilotId], references: [id], onDelete: Restrict)
+  status                    FlightDispatchStatus @default(DISPATCHED)
+  vamsysBookingId           String?              @unique
+  vamsysPirepId             String?
+  matchedPirepId            String?              @unique
+  matchedPirep              Pirep?                @relation(fields: [matchedPirepId], references: [id], onDelete: Restrict)
+  rewardWalletTransaction   WalletTransaction?
+  dispatchedAt              DateTime?
+  completedAt               DateTime?
+  rewardedAt                DateTime?
+  cancelledAt               DateTime?
+  errorMessage              String?
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+
+  @@index([pilotId, status])
+  @@index([flightOfferId, status])
 }
 
 model PayrollRule {

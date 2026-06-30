@@ -17,14 +17,37 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return payload as T;
 }
 
-async function pilotApiRequest(path: string, accessToken: string): Promise<VamsysApiRecord> {
+async function pilotApiRequest(path: string, accessToken: string, init?: RequestInit): Promise<VamsysApiRecord> {
   const { apiBaseUrl } = getVamsysPilotConfig();
   const response = await fetch(`${apiBaseUrl}${path}`, {
-    headers: { Accept: "application/json", Authorization: `Bearer ${accessToken}` },
+    ...init,
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...init?.headers,
+    },
     cache: "no-store",
   });
   if (response.status === 401) throw new VamsysApiError("El token de vAMSYS no está autorizado.", 401, "unauthorized");
   return parseResponse<VamsysApiRecord>(response);
+}
+
+export interface CreateVamsysBookingInput {
+  route_id: number;
+  aircraft_id: number;
+  departure_time: string;
+  network?: string;
+  callsign?: string;
+  flight_number?: string;
+  altitude?: number;
+  passengers?: number;
+  cargo?: number;
+  user_route?: string;
+}
+
+export function createVamsysBooking(accessToken: string, input: CreateVamsysBookingInput) {
+  return pilotApiRequest("/bookings", accessToken, { method: "POST", body: JSON.stringify(input) });
 }
 
 export function fetchVamsysUser(accessToken: string) {

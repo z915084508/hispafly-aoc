@@ -6,6 +6,7 @@ import { calculatePayroll, creditsToCents } from "@/lib/payroll/calculatePayroll
 import { payrollRulesFromStoredRule } from "@/lib/payroll/rules";
 import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
+import { completeFlightDispatchFromPirep } from "@/lib/flightOffers/service";
 import { operationsRequest } from "./operations";
 import { nextVamsysCursor, nextVamsysPageUrl } from "./pagination";
 import { isCompletedOperationsPirep, mergeOperationsPirepRecords, operationsPirepStatus } from "./operationsPirepPayload";
@@ -64,7 +65,9 @@ export function mapOperationsPirep(raw: Row) {
   const source = { ...attributes, ...raw };
   const status = operationsPirepStatus(raw);
   if (!isCompletedOperationsPirep(raw)) throw new Error(`PIREP ${id} omitido por estado ${status ?? "desconocido"}.`);
-  const booking = nested(source, "booking"), fleet = nested(source, "fleet") ?? (booking ? nested(booking, "fleet") : null), aircraft = nested(source, "aircraft") ?? (booking ? nested(booking, "aircraft") : null);
+  const booking = nested(source, "booking"), relationships = nested(source, "relationships"), bookingRelationship = relationships ? nested(relationships, "booking") : null;
+  const bookingRelationshipData = bookingRelationship ? nested(bookingRelationship, "data") : null;
+  const fleet = nested(source, "fleet") ?? (booking ? nested(booking, "fleet") : null), aircraft = nested(source, "aircraft") ?? (booking ? nested(booking, "aircraft") : null);
   const departure = nested(source, "departure_airport") ?? (booking ? nested(booking, "departure") : null);
   const arrival = nested(source, "arrival_airport") ?? (booking ? nested(booking, "arrival") : null);
   const passengersValue = num(source, "passengers") ?? (booking ? num(booking, "passengers") : null);
@@ -79,7 +82,11 @@ export function mapOperationsPirep(raw: Row) {
   return {
     pilotExternalId: str(source, "pilot_id", "pilotId"),
     data: {
-      vamsysPirepId: id, flightNumber: str(source, "flight_number"), callsign: str(source, "callsign"),
+      vamsysPirepId: id,
+      vamsysBookingId: str(source, "booking_id", "bookingId")
+        ?? (booking ? str(booking, "id", "booking_id", "bookingId") : null)
+        ?? (bookingRelationshipData ? str(bookingRelationshipData, "id") : null),
+      flightNumber: str(source, "flight_number"), callsign: str(source, "callsign"),
       departure: departure ? str(departure, "icao", "ident", "code", "id") : str(source, "departure_airport_id"),
       arrival: arrival ? str(arrival, "icao", "ident", "code", "id") : str(source, "arrival_airport_id"),
       aircraftType: fleet ? str(fleet, "code", "icao", "name") : aircraft ? str(aircraft, "type", "icao") : null,
@@ -226,6 +233,11 @@ export async function processAcceptedOperationsPirep(pirepSummaryOrId: Row | str
   await generateExpensesSafely(stored.id, result);
   if (existing) result.updatedCount++; else result.importedCount++;
   await generatePayrollAndWallet({ stored, pilotId: pilot.id, rule: options.rule ?? await loadActivePayrollRule(), pirepData, result });
+  await completeFlightDispatchFromPirep({
+    pirepId: stored.id,
+    vamsysPirepId: stored.vamsysPirepId,
+    vamsysBookingId: stored.vamsysBookingId,
+  });
   return result;
 }
 

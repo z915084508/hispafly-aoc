@@ -1,12 +1,21 @@
 import { PageHeading } from "@/components/page-heading";
 import { getDashboardSummary } from "@/lib/workflow-data";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
 
 const money = (cents: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(cents / 100);
 const integer = (value: number) => new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(value);
 const decimal = (value: number) => new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(value);
 
 export default async function StaffDashboard() {
-  const summary = await getDashboardSummary();
+  const [summary, activeOffers, dispatchedOffers, completedDispatches, rewardTotal] = await Promise.all([
+    getDashboardSummary(),
+    prisma.flightOffer.count({ where: { status: "PUBLISHED", validUntil: { gt: new Date() } } }),
+    prisma.flightOffer.count({ where: { status: "DISPATCHED" } }),
+    prisma.flightDispatch.count({ where: { status: { in: ["FLOWN", "REWARDED"] } } }),
+    prisma.walletTransaction.aggregate({ where: { flightDispatchId: { not: null } }, _sum: { amountCents: true } }),
+  ]);
   const annual = summary.annualCompany;
   const monthlyStats = [
     ["PIREPs aceptados este mes", String(summary.acceptedPireps), "Solo registros aceptados"],
@@ -41,6 +50,12 @@ export default async function StaffDashboard() {
     <PageHeading eyebrow="RESUMEN DE OPERACIONES" title="Panel AOC" copy="PIREPs aceptados, estado de nóminas y clasificación mensual." />
 
     <section className="grid stats">{monthlyStats.map(([label, value, note]) => <div className="card" key={label}><div className="stat-label">{label}</div><div className="stat-value">{value}</div><div className="stat-note">{note}</div></div>)}</section>
+    <section className="grid stats dashboard-section">
+      <div className="card"><div className="stat-label">Ofertas activas</div><div className="stat-value">{activeOffers}</div><div className="stat-note">Publicadas y vigentes</div></div>
+      <div className="card"><div className="stat-label">Ofertas despachadas</div><div className="stat-value">{dispatchedOffers}</div><div className="stat-note">Booking creado en vAMSYS</div></div>
+      <div className="card"><div className="stat-label">Misiones completadas</div><div className="stat-value">{completedDispatches}</div><div className="stat-note">PIREP accepted emparejado</div></div>
+      <div className="card"><div className="stat-label">Mission rewards</div><div className="stat-value">{money(rewardTotal._sum.amountCents ?? 0)}</div><div className="stat-note">Bonificaciones abonadas</div></div>
+    </section>
 
     <section className="card annual-company-card">
       <div className="card-header"><h2 className="card-title">Resumen económico anual de compañía</h2><span className="meta">Año {annual.year}</span></div>

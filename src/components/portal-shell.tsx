@@ -8,6 +8,7 @@ const navItems = [
   ["Panel de control", "/staff"],
   ["Pilotos", "/staff/pilots"],
   ["PIREPs", "/staff/pireps"],
+  ["Ofertas de vuelo", "/staff/flight-offers"],
   ["Nóminas", "/staff/payroll"],
   ["Economía de la compañía", "/staff/wallet"],
   ["Gastos compañía", "/staff/expenses"],

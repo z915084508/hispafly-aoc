@@ -30,6 +30,7 @@ const mapped = mapOperationsPirep({
     pilot_id: "42",
     flight_number: "HFY201",
     callsign: "HFY201",
+    booking_id: 98765,
     departure_airport_id: "LEMD",
     arrival_airport_id: "LEBL",
     aircraft_type: "A320",
@@ -44,6 +45,7 @@ const mapped = mapOperationsPirep({
 });
 assert.equal(mapped.pilotExternalId, "42");
 assert.equal(mapped.data.vamsysPirepId, "P-201");
+assert.equal(mapped.data.vamsysBookingId, "98765");
 assert.equal(mapped.data.flightTimeMinutes, 120);
 assert.equal(mapped.data.status, "accepted");
 

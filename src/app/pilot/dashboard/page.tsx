@@ -4,6 +4,7 @@ import { PageHeading } from "@/components/page-heading";
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { getPilotDashboardData } from "@/lib/pilot/portalData";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,12 @@ const route = (departure: string | null, arrival: string | null) => departure ||
 
 export default async function PilotDashboardPage() {
   const pilot = await requirePilotSession();
-  const summary = await getPilotDashboardData(pilot.id);
+  const [summary, availableOffers, activeDispatches, earnedRewards] = await Promise.all([
+    getPilotDashboardData(pilot.id),
+    prisma.flightOffer.count({ where: { status: "PUBLISHED", validUntil: { gt: new Date() }, dispatches: { none: {} } } }),
+    prisma.flightDispatch.count({ where: { pilotId: pilot.id, status: { in: ["DISPATCHING", "DISPATCHED"] } } }),
+    prisma.walletTransaction.aggregate({ where: { pilotId: pilot.id, flightDispatchId: { not: null } }, _sum: { amountCents: true } }),
+  ]);
 
   return <PilotPortalShell>
     <PageHeading eyebrow="PANEL CONTROL" title="Tu actividad mensual" copy="Resumen operativo personal y ranking general del mes actual." />
@@ -22,6 +28,11 @@ export default async function PilotDashboardPage() {
       <div className="card"><div className="stat-label">Pasajeros total este mes</div><div className="stat-value">{number(summary.totalPassengers)}</div><div className="stat-note">Desde tus PIREPs aceptados</div></div>
       <div className="card"><div className="stat-label">Mercancía / carga total este mes</div><div className="stat-value">{number(summary.totalCargo)}</div><div className="stat-note">Según payload vAMSYS disponible</div></div>
       <div className="card"><div className="stat-label">Estado del perfil</div><div className="stat-value"><Badge tone={pilot.status === "active" ? "green" : "amber"}>{pilot.status}</Badge></div><div className="stat-note">{pilot.callsign ?? pilot.vamsysPilotId}</div></div>
+    </div>
+    <div className="grid stats">
+      <div className="card"><div className="stat-label">Ofertas disponibles</div><div className="stat-value">{availableOffers}</div><div className="stat-note"><Link href="/pilot/flight-offers">Abrir Self Dispatch</Link></div></div>
+      <div className="card"><div className="stat-label">Mis dispatches activos</div><div className="stat-value">{activeDispatches}</div><div className="stat-note">Pendientes de PIREP accepted</div></div>
+      <div className="card"><div className="stat-label">Mission rewards</div><div className="stat-value">{money(earnedRewards._sum.amountCents ?? 0)}</div><div className="stat-note">Recompensas ya abonadas</div></div>
     </div>
 
     <div className="card ranking-card">

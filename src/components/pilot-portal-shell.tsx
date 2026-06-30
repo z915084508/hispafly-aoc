@@ -5,6 +5,7 @@ import { requirePilotSession } from "@/lib/pilot/session";
 const flightNavItems = [
   ["Panel Control", "/pilot/dashboard"],
   ["PIREPs", "/pilot/pireps"],
+  ["Ofertas de vuelo", "/pilot/flight-offers"],
   ["Roster Piloto", "/pilot/roster"],
 ] as const;
 
