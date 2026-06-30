@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
+import { generateCompanyExpensesForPirep } from "@/lib/economy/companyExpenses";
 import { calculatePayroll, creditsToCents } from "@/lib/payroll/calculatePayroll";
 import { payrollRulesFromStoredRule } from "@/lib/payroll/rules";
 import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
@@ -17,6 +18,14 @@ const num = (r: Row, ...keys: string[]) => { const value = str(r, ...keys); if (
 const date = (r: Row, ...keys: string[]) => { const value = str(r, ...keys); if (!value) return null; const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? null : parsed; };
 const nested = (r: Row, key: string) => rec(r[key]);
 const minutes = (seconds: number | null) => seconds === null ? null : Math.round(seconds / 60);
+
+async function generateExpensesSafely(pirepId: string, result: OperationsPirepSyncResult) {
+  try {
+    await generateCompanyExpensesForPirep(pirepId);
+  } catch (error) {
+    result.errors.push(`Company expense calculation failed for ${pirepId}: ${error instanceof Error ? error.message : "unknown error"}`);
+  }
+}
 
 export function mapOperationsPirep(raw: Row) {
   const id = str(raw, "id", "pirep_id"); if (!id) throw new Error("PIREP Operations sin identificador.");
@@ -85,6 +94,7 @@ export async function syncAcceptedOperationsPireps(staffUserId?: string): Promis
       const pirepData = await withFuelEconomics(mapped.data);
       const existing = await prisma.pirep.findUnique({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, select: { id: true } });
       const stored = await prisma.pirep.upsert({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, update: { ...pirepData, pilotId: pilot.id }, create: { ...pirepData, pilotId: pilot.id }, include: { payrollRecord: true } });
+      await generateExpensesSafely(stored.id, result);
       if (existing) result.updatedCount++; else result.importedCount++;
       const d = pirepData;
       if (!stored.payrollRecord && rule && d.aircraftType && d.flightTimeMinutes !== null && d.network && d.landingRate !== null && d.score !== null && d.flownAt) {
@@ -144,6 +154,7 @@ export async function syncAcceptedOperationsPirepsIncremental(options: { limit?:
       const pirepData = await withFuelEconomics(mapped.data);
       const existing = await prisma.pirep.findUnique({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, select: { id: true } });
       const stored = await prisma.pirep.upsert({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, update: { ...pirepData, pilotId: pilot.id }, create: { ...pirepData, pilotId: pilot.id }, include: { payrollRecord: true } });
+      await generateExpensesSafely(stored.id, result);
       if (existing) result.updatedCount++; else result.importedCount++;
       const d = pirepData;
       if (!stored.payrollRecord && rule && d.aircraftType && d.flightTimeMinutes !== null && d.network && d.landingRate !== null && d.score !== null && d.flownAt) {
