@@ -1,17 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge, DataTable } from "@/components/data-table";
+import { Badge } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
+import { formatDateTime, formatMinutes, formatMoney, formatNumber, PirepHero, PirepMetric, PirepReportStyles, PirepSection } from "@/components/pirep-report";
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
 import { getPilotPirepDetail } from "@/lib/pilot/portalData";
 import { requirePilotSession } from "@/lib/pilot/session";
 
 export const dynamic = "force-dynamic";
-
-const money = (cents: number | null) => cents === null ? "—" : new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(cents / 100);
-const number = (value: number | null) => value === null ? "—" : new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(value);
-const route = (departure: string | null, arrival: string | null) => departure || arrival ? `${departure ?? "—"}-${arrival ?? "—"}` : "—";
-const minutes = (value: number | null) => value === null ? "—" : `${Math.floor(value / 60)} h ${String(value % 60).padStart(2, "0")} min`;
 
 export default async function PilotPirepDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const pilot = await requirePilotSession();
@@ -19,37 +15,38 @@ export default async function PilotPirepDetailPage({ params }: { params: Promise
   const pirep = await getPilotPirepDetail(pilot.id, id);
   if (!pirep) notFound();
 
-  const revenue = pirep.passengerRevenueCents ?? 0;
-  const fuelCost = pirep.fuelCostCents ?? 0;
-  const net = revenue - fuelCost;
-
-  return <PilotPortalShell>
-    <PageHeading eyebrow="PIREP DETAIL" title={pirep.flightNumber ?? "Detalle del vuelo"} copy="Ingresos y datos operativos calculados desde tu PIREP aceptado." />
-    <p className="meta"><Link href="/pilot/dashboard">← Volver al panel</Link></p>
-
-    <section className="grid stats">
-      <div className="card"><div className="stat-label">Ingresos pasajeros</div><div className="stat-value">{money(pirep.passengerRevenueCents)}</div><div className="stat-note">Passenger revenue calculado</div></div>
-      <div className="card"><div className="stat-label">Coste combustible</div><div className="stat-value">{money(pirep.fuelCostCents)}</div><div className="stat-note">{pirep.fuelPriceSource ?? "Sin precio fuel guardado"}</div></div>
-      <div className="card"><div className="stat-label">Resultado vuelo</div><div className="stat-value">{money(net)}</div><div className="stat-note">Ingresos pasajeros menos fuel cost</div></div>
-      <div className="card"><div className="stat-label">Nómina asociada</div><div className="stat-value">{pirep.payrollRecord ? <Badge tone="blue">Sí</Badge> : <Badge tone="gray">No</Badge>}</div><div className="stat-note">{pirep.payrollRecord ? money(pirep.payrollRecord.amountCents) : "Sin registro generado"}</div></div>
-    </section>
-
-    <div className="card">
-      <DataTable headers={["Campo", "Valor"]} rows={[
-        ["vAMSYS PIREP ID", pirep.vamsysPirepId],
-        ["Ruta", route(pirep.departure, pirep.arrival)],
-        ["Aeronave", pirep.aircraftType ?? "—"],
-        ["Red", pirep.network ?? "—"],
-        ["Tiempo vuelo", minutes(pirep.flightTimeMinutes)],
-        ["Pasajeros", number(pirep.passengers)],
-        ["Carga", pirep.cargoKg === null ? "—" : `${number(pirep.cargoKg)} kg`],
-        ["Fuel usado", pirep.fuelUsed === null ? "—" : `${number(pirep.fuelUsed)} kg`],
-        ["Precio fuel", pirep.fuelPricePerKgCents === null ? "—" : `${(pirep.fuelPricePerKgCents / 100).toFixed(3)} €/kg`],
-        ["Región fuel", pirep.fuelPriceRegion ?? "—"],
-        ["Aterrizaje", pirep.landingRate === null ? "—" : `${pirep.landingRate} fpm`],
-        ["Puntuación", pirep.score ?? "—"],
-        ["Fecha", pirep.flownAt ? new Intl.DateTimeFormat("es-ES", { dateStyle: "medium", timeStyle: "short" }).format(pirep.flownAt) : "—"],
-      ]} />
-    </div>
-  </PilotPortalShell>;
+  return <PilotPortalShell><div className="pirep-report">
+    <PirepReportStyles />
+    <PageHeading eyebrow="PIREP REPORT · PILOT" title={pirep.flightNumber ?? pirep.callsign ?? "Informe de vuelo"} copy="Tu informe operativo, nómina y movimiento de cartera asociados a este vuelo." />
+    <div className="pirep-toolbar"><Link className="action-button" href="/pilot/dashboard">← Volver al panel</Link></div>
+    <PirepHero departure={pirep.departure} arrival={pirep.arrival}>
+      <span>{pirep.flightNumber ?? "Sin número de vuelo"}</span><span>{pirep.aircraftType ?? "Aeronave —"}</span><span>{formatDateTime(pirep.flownAt)}</span>
+    </PirepHero>
+    <PirepSection title="Resumen del vuelo">
+      <PirepMetric label="Estado" value={<Badge tone="green">Aceptado</Badge>} />
+      <PirepMetric label="Indicativo" value={pirep.callsign ?? "—"} />
+      <PirepMetric label="Aeronave" value={pirep.aircraftType ?? "—"} />
+      <PirepMetric label="Red" value={pirep.network ?? "—"} />
+      <PirepMetric label="Tiempo de vuelo" value={formatMinutes(pirep.flightTimeMinutes)} />
+      <PirepMetric label="Tiempo de bloque" value={formatMinutes(pirep.blockTimeMinutes)} />
+      <PirepMetric label="Distancia" value={pirep.flightDistanceNm == null ? "—" : `${formatNumber(pirep.flightDistanceNm)} NM`} />
+      <PirepMetric label="Fecha" value={formatDateTime(pirep.flownAt)} />
+    </PirepSection>
+    <PirepSection title="Carga y rendimiento">
+      <PirepMetric label="Pasajeros" value={formatNumber(pirep.passengers)} />
+      <PirepMetric label="Carga" value={pirep.cargoKg == null ? "—" : `${formatNumber(pirep.cargoKg)} kg`} />
+      <PirepMetric label="Combustible usado" value={pirep.fuelUsed == null ? "—" : `${formatNumber(pirep.fuelUsed)} kg`} />
+      <PirepMetric label="Landing rate" value={pirep.landingRate == null ? "—" : `${formatNumber(pirep.landingRate)} fpm`} />
+      <PirepMetric label="Score" value={formatNumber(pirep.score)} />
+      <PirepMetric label="Points" value={formatNumber(pirep.points)} />
+    </PirepSection>
+    <PirepSection title="Tu nómina y cartera">
+      <PirepMetric label="Nómina" value={pirep.payrollRecord ? formatMoney(pirep.payrollRecord.amountCents, pirep.payrollRecord.currency) : "Sin nómina"} note={pirep.payrollRecord?.status ?? "No se ha generado un registro"} />
+      <PirepMetric label="Pago base" value={pirep.payrollRecord ? formatMoney(pirep.payrollRecord.basePayCents, pirep.payrollRecord.currency) : "—"} />
+      <PirepMetric label="Bonificación" value={pirep.payrollRecord ? formatMoney(pirep.payrollRecord.bonusCents, pirep.payrollRecord.currency) : "—"} />
+      <PirepMetric label="Penalización" value={pirep.payrollRecord ? formatMoney(pirep.payrollRecord.penaltyCents, pirep.payrollRecord.currency) : "—"} />
+      <PirepMetric label="Movimiento de cartera" value={pirep.payrollRecord?.walletTransaction ? formatMoney(pirep.payrollRecord.walletTransaction.amountCents, pirep.payrollRecord.walletTransaction.currency) : "Sin movimiento"} note={pirep.payrollRecord?.walletTransaction?.description} />
+      <PirepMetric label="Fecha del movimiento" value={formatDateTime(pirep.payrollRecord?.walletTransaction?.createdAt)} />
+    </PirepSection>
+  </div></PilotPortalShell>;
 }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge, DataTable, Identity } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
 import { getPirepRows } from "@/lib/workflow-data";
@@ -74,7 +75,7 @@ export default async function PirepsPage({ searchParams }: { searchParams: Promi
         : <span className="meta">La sincronización requiere Operations API configurada y rol ADMIN u OPS.</span>}
     </div>
     <div className="card data-card">{filteredPireps.length ? <DataTable
-      headers={["Piloto", "Vuelo", "Indicativo", "Ruta", "Aeronave", "Red", "Tiempo", "Aterrizaje", "Puntuación", "Estado", "Fecha"]}
+      headers={["Piloto", "Vuelo", "Indicativo", "Ruta", "Aeronave", "Red", "Tiempo", "Aterrizaje", "Puntuación", "Estado", "Fecha", "Detalle"]}
       rows={filteredPireps.map((pirep) => [
         <Identity key="pilot" primary={pirep.pilot} secondary={pirep.id} />,
         <span className="primary" key="flight">{pirep.flightNumber}</span>,
@@ -87,6 +88,7 @@ export default async function PirepsPage({ searchParams }: { searchParams: Promi
         pirep.score,
         <Badge key="status" tone={pirep.status === "accepted" ? "green" : "amber"}>{pirep.status === "accepted" ? "Aceptado" : "Rechazado"}</Badge>,
         new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(pirep.flownAt),
+        <Link key="detail" className="action-button" href={`/staff/pireps/${pirep.id}`}>Ver informe</Link>,
       ])}
     /> : <div className="empty-state">No hay PIREPs que coincidan con los filtros.</div>}</div>
   </>;

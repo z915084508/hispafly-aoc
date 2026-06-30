@@ -82,8 +82,8 @@ export async function getPilotDashboardData(pilotId: string) {
 
 export async function getPilotPirepDetail(pilotId: string, pirepId: string) {
   return prisma.pirep.findFirst({
-    where: { id: pirepId, pilotId },
-    include: { payrollRecord: true },
+    where: { id: pirepId, pilotId, status: "accepted" },
+    include: { payrollRecord: { include: { walletTransaction: true } } },
   });
 }
 
