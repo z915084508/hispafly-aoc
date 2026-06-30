@@ -1,4 +1,5 @@
 import { PageHeading } from "@/components/page-heading";
+import { SubmitButton } from "@/components/submit-button";
 import { prisma } from "@/lib/prisma";
 import { IATA_JET_FUEL_PRICE_URL, FUEL_REGIONS } from "@/lib/economy/fuel";
 import { isOperationsConfigured } from "@/lib/vamsys/operations";
@@ -41,8 +42,9 @@ export default async function StaffOperationsSettingsPage({ searchParams }: { se
         <div><strong>{state?.lastSuccessAt ? new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "short" }).format(state.lastSuccessAt) : "Nunca"}</strong><span>Última sincronización Operations</span></div>
         <div><strong>{state?.lastAirportSyncAt ? new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "short" }).format(state.lastAirportSyncAt) : "Nunca"}</strong><span>Última sincronización airport</span></div>
       </div>
+      {state?.lastError && <div className="feedback error">Último error Operations: {state.lastError}</div>}
       <form action={syncFleetDataAction} className="settings-link">
-        <button className="button" type="submit" disabled={!configured}>Sincronizar flota, aeronaves y aeropuertos</button>
+        <SubmitButton className="button" disabled={!configured} pendingChildren="Sincronizando con vAMSYS...">Sincronizar flota, aeronaves y aeropuertos</SubmitButton>
       </form>
     </div>
 
@@ -59,7 +61,7 @@ export default async function StaffOperationsSettingsPage({ searchParams }: { se
         <label className="filter-field">Precio €/kg
           <input name="pricePerKg" type="number" min="0" step="0.001" placeholder="0.820" required />
         </label>
-        <button className="button" type="submit">Guardar precio</button>
+        <SubmitButton className="button" pendingChildren="Guardando...">Guardar precio</SubmitButton>
       </form>
       <div className="table-wrap settings-link">
         <table>
@@ -74,7 +76,7 @@ export default async function StaffOperationsSettingsPage({ searchParams }: { se
                 <form action={saveFuelPriceAction} className="inline-action-form">
                   <input type="hidden" name="region" value={price.region} />
                   <input name="pricePerKg" type="number" min="0" step="0.001" defaultValue={decimal(price.pricePerKgCents)} aria-label={`Nuevo precio ${price.region}`} required />
-                  <button className="action-button" type="submit">Actualizar</button>
+                  <SubmitButton className="action-button" pendingChildren="Actualizando...">Actualizar</SubmitButton>
                 </form>
               </td>
             </tr>)}
