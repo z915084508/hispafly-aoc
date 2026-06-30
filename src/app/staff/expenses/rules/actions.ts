@@ -7,6 +7,7 @@ import { requireStaffPermission } from "@/lib/staff/authorization";
 
 const clean = (value: FormDataEntryValue | null) => String(value ?? "").trim();
 const upper = (value: FormDataEntryValue | null) => clean(value).toUpperCase();
+const category = (value: FormDataEntryValue | null) => clean(value).toLowerCase().replace(/\s+/g, "_");
 
 function numberOrNull(value: FormDataEntryValue | null) {
   const text = clean(value).replace(",", ".");
@@ -34,6 +35,35 @@ async function authorize(attemptedAction: string, entityType: string, entityId?:
   return requireStaffPermission("VAMSYS_PIREP_SYNC", { entityType, entityId, attemptedAction });
 }
 
+function chargeRuleData(formData: FormData) {
+  return {
+    landingRatePerTonneCents: euroToCents(formData.get("landingRatePerTonne")),
+    passengerFeeCents: euroToCents(formData.get("passengerFee")),
+    passengerServiceFeeCents: euroToCents(formData.get("passengerServiceFee")),
+    parkingRatePerHourCents: euroToCents(formData.get("parkingRatePerHour")),
+    terminalAtcUnitRateCents: euroToCents(formData.get("terminalAtcUnitRate")),
+    currency: "EUR",
+  };
+}
+
+export async function saveAirportCategoryChargeProfileAction(formData: FormData) {
+  let feedback: { type: "success" | "error"; message: string };
+  try {
+    const airportCategory = category(formData.get("airportCategory"));
+    if (!/^[a-z0-9_\-]{2,40}$/.test(airportCategory)) throw new Error("Introduce una categoría válida, por ejemplo major o regional.");
+    const staff = await authorize(`guardar reglas económicas de categoría ${airportCategory}`, "AirportCategoryChargeProfile", airportCategory);
+    const data = chargeRuleData(formData);
+    await prisma.airportCategoryChargeProfile.upsert({ where: { airportCategory }, update: data, create: { airportCategory, ...data } });
+    await prisma.aocAuditLog.create({ data: { staffUserId: staff.id, action: "AIRPORT_CATEGORY_CHARGE_PROFILE_SAVED", entityType: "AirportCategoryChargeProfile", entityId: airportCategory, message: `${staff.name} updated airport category charge rules for ${airportCategory}.`, metadata: { airportCategory } } });
+    revalidatePath("/staff/expenses/rules");
+    revalidatePath("/staff/expenses");
+    feedback = { type: "success", message: `Reglas de categoría ${airportCategory} guardadas.` };
+  } catch (error) {
+    feedback = { type: "error", message: error instanceof Error ? error.message : "No se pudieron guardar las reglas de categoría." };
+  }
+  finish(feedback.type, feedback.message);
+}
+
 export async function saveAirportChargeProfileAction(formData: FormData) {
   let feedback: { type: "success" | "error"; message: string };
   try {
@@ -41,13 +71,8 @@ export async function saveAirportChargeProfileAction(formData: FormData) {
     if (!/^[A-Z0-9]{4}$/.test(airportIcao)) throw new Error("Introduce un ICAO válido de 4 caracteres.");
     const staff = await authorize(`guardar reglas económicas del aeropuerto ${airportIcao}`, "AirportChargeProfile", airportIcao);
     const data = {
-      airportCategory: clean(formData.get("airportCategory")) || "standard",
-      landingRatePerTonneCents: euroToCents(formData.get("landingRatePerTonne")),
-      passengerFeeCents: euroToCents(formData.get("passengerFee")),
-      passengerServiceFeeCents: euroToCents(formData.get("passengerServiceFee")),
-      parkingRatePerHourCents: euroToCents(formData.get("parkingRatePerHour")),
-      terminalAtcUnitRateCents: euroToCents(formData.get("terminalAtcUnitRate")),
-      currency: "EUR",
+      airportCategory: category(formData.get("airportCategory")) || "standard",
+      ...chargeRuleData(formData),
     };
     await prisma.airportChargeProfile.upsert({ where: { airportIcao }, update: data, create: { airportIcao, ...data } });
     await prisma.aocAuditLog.create({ data: { staffUserId: staff.id, action: "AIRPORT_CHARGE_PROFILE_SAVED", entityType: "AirportChargeProfile", entityId: airportIcao, message: `${staff.name} updated airport charge rules for ${airportIcao}.`, metadata: { airportIcao } } });
