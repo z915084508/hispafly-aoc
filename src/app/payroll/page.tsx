@@ -30,7 +30,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
   const monthOptions = [...new Set(payroll.map((record) => record.settlementMonth).filter(Boolean))].sort().reverse();
   const aircraftOptions = [...new Set(payroll.map((record) => record.aircraftType).filter(Boolean))].sort();
   const filteredPayroll = payroll.filter((record) => {
-    const textMatch = !q || includesText(record.pilot, q) || includesText(record.flightNumber, q) || includesText(record.aircraftType, q) || includesText(record.id, q);
+    const textMatch = !q || includesText(record.pilot, q) || includesText(record.pilotReference, q) || includesText(record.flightNumber, q) || includesText(record.aircraftType, q);
     const statusMatch = !selectedStatus || record.status === selectedStatus;
     const monthMatch = !selectedMonth || record.settlementMonth === selectedMonth;
     const aircraftMatch = !selectedAircraft || record.aircraftType === selectedAircraft;
@@ -71,7 +71,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
     {!canMutatePayroll && <div className="notice">Vista de demostración: configura PostgreSQL y ejecuta la semilla para activar las acciones de nómina.</div>}
     <div className="staff-data-tools">
       <form className="card filter-card" method="get">
-        <div className="filter-field"><label>Buscar</label><input name="q" defaultValue={filters.q ?? ""} placeholder="Piloto, vuelo, aeronave, ID..." /></div>
+        <div className="filter-field"><label>Buscar</label><input name="q" defaultValue={filters.q ?? ""} placeholder="Piloto, indicativo, vAMSYS ID, vuelo..." /></div>
         <div className="filter-field"><label>Estado</label><select name="status" defaultValue={selectedStatus}><option value="">Todos</option>{Object.entries(statusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></div>
         <div className="filter-field"><label>Mes</label><select name="month" defaultValue={selectedMonth}><option value="">Todos</option>{monthOptions.map((month) => <option value={month} key={month}>{month}</option>)}</select></div>
         <div className="filter-field"><label>Aeronave</label><select name="aircraft" defaultValue={selectedAircraft}><option value="">Todas</option>{aircraftOptions.map((aircraft) => <option value={aircraft} key={aircraft}>{aircraft}</option>)}</select></div>
@@ -99,7 +99,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
         const isBulkSelectable = (record.status === "pending" && canReview) || (record.status === "approved" && canPay);
         return [
           bulkEnabled ? <label className="row-check" key="select"><input form="bulk-payroll-form" data-select-group="payroll" type="checkbox" name="payrollIds" value={record.id} disabled={!isBulkSelectable} aria-label={`Seleccionar nómina ${record.flightNumber}`} /></label> : null,
-          <Identity key="pilot" primary={record.pilot} secondary={record.id} />,
+          <Identity key="pilot" primary={record.pilot} secondary={record.pilotReference} />,
           record.flightNumber,
           record.aircraftType,
           credits(record.basePayCents),

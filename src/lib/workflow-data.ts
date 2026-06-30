@@ -21,6 +21,7 @@ export interface PirepRow {
 export interface PayrollRow {
   id: string;
   pilot: string;
+  pilotReference: string | null;
   flightNumber: string;
   aircraftType: string;
   basePayCents: number;
@@ -123,6 +124,7 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
       return rows.map((row) => ({
         id: row.id,
         pilot: row.pilot.displayName,
+        pilotReference: row.pilot.callsign ?? row.pilot.vamsysPilotId ?? null,
         flightNumber: fallbackText(row.pirep.flightNumber),
         aircraftType: fallbackText(row.pirep.aircraftType),
         basePayCents: row.basePayCents,
@@ -138,7 +140,7 @@ export async function getPayrollRows(): Promise<PayrollRow[]> {
       console.error("Unable to load payroll from PostgreSQL; using mock data.", error);
     }
   }
-  return mockPayrollRecords.map((row) => ({ id: row.id, pilot: row.pilot.displayName, flightNumber: row.flightNumber, aircraftType: row.aircraftType, basePayCents: creditsToCents(row.calculation.basePay), bonusCents: creditsToCents(row.calculation.totalBonus), penaltyCents: creditsToCents(row.calculation.totalPenalty), amountCents: creditsToCents(row.calculation.finalAmount), status: row.status, settlementMonth: row.settlementMonth, paidAt: row.status === "paid" ? new Date() : null, calculation: calculationView(row.calculation) }));
+  return mockPayrollRecords.map((row) => ({ id: row.id, pilot: row.pilot.displayName, pilotReference: row.pilot.callsign ?? row.pilot.vamsysPilotId ?? null, flightNumber: row.flightNumber, aircraftType: row.aircraftType, basePayCents: creditsToCents(row.calculation.basePay), bonusCents: creditsToCents(row.calculation.totalBonus), penaltyCents: creditsToCents(row.calculation.totalPenalty), amountCents: creditsToCents(row.calculation.finalAmount), status: row.status, settlementMonth: row.settlementMonth, paidAt: row.status === "paid" ? new Date() : null, calculation: calculationView(row.calculation) }));
 }
 
 const mockAircraftPassengers: Record<string, number> = { A320: 150, A321: 185, A359: 290, A388: 480, B772: 320 };
