@@ -20,7 +20,13 @@ const lowScore = calculatePayroll({ aircraftType: "A321", flightTimeMinutes: 120
 assert.equal(lowScore.scorePenalty, 150);
 assert.equal(lowScore.finalAmount, 20);
 
+const crjx = calculatePayroll({ aircraftType: "CRJX", flightTimeMinutes: 60, network: "OFFLINE", landingRate: -300, score: 80 });
+assert.equal(crjx.hourlyRate, 80);
+
+const at76 = calculatePayroll({ aircraftType: "AT76", flightTimeMinutes: 60, network: "OFFLINE", landingRate: -300, score: 80 });
+assert.equal(at76.hourlyRate, 80);
+
 assert.equal(isPayrollEligible({ status: "accepted" }), true);
 assert.equal(isPayrollEligible({ status: "rejected" }), false);
 
-console.log("Payroll engine: 5 test cases passed.");
+console.log("Payroll engine: 7 test cases passed.");
