@@ -1,29 +1,40 @@
-CREATE TYPE "CompanyExpenseType" AS ENUM (
-  'airport_landing',
-  'airport_passenger',
-  'airport_service',
-  'airport_parking',
-  'handling',
-  'cargo_handling',
-  'atc_enroute',
-  'atc_terminal'
-);
+DO $$
+BEGIN
+  CREATE TYPE "CompanyExpenseType" AS ENUM (
+    'airport_landing',
+    'airport_passenger',
+    'airport_service',
+    'airport_parking',
+    'handling',
+    'cargo_handling',
+    'atc_enroute',
+    'atc_terminal'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-ALTER TABLE "OperationsApiState"
-ADD COLUMN "lastAirportSyncAt" TIMESTAMP(3);
+ALTER TYPE "CompanyExpenseType" ADD VALUE IF NOT EXISTS 'airport_landing';
+ALTER TYPE "CompanyExpenseType" ADD VALUE IF NOT EXISTS 'airport_passenger';
+ALTER TYPE "CompanyExpenseType" ADD VALUE IF NOT EXISTS 'airport_service';
+ALTER TYPE "CompanyExpenseType" ADD VALUE IF NOT EXISTS 'airport_parking';
+ALTER TYPE "CompanyExpenseType" ADD VALUE IF NOT EXISTS 'handling';
+ALTER TYPE "CompanyExpenseType" ADD VALUE IF NOT EXISTS 'cargo_handling';
+ALTER TYPE "CompanyExpenseType" ADD VALUE IF NOT EXISTS 'atc_enroute';
+ALTER TYPE "CompanyExpenseType" ADD VALUE IF NOT EXISTS 'atc_terminal';
 
-ALTER TABLE "Aircraft"
-ADD COLUMN "fleetId" TEXT,
-ADD COLUMN "fleetName" TEXT,
-ADD COLUMN "status" TEXT,
-ADD COLUMN "seatCapacity" INTEGER,
-ADD COLUMN "cargoCapacityKg" INTEGER,
-ADD COLUMN "mtowKg" INTEGER;
+ALTER TABLE "OperationsApiState" ADD COLUMN IF NOT EXISTS "lastAirportSyncAt" TIMESTAMP(3);
 
-CREATE INDEX "Aircraft_registration_idx" ON "Aircraft"("registration");
-CREATE INDEX "Aircraft_aircraftType_idx" ON "Aircraft"("aircraftType");
+ALTER TABLE "Aircraft" ADD COLUMN IF NOT EXISTS "fleetId" TEXT;
+ALTER TABLE "Aircraft" ADD COLUMN IF NOT EXISTS "fleetName" TEXT;
+ALTER TABLE "Aircraft" ADD COLUMN IF NOT EXISTS "status" TEXT;
+ALTER TABLE "Aircraft" ADD COLUMN IF NOT EXISTS "seatCapacity" INTEGER;
+ALTER TABLE "Aircraft" ADD COLUMN IF NOT EXISTS "cargoCapacityKg" INTEGER;
+ALTER TABLE "Aircraft" ADD COLUMN IF NOT EXISTS "mtowKg" INTEGER;
 
-CREATE TABLE "AircraftProfile" (
+CREATE INDEX IF NOT EXISTS "Aircraft_registration_idx" ON "Aircraft"("registration");
+CREATE INDEX IF NOT EXISTS "Aircraft_aircraftType_idx" ON "Aircraft"("aircraftType");
+
+CREATE TABLE IF NOT EXISTS "AircraftProfile" (
   "id" TEXT NOT NULL,
   "aircraftType" TEXT NOT NULL,
   "seatCapacity" INTEGER,
@@ -35,9 +46,9 @@ CREATE TABLE "AircraftProfile" (
   CONSTRAINT "AircraftProfile_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "AircraftProfile_aircraftType_key" ON "AircraftProfile"("aircraftType");
+CREATE UNIQUE INDEX IF NOT EXISTS "AircraftProfile_aircraftType_key" ON "AircraftProfile"("aircraftType");
 
-CREATE TABLE "Airport" (
+CREATE TABLE IF NOT EXISTS "Airport" (
   "id" TEXT NOT NULL,
   "icao" TEXT NOT NULL,
   "iata" TEXT,
@@ -54,11 +65,11 @@ CREATE TABLE "Airport" (
   CONSTRAINT "Airport_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "Airport_icao_key" ON "Airport"("icao");
-CREATE INDEX "Airport_iata_idx" ON "Airport"("iata");
-CREATE INDEX "Airport_region_idx" ON "Airport"("region");
+CREATE UNIQUE INDEX IF NOT EXISTS "Airport_icao_key" ON "Airport"("icao");
+CREATE INDEX IF NOT EXISTS "Airport_iata_idx" ON "Airport"("iata");
+CREATE INDEX IF NOT EXISTS "Airport_region_idx" ON "Airport"("region");
 
-CREATE TABLE "AirportChargeProfile" (
+CREATE TABLE IF NOT EXISTS "AirportChargeProfile" (
   "id" TEXT NOT NULL,
   "airportIcao" TEXT NOT NULL,
   "airportCategory" TEXT NOT NULL DEFAULT 'standard',
@@ -73,9 +84,9 @@ CREATE TABLE "AirportChargeProfile" (
   CONSTRAINT "AirportChargeProfile_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "AirportChargeProfile_airportIcao_key" ON "AirportChargeProfile"("airportIcao");
+CREATE UNIQUE INDEX IF NOT EXISTS "AirportChargeProfile_airportIcao_key" ON "AirportChargeProfile"("airportIcao");
 
-CREATE TABLE "AirspaceChargeProfile" (
+CREATE TABLE IF NOT EXISTS "AirspaceChargeProfile" (
   "id" TEXT NOT NULL,
   "region" TEXT NOT NULL,
   "unitRateCents" INTEGER NOT NULL DEFAULT 0,
@@ -85,9 +96,9 @@ CREATE TABLE "AirspaceChargeProfile" (
   CONSTRAINT "AirspaceChargeProfile_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "AirspaceChargeProfile_region_key" ON "AirspaceChargeProfile"("region");
+CREATE UNIQUE INDEX IF NOT EXISTS "AirspaceChargeProfile_region_key" ON "AirspaceChargeProfile"("region");
 
-CREATE TABLE "CompanyExpense" (
+CREATE TABLE IF NOT EXISTS "CompanyExpense" (
   "id" TEXT NOT NULL,
   "pirepId" TEXT NOT NULL,
   "type" "CompanyExpenseType" NOT NULL,
@@ -100,8 +111,15 @@ CREATE TABLE "CompanyExpense" (
   CONSTRAINT "CompanyExpense_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "CompanyExpense_pirepId_type_key" ON "CompanyExpense"("pirepId", "type");
-CREATE INDEX "CompanyExpense_type_idx" ON "CompanyExpense"("type");
-CREATE INDEX "CompanyExpense_createdAt_idx" ON "CompanyExpense"("createdAt");
+CREATE UNIQUE INDEX IF NOT EXISTS "CompanyExpense_pirepId_type_key" ON "CompanyExpense"("pirepId", "type");
+CREATE INDEX IF NOT EXISTS "CompanyExpense_type_idx" ON "CompanyExpense"("type");
+CREATE INDEX IF NOT EXISTS "CompanyExpense_createdAt_idx" ON "CompanyExpense"("createdAt");
 
-ALTER TABLE "CompanyExpense" ADD CONSTRAINT "CompanyExpense_pirepId_fkey" FOREIGN KEY ("pirepId") REFERENCES "Pirep"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'CompanyExpense_pirepId_fkey'
+  ) THEN
+    ALTER TABLE "CompanyExpense" ADD CONSTRAINT "CompanyExpense_pirepId_fkey" FOREIGN KEY ("pirepId") REFERENCES "Pirep"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
