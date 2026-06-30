@@ -9,18 +9,24 @@ type SearchParams = { success?: string; error?: string };
 
 const money = (cents: number) => `${(cents / 100).toLocaleString("es-ES", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} €/kg`;
 const decimal = (cents: number) => (cents / 100).toFixed(3);
+const percent = (ready: number, total: number) => total > 0 ? `${Math.round((ready / total) * 100)}%` : "0%";
 
 export default async function StaffOperationsSettingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [filters, fleetCount, aircraftCount, airportCount, state, fuelPriceRows] = await Promise.all([
+  const [filters, fleetCount, aircraftCount, airportCount, state, fuelPriceRows, acceptedPirepCount, expensesReadyCount, fuelSnapshotCount, fuelPendingCount] = await Promise.all([
     searchParams,
     prisma.fleet.count().catch(() => 0),
     prisma.aircraft.count().catch(() => 0),
     prisma.airport.count().catch(() => 0),
     prisma.operationsApiState.findUnique({ where: { id: "vamsys" } }).catch(() => null),
     prisma.fuelPrice.findMany({ orderBy: { effectiveFrom: "desc" }, take: 20 }).catch(() => []),
+    prisma.pirep.count({ where: { status: "accepted" } }).catch(() => 0),
+    prisma.pirep.count({ where: { status: "accepted", companyExpenses: { some: {} } } }).catch(() => 0),
+    prisma.pirep.count({ where: { status: "accepted", fuelCostCents: { not: null } } }).catch(() => 0),
+    prisma.pirep.count({ where: { status: "accepted", fuelUsed: { gt: 0 }, fuelCostCents: null } }).catch(() => 0),
   ]);
   const configured = isOperationsConfigured();
   const latestFuelPrices = fuelPriceRows.filter((row, index, rows) => rows.findIndex((candidate) => candidate.region === row.region) === index);
+  const expensesPendingCount = Math.max(0, acceptedPirepCount - expensesReadyCount);
 
   return <>
     <PageHeading eyebrow="OPERATIONS API" title="Operations API" copy="Estado, flota, aeropuertos y economía de la integración vAMSYS Operations." />
@@ -50,9 +56,17 @@ export default async function StaffOperationsSettingsPage({ searchParams }: { se
 
     <div className="card settings-link">
       <div className="card-header"><h2 className="card-title">Company economy backfill</h2><span className="meta">PIREPs aceptados</span></div>
-      <p className="page-copy">Recalcula snapshots de fuel pendientes y genera o actualiza CompanyExpense para PIREPs aceptados ya sincronizados. Úsalo después de cambiar reglas económicas o importar datos históricos.</p>
+      <p className="page-copy">Recalcula snapshots de fuel pendientes y genera o actualiza CompanyExpense para PIREPs aceptados ya sincronizados. Ahora se procesa en lotes pequeños para evitar timeouts.</p>
+      <div className="workflow-summary">
+        <div><strong>{acceptedPirepCount}</strong><span>PIREPs aceptados</span></div>
+        <div><strong>{expensesReadyCount} / {acceptedPirepCount}</strong><span>CompanyExpense listo ({percent(expensesReadyCount, acceptedPirepCount)})</span></div>
+        <div><strong>{expensesPendingCount}</strong><span>Pendientes de CompanyExpense</span></div>
+        <div><strong>{fuelSnapshotCount}</strong><span>Fuel snapshots guardados</span></div>
+        <div><strong>{fuelPendingCount}</strong><span>Fuel usados sin coste</span></div>
+      </div>
+      <p className="meta">Cada pulsación procesa solo 10 PIREPs. Después de que vuelva la página, revisa estos contadores y vuelve a pulsar si quedan pendientes.</p>
       <form action={backfillCompanyEconomyAction} className="settings-link">
-        <SubmitButton className="button" pendingChildren="Recalculando economía...">Backfill company economy</SubmitButton>
+        <SubmitButton className="button" pendingChildren="Procesando lote de 10...">Procesar siguiente lote de economía</SubmitButton>
       </form>
     </div>
 
