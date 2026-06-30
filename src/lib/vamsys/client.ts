@@ -12,7 +12,12 @@ async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const code = typeof payload.error === "string" ? payload.error : undefined;
     const description = typeof payload.error_description === "string" ? payload.error_description : undefined;
-    throw new VamsysApiError(description || code || `vAMSYS request failed with status ${response.status}.`, response.status, code);
+    const message = typeof payload.message === "string" ? payload.message : undefined;
+    const errors = payload.errors && typeof payload.errors === "object" ? payload.errors as Record<string, unknown> : null;
+    const firstValidationError = errors
+      ? Object.values(errors).flatMap((value) => Array.isArray(value) ? value : [value]).find((value): value is string => typeof value === "string")
+      : undefined;
+    throw new VamsysApiError(firstValidationError || message || description || code || `vAMSYS request failed with status ${response.status}.`, response.status, code);
   }
   return payload as T;
 }

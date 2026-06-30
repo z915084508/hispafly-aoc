@@ -3,7 +3,7 @@ import { PageHeading } from "@/components/page-heading";
 import { FlightOfferForm } from "@/components/flight-offer-form";
 import { prisma } from "@/lib/prisma";
 import { getFlightOfferOptions } from "@/lib/flightOffers/options";
-import { cancelFlightOfferAction, publishFlightOfferAction } from "./actions";
+import { cancelFlightOfferAction, publishFlightOfferAction, reopenFailedFlightOfferAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -57,9 +57,12 @@ export default async function FlightOffersStaffPage({ searchParams }: { searchPa
 
     <section className="card ranking-card">
       <div className="card-header"><h2 className="card-title">Dispatch records</h2><span className="meta">Booking y PIREP matching</span></div>
-      {dispatches.length ? <DataTable headers={["Oferta", "Piloto", "Estado", "Booking ID", "PIREP", "Dispatch", "Rewarded"]} rows={dispatches.map(({ offer, dispatch }) => [
+      {dispatches.length ? <DataTable headers={["Oferta", "Piloto", "Estado", "Booking ID", "PIREP", "Error", "Dispatch", "Acción"]} rows={dispatches.map(({ offer, dispatch }) => [
         offer.title, dispatch.pilot.displayName, dispatch.status, dispatch.vamsysBookingId ?? "—",
-        dispatch.matchedPirep?.flightNumber ?? dispatch.vamsysPirepId ?? "—", when(dispatch.dispatchedAt), when(dispatch.rewardedAt),
+        dispatch.matchedPirep?.flightNumber ?? dispatch.vamsysPirepId ?? "—",
+        dispatch.errorMessage ?? "—",
+        when(dispatch.dispatchedAt),
+        dispatch.status === "FAILED" ? <form action={reopenFailedFlightOfferAction} key="reopen"><input type="hidden" name="id" value={offer.id}/><button className="action-button approve" type="submit">Reabrir</button></form> : when(dispatch.rewardedAt),
       ])} /> : <div className="empty-state">Todavía no hay vuelos despachados.</div>}
     </section>
   </>;

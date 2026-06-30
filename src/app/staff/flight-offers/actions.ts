@@ -86,3 +86,24 @@ export async function cancelFlightOfferAction(formData: FormData) {
   catch (error) { feedback = { type: "error", message: error instanceof Error ? error.message : "No se pudo cancelar." }; }
   done(feedback.type, feedback.message);
 }
+
+export async function reopenFailedFlightOfferAction(formData: FormData) {
+  let feedback: { type: "success" | "error"; message: string };
+  try {
+    const id = text(formData, "id");
+    const staff = await requireStaffPermission("FLIGHT_OFFER_MANAGE", { entityType: "FlightOffer", entityId: id, attemptedAction: "reabrir una oferta fallida" });
+    const offer = await prisma.flightOffer.findUnique({ where: { id }, include: { dispatches: true } });
+    const dispatch = offer?.dispatches[0];
+    if (!offer || !dispatch || dispatch.status !== "FAILED") throw new Error("Solo se pueden reabrir ofertas con dispatch fallido.");
+    await prisma.$transaction([
+      prisma.flightDispatch.delete({ where: { id: dispatch.id } }),
+      prisma.flightOffer.update({ where: { id }, data: { status: "PUBLISHED" } }),
+    ]);
+    await prisma.aocAuditLog.create({ data: { staffUserId: staff.id, action: "FLIGHT_OFFER_REOPENED", entityType: "FlightOffer", entityId: id, message: `${staff.name} reabrió ${offer.title} después de un dispatch fallido.`, metadata: { previousError: dispatch.errorMessage?.slice(0, 300) ?? null } } });
+    revalidatePath("/staff/flight-offers"); revalidatePath("/pilot/flight-offers");
+    feedback = { type: "success", message: "Oferta reabierta. Corrige los datos antes de volver a hacer Dispatch." };
+  } catch (error) {
+    feedback = { type: "error", message: error instanceof Error ? error.message : "No se pudo reabrir la oferta." };
+  }
+  done(feedback.type, feedback.message);
+}

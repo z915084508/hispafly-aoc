@@ -42,13 +42,14 @@ export default async function PilotFlightOffersPage({ searchParams }: { searchPa
 
     <section className="card ranking-card">
       <div className="card-header"><h2 className="card-title">Mis dispatches</h2><span className="meta">Booking, PIREP y recompensa</span></div>
-      {dispatches.length ? <DataTable headers={["Oferta", "Ruta", "Estado", "Booking ID", "PIREP", "Recompensa", "Fecha"]} rows={dispatches.map((dispatch) => [
+      {dispatches.length ? <DataTable headers={["Oferta", "Ruta", "Estado", "Booking ID", "PIREP", "Recompensa", "Error", "Fecha"]} rows={dispatches.map((dispatch) => [
         dispatch.flightOffer.title,
         `${dispatch.flightOffer.departureIcao}–${dispatch.flightOffer.arrivalIcao}`,
         <Badge key="status" tone={dispatch.status === "REWARDED" || dispatch.status === "FLOWN" ? "green" : dispatch.status === "FAILED" ? "red" : "amber"}>{dispatch.status}</Badge>,
         dispatch.vamsysBookingId ?? "—",
         dispatch.matchedPirep?.flightNumber ?? dispatch.vamsysPirepId ?? "—",
         dispatch.rewardWalletTransaction ? new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(dispatch.rewardWalletTransaction.amountCents / 100) : reward(dispatch.flightOffer.rewardCents, dispatch.flightOffer.rewardType),
+        dispatch.errorMessage ?? "—",
         when(dispatch.dispatchedAt ?? dispatch.createdAt),
       ])} /> : <div className="empty-state">Todavía no has realizado ningún dispatch.</div>}
     </section>
