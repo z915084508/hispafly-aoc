@@ -9,7 +9,7 @@ import { requireStaffPermission } from "@/lib/staff/authorization";
 import { syncOperationsFleetData } from "@/lib/vamsys/fleetSync";
 
 const readableError = (error: unknown) => error instanceof Error ? error.message : "No se pudo completar la acción.";
-const COMPANY_ECONOMY_BACKFILL_BATCH_SIZE = 50;
+const COMPANY_ECONOMY_BACKFILL_BATCH_SIZE = 10;
 
 export async function syncFleetDataAction() {
   let feedback: { type: "success" | "error"; message: string };
@@ -35,7 +35,7 @@ export async function backfillCompanyEconomyAction() {
     const staff = await requireStaffPermission("VAMSYS_PIREP_SYNC", { entityType: "CompanyExpense", entityId: "backfill", attemptedAction: "backfill company economy data" });
     const result = await backfillCompanyEconomy(staff.id, COMPANY_ECONOMY_BACKFILL_BATCH_SIZE);
     const suffix = result.errors.length ? ` Avisos: ${result.errors.slice(0, 2).join(" | ")}` : "";
-    feedback = { type: result.errors.length ? "error" : "success", message: `Backfill por lote: ${result.scanned} PIREPs revisados, ${result.fuelUpdated} fuel snapshots y ${result.expensesGenerated} gastos generados/recalculados.${suffix}` };
+    feedback = { type: result.errors.length ? "error" : "success", message: `Backfill por lote: ${result.scanned} PIREPs revisados, ${result.fuelUpdated} fuel snapshots y ${result.expensesGenerated} gastos generados/recalculados. Puedes volver a pulsar para continuar con el siguiente lote.${suffix}` };
   } catch (error) {
     feedback = { type: "error", message: readableError(error) };
   }
