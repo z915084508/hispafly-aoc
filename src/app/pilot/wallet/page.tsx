@@ -6,7 +6,7 @@ import { requirePilotSession } from "@/lib/pilot/session";
 
 export const dynamic = "force-dynamic";
 
-const credits = (cents: number) => `${cents >= 0 ? "+" : "−"}${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(Math.abs(cents) / 100)} cr`;
+const money = (cents: number) => `${cents >= 0 ? "+" : "−"}${new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(Math.abs(cents) / 100)}`;
 
 export default async function PilotWalletPage() {
   const pilot = await requirePilotSession();
@@ -21,7 +21,7 @@ export default async function PilotWalletPage() {
           row.reference ?? row.id,
           row.description,
           <Badge key="type" tone={row.amountCents >= 0 ? "green" : "red"}>{row.type}</Badge>,
-          <strong key="amount" className={row.amountCents >= 0 ? "amount-positive" : "amount-negative"}>{credits(row.amountCents)}</strong>,
+          <strong key="amount" className={row.amountCents >= 0 ? "amount-positive" : "amount-negative"}>{money(row.amountCents)}</strong>,
           new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(row.createdAt),
         ])} />}
     </div>
