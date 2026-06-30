@@ -10,10 +10,11 @@ const money = (cents: number) => `${(cents / 100).toLocaleString("es-ES", { mini
 const decimal = (cents: number) => (cents / 100).toFixed(3);
 
 export default async function StaffOperationsSettingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [filters, fleetCount, aircraftCount, state, fuelPriceRows] = await Promise.all([
+  const [filters, fleetCount, aircraftCount, airportCount, state, fuelPriceRows] = await Promise.all([
     searchParams,
     prisma.fleet.count().catch(() => 0),
     prisma.aircraft.count().catch(() => 0),
+    prisma.airport.count().catch(() => 0),
     prisma.operationsApiState.findUnique({ where: { id: "vamsys" } }).catch(() => null),
     prisma.fuelPrice.findMany({ orderBy: { effectiveFrom: "desc" }, take: 20 }).catch(() => []),
   ]);
@@ -21,22 +22,27 @@ export default async function StaffOperationsSettingsPage({ searchParams }: { se
   const latestFuelPrices = fuelPriceRows.filter((row, index, rows) => rows.findIndex((candidate) => candidate.region === row.region) === index);
 
   return <>
-    <PageHeading eyebrow="OPERATIONS API" title="Operations API" copy="Estado, flota y economía de la integración vAMSYS Operations." />
+    <PageHeading eyebrow="OPERATIONS API" title="Operations API" copy="Estado, flota, aeropuertos y economía de la integración vAMSYS Operations." />
     {filters.success && <div className="feedback success">{filters.success}</div>}
     {filters.error && <div className="feedback error">{filters.error}</div>}
 
     <section className="grid stats">
       <div className="card"><div className="stat-label">Estado Operations API</div><div className="stat-value">{configured ? "OK" : "OFF"}</div><div className="stat-note">{configured ? "Credenciales configuradas" : "Faltan credenciales"}</div></div>
       <div className="card"><div className="stat-label">Flotas sincronizadas</div><div className="stat-value">{fleetCount}</div><div className="stat-note">Desde vAMSYS Fleet</div></div>
-      <div className="card"><div className="stat-label">Aeronaves sincronizadas</div><div className="stat-value">{aircraftCount}</div><div className="stat-note">Matrículas y tipo ICAO</div></div>
-      <div className="card"><div className="stat-label">Último estado</div><div className="stat-value">{state?.status ?? "—"}</div><div className="stat-note">{state?.lastSuccessAt ? new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "short" }).format(state.lastSuccessAt) : "Sin sincronización"}</div></div>
+      <div className="card"><div className="stat-label">Aeronaves sincronizadas</div><div className="stat-value">{aircraftCount}</div><div className="stat-note">Matrícula, tipo, fleet, capacidad y MTOW si existe</div></div>
+      <div className="card"><div className="stat-label">Aeropuertos sincronizados</div><div className="stat-value">{airportCount}</div><div className="stat-note">Operations API o fallback desde PIREPs</div></div>
     </section>
 
     <div className="card settings-link">
-      <div className="card-header"><h2 className="card-title">Fleet / Aircraft sync</h2><span className="meta">vAMSYS Operations</span></div>
-      <p className="page-copy">Sincroniza la flota y aeronaves desde vAMSYS para usar matrícula, fleet ID y tipo ICAO como fuente de verdad.</p>
+      <div className="card-header"><h2 className="card-title">Fleet / Aircraft / Airport sync</h2><span className="meta">vAMSYS Operations</span></div>
+      <p className="page-copy">Sincroniza flota, aeronaves y aeropuertos desde vAMSYS para usar matrícula, fleet ID, tipo ICAO, capacidad, MTOW y datos ICAO/IATA como fuente prioritaria.</p>
+      <div className="workflow-summary">
+        <div><strong>{state?.status ?? "—"}</strong><span>Último estado</span></div>
+        <div><strong>{state?.lastSuccessAt ? new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "short" }).format(state.lastSuccessAt) : "Nunca"}</strong><span>Última sincronización Operations</span></div>
+        <div><strong>{state?.lastAirportSyncAt ? new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "short" }).format(state.lastAirportSyncAt) : "Nunca"}</strong><span>Última sincronización airport</span></div>
+      </div>
       <form action={syncFleetDataAction} className="settings-link">
-        <button className="button" type="submit" disabled={!configured}>Sincronizar flota y aeronaves</button>
+        <button className="button" type="submit" disabled={!configured}>Sincronizar flota, aeronaves y aeropuertos</button>
       </form>
     </div>
 
