@@ -8,7 +8,7 @@ import { requirePilotSession } from "@/lib/pilot/session";
 
 export const dynamic = "force-dynamic";
 
-const credits = (cents: number | null) => cents === null ? "—" : `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(cents / 100)} cr`;
+const money = (cents: number | null) => cents === null ? "—" : new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(cents / 100);
 const number = (value: number | null) => value === null ? "—" : new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(value);
 const route = (departure: string | null, arrival: string | null) => departure || arrival ? `${departure ?? "—"}-${arrival ?? "—"}` : "—";
 const minutes = (value: number | null) => value === null ? "—" : `${Math.floor(value / 60)} h ${String(value % 60).padStart(2, "0")} min`;
@@ -28,10 +28,10 @@ export default async function PilotPirepDetailPage({ params }: { params: Promise
     <p className="meta"><Link href="/pilot/dashboard">← Volver al panel</Link></p>
 
     <section className="grid stats">
-      <div className="card"><div className="stat-label">Ingresos pasajeros</div><div className="stat-value">{credits(pirep.passengerRevenueCents)}</div><div className="stat-note">Passenger revenue calculado</div></div>
-      <div className="card"><div className="stat-label">Coste combustible</div><div className="stat-value">{credits(pirep.fuelCostCents)}</div><div className="stat-note">{pirep.fuelPriceSource ?? "Sin precio fuel guardado"}</div></div>
-      <div className="card"><div className="stat-label">Resultado vuelo</div><div className="stat-value">{net < 0 ? "−" : ""}{credits(Math.abs(net))}</div><div className="stat-note">Ingresos pasajeros menos fuel cost</div></div>
-      <div className="card"><div className="stat-label">Nómina asociada</div><div className="stat-value">{pirep.payrollRecord ? <Badge tone="blue">Sí</Badge> : <Badge tone="gray">No</Badge>}</div><div className="stat-note">{pirep.payrollRecord ? credits(pirep.payrollRecord.amountCents) : "Sin registro generado"}</div></div>
+      <div className="card"><div className="stat-label">Ingresos pasajeros</div><div className="stat-value">{money(pirep.passengerRevenueCents)}</div><div className="stat-note">Passenger revenue calculado</div></div>
+      <div className="card"><div className="stat-label">Coste combustible</div><div className="stat-value">{money(pirep.fuelCostCents)}</div><div className="stat-note">{pirep.fuelPriceSource ?? "Sin precio fuel guardado"}</div></div>
+      <div className="card"><div className="stat-label">Resultado vuelo</div><div className="stat-value">{money(net)}</div><div className="stat-note">Ingresos pasajeros menos fuel cost</div></div>
+      <div className="card"><div className="stat-label">Nómina asociada</div><div className="stat-value">{pirep.payrollRecord ? <Badge tone="blue">Sí</Badge> : <Badge tone="gray">No</Badge>}</div><div className="stat-note">{pirep.payrollRecord ? money(pirep.payrollRecord.amountCents) : "Sin registro generado"}</div></div>
     </section>
 
     <div className="card">
