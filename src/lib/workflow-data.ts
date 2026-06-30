@@ -63,6 +63,13 @@ export interface AnnualCompanySummary {
   distanceNm: number;
   averageRevenuePerFlightCents: number;
   cargoDataAvailable: boolean;
+  payrollExpenseCents: number;
+  fuelExpenseCents: number;
+  companyExpenseCents: number;
+  airportExpenseCents: number;
+  atcExpenseCents: number;
+  handlingExpenseCents: number;
+  otherExpenseCents: number;
 }
 
 function calculationView(details: unknown): PayrollRow["calculation"] {
@@ -155,7 +162,10 @@ function mockAnnualCompanySummary(year: number, payroll: PayrollRow[]): AnnualCo
   const yearPireps = mockPireps.filter((row) => row.status === "accepted" && new Date(row.flownAt).getUTCFullYear() === year);
   const enrichedPireps = yearPireps.map((row) => ({ passengers: mockPirepPassengers(row), distanceNm: mockPirepDistance(row), flightTimeMinutes: row.flightTimeMinutes }));
   const revenueCents = enrichedPireps.reduce((sum, row) => sum + calculatePassengerRevenue(row.passengers, row.distanceNm).revenueCents, 0);
-  const expenseCents = payroll.filter((row) => row.settlementMonth.startsWith(String(year))).reduce((sum, row) => sum + row.amountCents, 0);
+  const payrollExpenseCents = payroll.filter((row) => row.settlementMonth.startsWith(String(year))).reduce((sum, row) => sum + row.amountCents, 0);
+  const fuelExpenseCents = 0;
+  const companyExpenseCents = 0;
+  const expenseCents = payrollExpenseCents + fuelExpenseCents + companyExpenseCents;
   const flightTimeMinutes = enrichedPireps.reduce((sum, row) => sum + row.flightTimeMinutes, 0);
   return {
     year,
@@ -169,6 +179,13 @@ function mockAnnualCompanySummary(year: number, payroll: PayrollRow[]): AnnualCo
     distanceNm: enrichedPireps.reduce((sum, row) => sum + row.distanceNm, 0),
     averageRevenuePerFlightCents: yearPireps.length ? Math.round(revenueCents / yearPireps.length) : 0,
     cargoDataAvailable: false,
+    payrollExpenseCents,
+    fuelExpenseCents,
+    companyExpenseCents,
+    airportExpenseCents: 0,
+    atcExpenseCents: 0,
+    handlingExpenseCents: 0,
+    otherExpenseCents: 0,
   };
 }
 
@@ -177,20 +194,40 @@ async function getAnnualCompanySummary(payroll: PayrollRow[], year = new Date().
     try {
       const start = new Date(Date.UTC(year, 0, 1));
       const end = new Date(Date.UTC(year + 1, 0, 1));
-      const [pirepStats, payrollStats] = await Promise.all([
+      const [pirepStats, payrollStats, expenseStats] = await Promise.all([
         prisma.pirep.aggregate({
           where: { status: "accepted", flownAt: { gte: start, lt: end } },
           _count: { _all: true },
-          _sum: { passengers: true, passengerRevenueCents: true, flightTimeMinutes: true, flightDistanceNm: true },
+          _sum: { passengers: true, cargoKg: true, passengerRevenueCents: true, fuelCostCents: true, flightTimeMinutes: true, flightDistanceNm: true },
         }),
         prisma.payrollRecord.aggregate({
           where: { settlementMonth: { startsWith: String(year) } },
           _sum: { amountCents: true },
         }),
+        prisma.companyExpense.groupBy({
+          by: ["type"],
+          where: { pirep: { status: "accepted", flownAt: { gte: start, lt: end } } },
+          _sum: { amountCents: true },
+        }),
       ]);
       const flightCount = pirepStats._count._all;
       const revenueCents = pirepStats._sum.passengerRevenueCents ?? 0;
-      const expenseCents = payrollStats._sum.amountCents ?? 0;
+      const payrollExpenseCents = payrollStats._sum.amountCents ?? 0;
+      const fuelExpenseCents = pirepStats._sum.fuelCostCents ?? 0;
+      let airportExpenseCents = 0;
+      let atcExpenseCents = 0;
+      let handlingExpenseCents = 0;
+      let otherExpenseCents = 0;
+      for (const group of expenseStats) {
+        const amount = group._sum.amountCents ?? 0;
+        const type = String(group.type);
+        if (type.startsWith("airport_")) airportExpenseCents += amount;
+        else if (type.startsWith("atc_")) atcExpenseCents += amount;
+        else if (type.includes("handling")) handlingExpenseCents += amount;
+        else otherExpenseCents += amount;
+      }
+      const companyExpenseCents = airportExpenseCents + atcExpenseCents + handlingExpenseCents + otherExpenseCents;
+      const expenseCents = payrollExpenseCents + fuelExpenseCents + companyExpenseCents;
       const flightTimeMinutes = pirepStats._sum.flightTimeMinutes ?? 0;
       return {
         year,
@@ -199,11 +236,18 @@ async function getAnnualCompanySummary(payroll: PayrollRow[], year = new Date().
         profitCents: revenueCents - expenseCents,
         flightCount,
         passengers: pirepStats._sum.passengers ?? 0,
-        cargoKg: 0,
+        cargoKg: pirepStats._sum.cargoKg ?? 0,
         flightHours: Math.round((flightTimeMinutes / 60) * 10) / 10,
         distanceNm: pirepStats._sum.flightDistanceNm ?? 0,
         averageRevenuePerFlightCents: flightCount ? Math.round(revenueCents / flightCount) : 0,
-        cargoDataAvailable: false,
+        cargoDataAvailable: (pirepStats._sum.cargoKg ?? 0) > 0,
+        payrollExpenseCents,
+        fuelExpenseCents,
+        companyExpenseCents,
+        airportExpenseCents,
+        atcExpenseCents,
+        handlingExpenseCents,
+        otherExpenseCents,
       };
     } catch (error) {
       console.error("Unable to load annual company metrics from PostgreSQL; using mock data.", error);
@@ -266,7 +310,7 @@ export async function getAuditFilterOptions() {
   if (!databaseConfigured) return { actions: ["PAYROLL_APPROVED", "PAYROLL_MARKED_PAID"], staff: [] as { id: string; name: string }[] };
   try {
     const [actions, staff] = await Promise.all([
-      prisma.aocAuditLog.findMany({ distinct: ["action"], select: { action: true }, orderBy: { action: "asc" }, take: 100 }),
+      prisma.aocAuditLog.findMany({ distinct: ["action"], select: { action: true }, orderBy: { action: "asc", }, take: 100 }),
       prisma.staffUser.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" }, take: 100 }),
     ]);
     return { actions: actions.map((row) => row.action), staff };
