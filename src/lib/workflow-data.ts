@@ -206,7 +206,7 @@ async function getAnnualCompanySummary(payroll: PayrollRow[], year = new Date().
         }),
         prisma.companyExpense.groupBy({
           by: ["type"],
-          where: { pirep: { status: "accepted", flownAt: { gte: start, lt: end } } },
+          where: { pirep: { is: { status: "accepted", flownAt: { gte: start, lt: end } } } },
           _sum: { amountCents: true },
         }),
       ]);
@@ -310,7 +310,7 @@ export async function getAuditFilterOptions() {
   if (!databaseConfigured) return { actions: ["PAYROLL_APPROVED", "PAYROLL_MARKED_PAID"], staff: [] as { id: string; name: string }[] };
   try {
     const [actions, staff] = await Promise.all([
-      prisma.aocAuditLog.findMany({ distinct: ["action"], select: { action: true }, orderBy: { action: "asc", }, take: 100 }),
+      prisma.aocAuditLog.findMany({ distinct: ["action"], select: { action: true }, orderBy: { action: "asc" }, take: 100 }),
       prisma.staffUser.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" }, take: 100 }),
     ]);
     return { actions: actions.map((row) => row.action), staff };
