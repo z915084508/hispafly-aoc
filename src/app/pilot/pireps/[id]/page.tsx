@@ -9,11 +9,28 @@ import { requirePilotSession } from "@/lib/pilot/session";
 
 export const dynamic = "force-dynamic";
 
+const expenseLabels = {
+  airport_landing: "Aterrizaje", airport_passenger: "Tasa pasajeros",
+  airport_service: "Servicio aeropuerto", airport_parking: "Estacionamiento",
+  handling: "Handling", cargo_handling: "Handling carga",
+  atc_enroute: "ATC en ruta", atc_terminal: "ATC terminal",
+} as const;
+
 export default async function PilotPirepDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const pilot = await requirePilotSession();
   const { id } = await params;
   const pirep = await getPilotPirepDetail(pilot.id, id);
   if (!pirep) notFound();
+  const byType = new Map(pirep.companyExpenses.map((row) => [row.type, row.amountCents]));
+  const sum = (...types: (keyof typeof expenseLabels)[]) => types.reduce((total, type) => total + (byType.get(type) ?? 0), 0);
+  const airportExpense = sum("airport_landing", "airport_passenger", "airport_service", "airport_parking");
+  const atcExpense = sum("atc_enroute", "atc_terminal");
+  const handlingExpense = sum("handling", "cargo_handling");
+  const companyExpenses = pirep.companyExpenses.reduce((total, row) => total + row.amountCents, 0);
+  const revenue = pirep.passengerRevenueCents ?? 0;
+  const payrollCost = pirep.payrollRecord?.amountCents ?? 0;
+  const totalExpense = (pirep.fuelCostCents ?? 0) + companyExpenses + payrollCost;
+  const flightResult = revenue - totalExpense;
 
   return <PilotPortalShell><div className="pirep-report">
     <PirepReportStyles />
@@ -48,6 +65,22 @@ export default async function PilotPirepDetailPage({ params }: { params: Promise
       <PirepMetric label="Penalización" value={pirep.payrollRecord ? formatMoney(pirep.payrollRecord.penaltyCents, pirep.payrollRecord.currency) : "—"} />
       <PirepMetric label="Movimiento de cartera" value={pirep.payrollRecord?.walletTransaction ? formatMoney(pirep.payrollRecord.walletTransaction.amountCents, pirep.payrollRecord.walletTransaction.currency) : "Sin movimiento"} note={pirep.payrollRecord?.walletTransaction?.description} />
       <PirepMetric label="Fecha del movimiento" value={formatDateTime(pirep.payrollRecord?.walletTransaction?.createdAt)} />
+    </PirepSection>
+    <PirepSection title="Economía del vuelo" className="pirep-economy-total">
+      <PirepMetric label="Ingresos pasajeros" value={formatMoney(pirep.passengerRevenueCents)} />
+      <PirepMetric label="Coste combustible" value={formatMoney(pirep.fuelCostCents)} note={pirep.fuelPriceSource ?? "Sin precio guardado"} />
+      <PirepMetric label="Gastos aeropuerto" value={formatMoney(airportExpense)} />
+      <PirepMetric label="Gastos ATC" value={formatMoney(atcExpense)} />
+      <PirepMetric label="Servicios handling" value={formatMoney(handlingExpense)} />
+      <PirepMetric label="Coste nómina" value={formatMoney(payrollCost)} />
+      <PirepMetric label="Ingreso total" value={formatMoney(revenue)} />
+      <PirepMetric label="Gasto total" value={formatMoney(totalExpense)} />
+      <PirepMetric label="Resultado del vuelo" value={formatMoney(flightResult)} valueClassName={flightResult >= 0 ? "pirep-positive" : "pirep-negative"} />
+    </PirepSection>
+    <PirepSection title="Desglose de ingresos y gastos">
+      <PirepMetric label="Ingreso pasajeros" value={formatMoney(pirep.passengerRevenueCents)} />
+      <PirepMetric label="Combustible" value={formatMoney(pirep.fuelCostCents)} />
+      {pirep.companyExpenses.map((row) => <PirepMetric key={row.id} label={expenseLabels[row.type] ?? row.type} value={formatMoney(row.amountCents, row.currency)} />)}
     </PirepSection>
   </div></PilotPortalShell>;
 }

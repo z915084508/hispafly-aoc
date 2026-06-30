@@ -29,8 +29,21 @@ export async function latestFuelPrice(region: FuelRegion, at = new Date()) {
     orderBy: { effectiveFrom: "desc" },
   });
   if (regional) return regional;
-  return prisma.fuelPrice.findFirst({
+  const historicalGlobal = await prisma.fuelPrice.findFirst({
     where: { region: "GLOBAL", effectiveFrom: { lte: at } },
+    orderBy: { effectiveFrom: "desc" },
+  });
+  if (historicalGlobal) return historicalGlobal;
+
+  // Historical PIREPs may predate the first configured price. Backfill and
+  // manual reprocessing use the latest maintained price and persist a snapshot.
+  const latestRegional = await prisma.fuelPrice.findFirst({
+    where: { region },
+    orderBy: { effectiveFrom: "desc" },
+  });
+  if (latestRegional) return latestRegional;
+  return prisma.fuelPrice.findFirst({
+    where: { region: "GLOBAL" },
     orderBy: { effectiveFrom: "desc" },
   });
 }
