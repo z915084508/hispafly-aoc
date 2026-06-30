@@ -1,7 +1,7 @@
 import { PageHeading } from "@/components/page-heading";
 import { getDashboardSummary } from "@/lib/workflow-data";
 
-const credits = (cents: number) => `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(cents / 100)} cr`;
+const money = (cents: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(cents / 100);
 const integer = (value: number) => new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(value);
 const decimal = (value: number) => new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(value);
 
@@ -10,16 +10,16 @@ export default async function StaffDashboard() {
   const annual = summary.annualCompany;
   const monthlyStats = [
     ["PIREPs aceptados este mes", String(summary.acceptedPireps), "Solo registros aceptados"],
-    ["Pendiente total", credits(summary.pendingCents), "Pendiente de revisión"],
-    ["Aprobada total", credits(summary.approvedCents), "Lista para pagar"],
-    ["Pagado este mes", credits(summary.paidCents), "Según fecha de pago"],
-    ["Pagado hoy", credits(summary.paidTodayCents), `${summary.paidTodayCount} nóminas pagadas hoy`],
-    ["Coste periodo actual", credits(summary.totalCostCents), "Según mes de liquidación"],
+    ["Pendiente total", money(summary.pendingCents), "Pendiente de revisión"],
+    ["Aprobada total", money(summary.approvedCents), "Lista para pagar"],
+    ["Pagado este mes", money(summary.paidCents), "Según fecha de pago"],
+    ["Pagado hoy", money(summary.paidTodayCents), `${summary.paidTodayCount} nóminas pagadas hoy`],
+    ["Coste periodo actual", money(summary.totalCostCents), "Según mes de liquidación"],
   ];
   const annualStats = [
-    ["Ingresos anuales", credits(annual.revenueCents), "Revenue virtual por pasajeros"],
-    ["Gastos anuales", credits(annual.expenseCents), "Coste de nóminas generadas"],
-    ["Beneficio anual", credits(annual.profitCents), annual.profitCents >= 0 ? "Resultado operativo positivo" : "Resultado operativo negativo"],
+    ["Ingresos anuales", money(annual.revenueCents), "Revenue por pasajeros"],
+    ["Gastos anuales", money(annual.expenseCents), "Coste de nóminas generadas"],
+    ["Beneficio anual", money(annual.profitCents), annual.profitCents >= 0 ? "Resultado operativo positivo" : "Resultado operativo negativo"],
     ["Vuelos anuales", integer(annual.flightCount), `${decimal(annual.flightHours)} h voladas`],
     ["Pasajeros transportados", integer(annual.passengers), `${integer(annual.distanceNm)} NM acumuladas`],
     ["Carga transportada", `${integer(annual.cargoKg)} kg`, annual.cargoDataAvailable ? "Datos reales Operations API" : "Pendiente de mapear cargo API"],
@@ -54,7 +54,7 @@ export default async function StaffDashboard() {
     </section>
     <section className="card ranking-card">
       <div className="card-header"><h2 className="card-title">Top 5 pilotos por nómina pagada</h2><span className="meta">Mes actual</span></div>
-      <div className="ranking-list">{summary.topPilots.map(([pilot, amount], index) => <div className="ranking-row" key={pilot}><span className="ranking-position">{index + 1}</span><span className="primary">{pilot}</span><strong>{credits(amount)}</strong></div>)}</div>
+      <div className="ranking-list">{summary.topPilots.map(([pilot, amount], index) => <div className="ranking-row" key={pilot}><span className="ranking-position">{index + 1}</span><span className="primary">{pilot}</span><strong>{money(amount)}</strong></div>)}</div>
     </section>
   </>;
 }
