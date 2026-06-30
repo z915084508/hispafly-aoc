@@ -1,5 +1,6 @@
 import { CompanyExpenseType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { handlingFeeForAircraft } from "./handling";
 
 type AirportCategory = "mega_hub" | "major" | "medium" | "small" | "regional" | "standard";
 
@@ -19,8 +20,8 @@ type AircraftEconomics = {
 };
 
 const DEFAULT_AIRCRAFT_MTOW_KG = 70_000;
-const DEFAULT_HANDLING_CENTS = 0;
-const DEFAULT_CARGO_HANDLING_PER_TONNE_CENTS = 0;
+const DEFAULT_CARGO_HANDLING_PER_TONNE_CENTS = 12_000;
+
 
 const AIRCRAFT_ALIASES: Record<string, string> = {
   B77W: "B772",
@@ -181,6 +182,7 @@ export async function generateCompanyExpensesForPirep(pirepId: string) {
   const serviceFee = arrivalProfile?.passengerServiceFeeCents ?? 0;
   const parkingRate = arrivalProfile?.parkingRatePerHourCents ?? 0;
   const terminalRate = arrivalProfile?.terminalAtcUnitRateCents ?? 0;
+  const handlingFee = handlingFeeForAircraft(pirep.aircraftType);
   const enrouteRate = enrouteProfile?.unitRateCents ?? 0;
   const commonAirportDetails = { airportIcao: arrival, airportCategory: arrivalRule.airportCategory, ruleSource: arrivalRule.source };
 
@@ -212,8 +214,8 @@ export async function generateCompanyExpensesForPirep(pirepId: string) {
     expense({
       pirepId,
       type: "handling",
-      amountCents: DEFAULT_HANDLING_CENTS,
-      calculationDetails: { ...commonAirportDetails, rule: "default_handling", configured: false, amountCents: DEFAULT_HANDLING_CENTS },
+      amountCents: handlingFee.amountCents,
+      calculationDetails: { ...commonAirportDetails, rule: "full_service_regular", source: "ground_handling_fees_2022", aircraftType: handlingFee.normalizedAircraftType, handlingClass: handlingFee.handlingClass, class6Fallback: handlingFee.class6Fallback, amountCents: handlingFee.amountCents },
     }),
     expense({
       pirepId,

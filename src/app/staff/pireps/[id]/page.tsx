@@ -84,7 +84,7 @@ export default async function StaffPirepDetailPage({ params, searchParams }: { p
     </PirepSection>
 
     <PirepSection title="Desglose de gastos">
-      {pirep.companyExpenses.map((row) => <PirepMetric key={row.id} label={expenseTypes[row.type] ?? row.type} value={formatMoney(row.amountCents, row.currency)} note={row.source} />)}
+      {pirep.companyExpenses.map((row) => <PirepMetric key={row.id} label={expenseTypes[row.type] ?? row.type} value={formatMoney(row.amountCents, row.currency)} />)}
       {pirep.companyExpenses.length === 0 && <PirepMetric label="Gastos" value="Sin gastos generados" />}
     </PirepSection>
 

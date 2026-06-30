@@ -13,6 +13,7 @@
     "prisma:seed": "node --experimental-strip-types prisma/seed.ts",
     "test:payroll": "node --experimental-strip-types src/lib/payroll/calculatePayroll.test.ts",
     "test:permissions": "node --experimental-strip-types src/lib/staff/permissions.test.ts",
+    "test:economy": "node --experimental-strip-types src/lib/economy/handling.test.ts",
     "test:vamsys": "node --experimental-strip-types src/lib/vamsys/pkce.test.ts && node --experimental-strip-types src/lib/vamsys/pilotMapper.test.ts && node --experimental-strip-types src/lib/vamsys/pireps.test.ts"
   },
   "dependencies": {

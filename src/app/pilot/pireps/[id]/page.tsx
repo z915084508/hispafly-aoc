@@ -36,6 +36,7 @@ export default async function PilotPirepDetailPage({ params }: { params: Promise
       <PirepMetric label="Pasajeros" value={formatNumber(pirep.passengers)} />
       <PirepMetric label="Carga" value={pirep.cargoKg == null ? "—" : `${formatNumber(pirep.cargoKg)} kg`} />
       <PirepMetric label="Combustible usado" value={pirep.fuelUsed == null ? "—" : `${formatNumber(pirep.fuelUsed)} kg`} />
+      <PirepMetric label="Coste combustible" value={formatMoney(pirep.fuelCostCents)} note={pirep.fuelPriceSource ?? "Sin precio guardado"} />
       <PirepMetric label="Landing rate" value={pirep.landingRate == null ? "—" : `${formatNumber(pirep.landingRate)} fpm`} />
       <PirepMetric label="Score" value={formatNumber(pirep.score)} />
       <PirepMetric label="Points" value={formatNumber(pirep.points)} />
