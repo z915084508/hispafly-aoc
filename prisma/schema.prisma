@@ -39,6 +39,17 @@ enum WalletTransactionType {
   manual_adjustment
 }
 
+enum CompanyExpenseType {
+  airport_landing
+  airport_passenger
+  airport_service
+  airport_parking
+  handling
+  cargo_handling
+  atc_enroute
+  atc_terminal
+}
+
 model StaffUser {
   id        String        @id @default(cuid())
   name      String        @map("displayName")
@@ -111,11 +122,11 @@ model OperationsApiState {
   lastCronPirepSyncAt  DateTime?
   lastPilotSyncAt      DateTime?
   lastCronPilotSyncAt  DateTime?
+  lastAirportSyncAt    DateTime?
   lastError            String?
   updatedAt            DateTime  @updatedAt
 }
 
-// Prepared for future confirmed Operations API endpoints. No synchronization is implemented yet.
 model Fleet {
   id            String   @id @default(cuid())
   vamsysFleetId String   @unique
@@ -130,9 +141,48 @@ model Aircraft {
   vamsysAircraftId String   @unique
   registration     String?
   aircraftType     String?
+  fleetId          String?
+  fleetName        String?
+  status           String?
+  seatCapacity     Int?
+  cargoCapacityKg  Int?
+  mtowKg           Int?
   rawData          Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  @@index([registration])
+  @@index([aircraftType])
+}
+
+model AircraftProfile {
+  id              String   @id @default(cuid())
+  aircraftType    String   @unique
+  seatCapacity    Int?
+  cargoCapacityKg Int?
+  mtowKg          Int?
+  source          String   @default("aoc_fallback")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Airport {
+  id              String   @id @default(cuid())
+  icao            String   @unique
+  iata            String?
+  name            String?
+  city            String?
+  country         String?
+  region          String?
+  latitude        Float?
+  longitude       Float?
+  source          String   @default("vamsys_operations")
+  rawData         Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([iata])
+  @@index([region])
 }
 
 model Route {
@@ -142,6 +192,29 @@ model Route {
   arrival       String?
   flightNumber  String?
   rawData       Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model AirportChargeProfile {
+  id                         String   @id @default(cuid())
+  airportIcao                String   @unique
+  airportCategory            String   @default("standard")
+  landingRatePerTonneCents   Int      @default(0)
+  passengerFeeCents          Int      @default(0)
+  passengerServiceFeeCents   Int      @default(0)
+  parkingRatePerHourCents    Int      @default(0)
+  terminalAtcUnitRateCents   Int      @default(0)
+  currency                   String   @default("EUR")
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+}
+
+model AirspaceChargeProfile {
+  id            String   @id @default(cuid())
+  region        String   @unique
+  unitRateCents Int      @default(0)
+  currency      String   @default("EUR")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -163,10 +236,10 @@ model VamsysOAuthToken {
 }
 
 model Pirep {
-  id                    String         @id @default(cuid())
-  vamsysPirepId         String         @unique
+  id                    String           @id @default(cuid())
+  vamsysPirepId         String           @unique
   pilotId               String
-  pilot                 Pilot          @relation(fields: [pilotId], references: [id], onDelete: Restrict)
+  pilot                 Pilot            @relation(fields: [pilotId], references: [id], onDelete: Restrict)
   flightNumber          String?
   callsign              String?
   departure             String?
@@ -190,16 +263,17 @@ model Pirep {
   credits               Float?
   status                PirepStatus
   acarsSoftware         String?
-  source                String         @default("mock")
+  source                String           @default("mock")
   flownAt               DateTime?
   acceptedAt            DateTime?
   vamsysCreatedAt       DateTime?
   vamsysUpdatedAt       DateTime?
-  rawData               Json?          @map("sourcePayload")
-  synchronizedAt        DateTime       @default(now())
+  rawData               Json?            @map("sourcePayload")
+  synchronizedAt        DateTime         @default(now())
   payrollRecord         PayrollRecord?
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
+  companyExpenses       CompanyExpense[]
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
 
   @@index([pilotId, flownAt])
   @@index([status, flownAt])
@@ -221,6 +295,23 @@ model FuelPrice {
   updatedAt          DateTime @updatedAt
 
   @@index([region, effectiveFrom])
+}
+
+model CompanyExpense {
+  id                 String             @id @default(cuid())
+  pirepId            String
+  pirep              Pirep              @relation(fields: [pirepId], references: [id], onDelete: Cascade)
+  type               CompanyExpenseType
+  amountCents        Int
+  currency           String             @default("EUR")
+  source             String             @default("aoc_economy_rules")
+  calculationDetails Json?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([pirepId, type])
+  @@index([type])
+  @@index([createdAt])
 }
 
 model PayrollRecord {
