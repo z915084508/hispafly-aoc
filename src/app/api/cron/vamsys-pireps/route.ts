@@ -4,18 +4,42 @@ import { syncAcceptedOperationsPirepsIncremental } from "@/lib/vamsys/operations
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 30;
+
+function cronTimeout(limit: number) {
+  return new Promise<Response>((resolve) => {
+    setTimeout(() => {
+      console.warn(`[vAMSYS PIREP cron] timed out before completion limit=${limit}`);
+      resolve(Response.json({
+        ok: false,
+        limit,
+        error: "vAMSYS PIREP cron did not finish within 25 seconds. Try again with limit=1, or check Vercel logs for the last processing message.",
+      }, { status: 504 }));
+    }, 25_000);
+  });
+}
 
 export async function GET(request: NextRequest) {
   if (!isCronAuthorized(request)) return cronUnauthorizedResponse();
 
-  const result = await syncAcceptedOperationsPirepsIncremental({ limit: 50, cron: true });
-  const ok = result.errors.length === 0 || result.importedCount + result.updatedCount > 0;
-  return Response.json({
-    ok,
-    imported: result.importedCount,
-    updated: result.updatedCount,
-    skipped: result.skippedCount,
-    payrollGenerated: result.payrollGeneratedCount,
-    errors: result.errors,
-  }, { status: ok ? 200 : 500 });
+  const requestedLimit = Number(request.nextUrl.searchParams.get("limit") ?? "10");
+  const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(Math.round(requestedLimit), 50)) : 10;
+  console.info(`[vAMSYS PIREP cron] request accepted limit=${limit}`);
+  return Promise.race([
+    syncAcceptedOperationsPirepsIncremental({ limit, cron: true }).then((result) => {
+      const ok = result.errors.length === 0 || result.importedCount + result.updatedCount > 0;
+      return Response.json({
+        ok,
+        limit,
+        imported: result.importedCount,
+        updated: result.updatedCount,
+        skipped: result.skippedCount,
+        payrollGenerated: result.payrollGeneratedCount,
+        expensesGenerated: result.expensesGeneratedCount,
+        walletTransactions: result.walletTransactionsCount,
+        errors: result.errors,
+      }, { status: ok ? 200 : 500 });
+    }),
+    cronTimeout(limit),
+  ]);
 }

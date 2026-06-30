@@ -5,6 +5,8 @@ out/
 .env
 .env.local
 *.log
+tmp/
+tsconfig.tsbuildinfo
 .DS_Store
 prisma/dev.db
 .pnpm-home/
