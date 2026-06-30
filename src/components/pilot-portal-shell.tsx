@@ -9,7 +9,7 @@ const navItems = [
   ["Nómina", "/pilot/payroll"],
 ] as const;
 
-const money = (cents: number) => `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(cents / 100)} cr`;
+const money = (cents: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(cents / 100);
 
 export async function PilotPortalShell({ children }: { children: React.ReactNode }) {
   const pilot = await requirePilotSession();
