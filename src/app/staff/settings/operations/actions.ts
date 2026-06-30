@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { backfillCompanyEconomy } from "@/lib/economy/backfill";
 import { IATA_JET_FUEL_PRICE_SOURCE, IATA_JET_FUEL_PRICE_URL, FUEL_REGIONS } from "@/lib/economy/fuel";
 import { requireStaffPermission } from "@/lib/staff/authorization";
 import { syncOperationsFleetData } from "@/lib/vamsys/fleetSync";
@@ -23,6 +24,23 @@ export async function syncFleetDataAction() {
     feedback = { type: "error", message: readableError(error) };
   }
   revalidatePath("/staff/settings/operations");
+  revalidatePath("/staff/audit");
+  redirect(`/staff/settings/operations?${feedback.type}=${encodeURIComponent(feedback.message)}`);
+}
+
+export async function backfillCompanyEconomyAction() {
+  let feedback: { type: "success" | "error"; message: string };
+  try {
+    const staff = await requireStaffPermission("VAMSYS_PIREP_SYNC", { entityType: "CompanyExpense", entityId: "backfill", attemptedAction: "backfill company economy data" });
+    const result = await backfillCompanyEconomy(staff.id, 1000);
+    const suffix = result.errors.length ? ` Avisos: ${result.errors.slice(0, 2).join(" | ")}` : "";
+    feedback = { type: result.errors.length ? "error" : "success", message: `Backfill: ${result.scanned} PIREPs revisados, ${result.fuelUpdated} fuel snapshots y ${result.expensesGenerated} gastos generados/recalculados.${suffix}` };
+  } catch (error) {
+    feedback = { type: "error", message: readableError(error) };
+  }
+  revalidatePath("/staff/settings/operations");
+  revalidatePath("/staff/wallet");
+  revalidatePath("/staff/expenses");
   revalidatePath("/staff/audit");
   redirect(`/staff/settings/operations?${feedback.type}=${encodeURIComponent(feedback.message)}`);
 }
