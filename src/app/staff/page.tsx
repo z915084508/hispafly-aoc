@@ -18,8 +18,11 @@ export default async function StaffDashboard() {
   ];
   const annualStats = [
     ["Ingresos anuales", money(annual.revenueCents), "Revenue por pasajeros"],
-    ["Gastos anuales", money(annual.expenseCents), "Coste de nóminas generadas"],
+    ["Gastos anuales", money(annual.expenseCents), "Nómina + fuel + CompanyExpense"],
     ["Beneficio anual", money(annual.profitCents), annual.profitCents >= 0 ? "Resultado operativo positivo" : "Resultado operativo negativo"],
+    ["Coste nóminas", money(annual.payrollExpenseCents), "PayrollRecord anual"],
+    ["Coste fuel", money(annual.fuelExpenseCents), "Snapshot guardado en PIREP"],
+    ["Airport / ATC / handling", money(annual.companyExpenseCents), "CompanyExpense generado"],
     ["Vuelos anuales", integer(annual.flightCount), `${decimal(annual.flightHours)} h voladas`],
     ["Pasajeros transportados", integer(annual.passengers), `${integer(annual.distanceNm)} NM acumuladas`],
     ["Carga transportada", `${integer(annual.cargoKg)} kg`, annual.cargoDataAvailable ? "Datos reales Operations API" : "Pendiente de mapear cargo API"],
