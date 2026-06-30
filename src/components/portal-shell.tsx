@@ -11,6 +11,7 @@ const navItems = [
   ["Nóminas", "/staff/payroll"],
   ["Economía de la compañía", "/staff/wallet"],
   ["Gastos compañía", "/staff/expenses"],
+  ["Reglas gastos", "/staff/expenses/rules"],
   ["Registro de auditoría", "/staff/audit"],
   ["Conexión vAMSYS", "/staff/settings/vamsys"],
   ["Configuración", "/staff/settings"],
