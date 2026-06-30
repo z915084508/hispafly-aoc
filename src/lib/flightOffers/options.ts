@@ -1,0 +1,85 @@
+import { prisma } from "@/lib/prisma";
+
+type Row = Record<string, unknown>;
+const rec = (value: unknown): Row | null => value && typeof value === "object" && !Array.isArray(value) ? value as Row : null;
+const str = (row: Row | null, ...keys: string[]) => {
+  if (!row) return null;
+  for (const key of keys) if (typeof row[key] === "string" || typeof row[key] === "number") return String(row[key]);
+  return null;
+};
+const num = (row: Row | null, ...keys: string[]) => {
+  const value = str(row, ...keys);
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.round(parsed) : null;
+};
+
+export interface FlightOfferRouteOption {
+  id: string;
+  departure: string;
+  arrival: string;
+  flightNumber: string | null;
+  callsign: string | null;
+  altitude: number | null;
+  userRoute: string | null;
+  fleetIds: string[];
+}
+
+export async function getFlightOfferOptions() {
+  const [airports, fleets, aircraft, storedRoutes, pireps] = await Promise.all([
+    prisma.airport.findMany({ select: { icao: true, iata: true, name: true }, orderBy: { icao: "asc" } }),
+    prisma.fleet.findMany({ select: { vamsysFleetId: true, name: true, rawData: true }, orderBy: { name: "asc" } }),
+    prisma.aircraft.findMany({ select: { vamsysAircraftId: true, registration: true, aircraftType: true, fleetId: true, status: true }, orderBy: [{ aircraftType: "asc" }, { registration: "asc" }] }),
+    prisma.route.findMany({ orderBy: [{ departure: "asc" }, { arrival: "asc" }, { flightNumber: "asc" }] }),
+    prisma.pirep.findMany({ where: { source: "vamsys_operations" }, select: { rawData: true, departure: true, arrival: true, flightNumber: true, callsign: true }, orderBy: { flownAt: "desc" }, take: 2000 }),
+  ]);
+
+  const routeMap = new Map<string, FlightOfferRouteOption>();
+  for (const stored of storedRoutes) {
+    const raw = rec(stored.rawData);
+    routeMap.set(stored.vamsysRouteId, {
+      id: stored.vamsysRouteId,
+      departure: stored.departure ?? "",
+      arrival: stored.arrival ?? "",
+      flightNumber: stored.flightNumber,
+      callsign: str(raw, "callsign"),
+      altitude: num(raw, "altitude"),
+      userRoute: str(raw, "route", "user_route"),
+      fleetIds: Array.isArray(raw?.fleet_ids) ? raw.fleet_ids.map(String) : [],
+    });
+  }
+
+  for (const pirep of pireps) {
+    const root = rec(pirep.rawData);
+    const attributes = rec(root?.attributes);
+    const source = { ...(attributes ?? {}), ...(root ?? {}) };
+    const booking = rec(source.booking);
+    const route = rec(source.route) ?? rec(booking?.route);
+    const id = str(route, "id") ?? str(source, "route_id") ?? str(booking, "route_id");
+    if (!id) continue;
+    const departureAirport = rec(source.departure_airport);
+    const arrivalAirport = rec(source.arrival_airport);
+    const existing = routeMap.get(id);
+    const fleetIds = Array.isArray(route?.fleet_ids) ? route!.fleet_ids.map(String) : [];
+    routeMap.set(id, {
+      id,
+      departure: str(departureAirport, "icao") ?? pirep.departure ?? existing?.departure ?? "",
+      arrival: str(arrivalAirport, "icao") ?? pirep.arrival ?? existing?.arrival ?? "",
+      flightNumber: str(route, "flight_number") ?? pirep.flightNumber ?? existing?.flightNumber ?? null,
+      callsign: str(route, "callsign") ?? pirep.callsign ?? existing?.callsign ?? null,
+      altitude: num(route, "altitude") ?? existing?.altitude ?? null,
+      userRoute: str(route, "route", "user_route") ?? existing?.userRoute ?? null,
+      fleetIds: fleetIds.length ? fleetIds : existing?.fleetIds ?? [],
+    });
+  }
+
+  return {
+    airports,
+    routes: [...routeMap.values()].filter((route) => route.departure && route.arrival).sort((a, b) => `${a.departure}${a.arrival}${a.flightNumber}`.localeCompare(`${b.departure}${b.arrival}${b.flightNumber}`)),
+    fleets: fleets.map((fleet) => {
+      const raw = rec(fleet.rawData);
+      return { id: fleet.vamsysFleetId, name: fleet.name, code: str(raw, "code", "icao"), passengers: num(raw, "max_pax", "passengers"), cargoKg: num(raw, "max_cargo", "cargo") };
+    }),
+    aircraft,
+  };
+}

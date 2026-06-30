@@ -1,7 +1,9 @@
 import { Badge, DataTable } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
+import { FlightOfferForm } from "@/components/flight-offer-form";
 import { prisma } from "@/lib/prisma";
-import { cancelFlightOfferAction, createFlightOfferAction, publishFlightOfferAction } from "./actions";
+import { getFlightOfferOptions } from "@/lib/flightOffers/options";
+import { cancelFlightOfferAction, publishFlightOfferAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +13,10 @@ const reward = (cents: number, type: string) => type === "FIXED"
   : `${(cents / 100).toLocaleString("es-ES")} % de nómina`;
 
 export default async function FlightOffersStaffPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
-  const [messages, offers] = await Promise.all([
+  const [messages, offers, options] = await Promise.all([
     searchParams,
     prisma.flightOffer.findMany({ include: { dispatches: { include: { pilot: true, matchedPirep: true } } }, orderBy: { createdAt: "desc" } }),
+    getFlightOfferOptions(),
   ]);
   const dispatches = offers.flatMap((offer) => offer.dispatches.map((dispatch) => ({ offer, dispatch })));
   return <>
@@ -33,29 +36,7 @@ export default async function FlightOffersStaffPage({ searchParams }: { searchPa
 
     <section className="card">
       <div className="card-header"><h2 className="card-title">Nueva oferta</h2><span className="meta">Se guarda como DRAFT</span></div>
-      <form className="offer-form" action={createFlightOfferAction}>
-        <label className="wide">Título<input name="title" required placeholder="LEMD–LEBL · A320 evening service" /></label>
-        <label>Flight number<input name="flightNumber" placeholder="HF123" /></label>
-        <label>Callsign<input name="callsign" placeholder="HPF123" /></label>
-        <label>Salida ICAO<input name="departureIcao" required maxLength={4} /></label>
-        <label>Llegada ICAO<input name="arrivalIcao" required maxLength={4} /></label>
-        <label>vAMSYS route_id<input name="vamsysRouteId" required inputMode="numeric" /></label>
-        <label>vAMSYS aircraft_id<input name="vamsysAircraftId" required inputMode="numeric" /></label>
-        <label>vAMSYS fleet_id<input name="vamsysFleetId" inputMode="numeric" /></label>
-        <label>Tipo aeronave<input name="aircraftType" placeholder="A320" /></label>
-        <label>Matrícula<input name="aircraftRegistration" /></label>
-        <label>Salida programada<input name="scheduledDeparture" type="datetime-local" required /></label>
-        <label>Llegada programada<input name="scheduledArrival" type="datetime-local" /></label>
-        <label>Válida hasta<input name="validUntil" type="datetime-local" required /></label>
-        <label>Pasajeros<input name="passengers" type="number" min="0" /></label>
-        <label>Carga kg<input name="cargoKg" type="number" min="0" /></label>
-        <label>Altitud<input name="altitude" type="number" min="0" /></label>
-        <label>Red<input name="network" placeholder="VATSIM" /></label>
-        <label>Tipo recompensa<select name="rewardType"><option value="FIXED">Importe fijo</option><option value="PERCENTAGE">% de nómina</option></select></label>
-        <label>Recompensa (€ o %)<input name="reward" type="number" min="0" step="0.01" defaultValue="0" /></label>
-        <label className="wide">Ruta operacional<textarea name="userRoute" /></label>
-        <div><button className="button" type="submit">Crear borrador</button></div>
-      </form>
+      <FlightOfferForm {...options} />
     </section>
 
     <section className="card ranking-card">
