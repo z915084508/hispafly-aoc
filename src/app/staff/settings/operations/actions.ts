@@ -29,7 +29,7 @@ export async function syncFleetDataAction() {
 export async function saveFuelPriceAction(formData: FormData) {
   let feedback: { type: "success" | "error"; message: string };
   try {
-    const staff = await requireStaffPermission("VAMSYS_OPERATIONS_SYNC", { entityType: "FuelPrice", entityId: "iata", attemptedAction: "update IATA fuel price reference" });
+    const staff = await requireStaffPermission("VAMSYS_PIREP_SYNC", { entityType: "FuelPrice", entityId: "iata", attemptedAction: "update IATA fuel price reference" });
     const region = String(formData.get("region") ?? "GLOBAL").toUpperCase();
     const priceText = String(formData.get("pricePerKg") ?? "").replace(",", ".").trim();
     const pricePerKg = Number(priceText);
