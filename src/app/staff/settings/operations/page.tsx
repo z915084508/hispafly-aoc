@@ -3,7 +3,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { prisma } from "@/lib/prisma";
 import { IATA_JET_FUEL_PRICE_URL, FUEL_REGIONS } from "@/lib/economy/fuel";
 import { isOperationsConfigured } from "@/lib/vamsys/operations";
-import { saveFuelPriceAction, syncFleetDataAction } from "./actions";
+import { backfillCompanyEconomyAction, saveFuelPriceAction, syncFleetDataAction } from "./actions";
 
 type SearchParams = { success?: string; error?: string };
 
@@ -45,6 +45,14 @@ export default async function StaffOperationsSettingsPage({ searchParams }: { se
       {state?.lastError && <div className="feedback error">Último error Operations: {state.lastError}</div>}
       <form action={syncFleetDataAction} className="settings-link">
         <SubmitButton className="button" disabled={!configured} pendingChildren="Sincronizando con vAMSYS...">Sincronizar flota, aeronaves y aeropuertos</SubmitButton>
+      </form>
+    </div>
+
+    <div className="card settings-link">
+      <div className="card-header"><h2 className="card-title">Company economy backfill</h2><span className="meta">PIREPs aceptados</span></div>
+      <p className="page-copy">Recalcula snapshots de fuel pendientes y genera o actualiza CompanyExpense para PIREPs aceptados ya sincronizados. Úsalo después de cambiar reglas económicas o importar datos históricos.</p>
+      <form action={backfillCompanyEconomyAction} className="settings-link">
+        <SubmitButton className="button" pendingChildren="Recalculando economía...">Backfill company economy</SubmitButton>
       </form>
     </div>
 
