@@ -8,7 +8,7 @@ import { requirePilotSession } from "@/lib/pilot/session";
 
 export const dynamic = "force-dynamic";
 
-const credits = (cents: number | null | undefined) => `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format((cents ?? 0) / 100)} cr`;
+const money = (cents: number | null | undefined) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format((cents ?? 0) / 100);
 const statusLabels: Record<string, string> = { pending: "Pendiente", approved: "Aprobado", rejected: "Rechazado", paid: "Pagado" };
 const statusTones = { pending: "amber", approved: "blue", rejected: "red", paid: "green" } as const;
 const route = (departure: string | null, arrival: string | null) => departure || arrival ? `${departure ?? "—"}-${arrival ?? "—"}` : "—";
@@ -37,14 +37,14 @@ export default async function PilotPayrollDetailPage({ params }: { params: Promi
   const penaltyCredits = calculationNumber(payroll.calculationDetails, "totalPenalty");
 
   return <PilotPortalShell>
-    <PageHeading eyebrow="NÓMINA DETAIL" title={`Nómina ${payroll.pirep.flightNumber ?? payroll.settlementMonth}`} copy="Desglose de compensación virtual generado desde tu PIREP aceptado." />
+    <PageHeading eyebrow="NÓMINA DETAIL" title={`Nómina ${payroll.pirep.flightNumber ?? payroll.settlementMonth}`} copy="Desglose de compensación en euros generado desde tu PIREP aceptado." />
     <p className="meta"><Link href="/pilot/payroll">← Volver a nóminas</Link></p>
 
     <section className="grid stats">
-      <div className="card"><div className="stat-label">Base</div><div className="stat-value">{credits(payroll.basePayCents)}</div><div className="stat-note">Pago base calculado</div></div>
-      <div className="card"><div className="stat-label">Bonificación</div><div className="stat-value amount-positive">+{credits(payroll.bonusCents)}</div><div className="stat-note">{bonusCredits === null ? "Detalle guardado" : `${bonusCredits.toFixed(2)} créditos`}</div></div>
-      <div className="card"><div className="stat-label">Penalización</div><div className="stat-value amount-negative">−{credits(payroll.penaltyCents)}</div><div className="stat-note">{penaltyCredits === null ? "Detalle guardado" : `${penaltyCredits.toFixed(2)} créditos`}</div></div>
-      <div className="card"><div className="stat-label">Importe final</div><div className="stat-value">{credits(payroll.amountCents)}</div><div className="stat-note"><Badge tone={statusTones[payroll.status as keyof typeof statusTones] ?? "gray"}>{statusLabels[payroll.status] ?? payroll.status}</Badge></div></div>
+      <div className="card"><div className="stat-label">Base</div><div className="stat-value">{money(payroll.basePayCents)}</div><div className="stat-note">Pago base calculado</div></div>
+      <div className="card"><div className="stat-label">Bonificación</div><div className="stat-value amount-positive">+{money(payroll.bonusCents)}</div><div className="stat-note">{bonusCredits === null ? "Detalle guardado" : `Equivalente regla: ${bonusCredits.toFixed(2)}`}</div></div>
+      <div className="card"><div className="stat-label">Penalización</div><div className="stat-value amount-negative">−{money(payroll.penaltyCents)}</div><div className="stat-note">{penaltyCredits === null ? "Detalle guardado" : `Equivalente regla: ${penaltyCredits.toFixed(2)}`}</div></div>
+      <div className="card"><div className="stat-label">Importe final</div><div className="stat-value">{money(payroll.amountCents)}</div><div className="stat-note"><Badge tone={statusTones[payroll.status as keyof typeof statusTones] ?? "gray"}>{statusLabels[payroll.status] ?? payroll.status}</Badge></div></div>
     </section>
 
     <div className="card">
@@ -57,8 +57,8 @@ export default async function PilotPayrollDetailPage({ params }: { params: Promi
         ["Tiempo vuelo", minutes(payroll.pirep.flightTimeMinutes)],
         ["Landing rate", payroll.pirep.landingRate === null ? "—" : `${payroll.pirep.landingRate} fpm`],
         ["Puntuación", payroll.pirep.score ?? "—"],
-        ["Passenger revenue", credits(payroll.pirep.passengerRevenueCents)],
-        ["Fuel cost", credits(payroll.pirep.fuelCostCents)],
+        ["Passenger revenue", money(payroll.pirep.passengerRevenueCents)],
+        ["Fuel cost", money(payroll.pirep.fuelCostCents)],
         ["Mes liquidación", payroll.settlementMonth],
         ["Pagado", payroll.paidAt ? new Intl.DateTimeFormat("es-ES", { dateStyle: "medium", timeStyle: "short" }).format(payroll.paidAt) : "—"],
       ]} />
