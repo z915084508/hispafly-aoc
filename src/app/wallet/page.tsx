@@ -104,7 +104,7 @@ export default async function EconomyPage() {
     <section className="grid stats">
       <div className="card"><div className="stat-label">Ingresos</div><div className="stat-value">{money(incomeCents)}</div><div className="stat-note">Passenger revenue desde PIREPs aceptados</div></div>
       <div className="card"><div className="stat-label">Gastos</div><div className="stat-value">{money(expenseCents)}</div><div className="stat-note">Fuel + airport + ATC + nóminas</div></div>
-      <div className="card"><div className="stat-label">Resultado</div><div className="stat-value">{resultCents < 0 ? "−" : ""}{money(resultCents)}</div><div className="stat-note">Resultado operativo virtual en EUR</div></div>
+      <div className="card"><div className="stat-label">Resultado</div><div className="stat-value">{resultCents < 0 ? "−" : ""}{money(resultCents)}</div><div className="stat-note">Resultado operativo en EUR</div></div>
     </section>
     <div className="card">
       {movements.length === 0
