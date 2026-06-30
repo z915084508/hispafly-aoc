@@ -52,7 +52,9 @@ export default async function PilotFlightOffersPage({ searchParams }: { searchPa
         when(offer.scheduledDeparture),
         `${offer.passengers ?? "—"} pax · ${offer.cargoKg ?? "—"} kg`,
         reward(offer.rewardCents, offer.rewardType),
-        <form action={dispatchFlightOfferAction} key="dispatch"><input type="hidden" name="offerId" value={offer.id}/><button className="button" type="submit" disabled={!connected}>Dispatch</button></form>,
+        connected
+          ? <form action={dispatchFlightOfferAction} key="dispatch"><input type="hidden" name="offerId" value={offer.id}/><button className="button" type="submit">Dispatch</button></form>
+          : <a className="button" href="/api/vamsys/oauth/start">Autorizar vAMSYS</a>,
       ])} /> : <div className="empty-state">No hay ofertas publicadas disponibles.</div>}
     </section>
 
