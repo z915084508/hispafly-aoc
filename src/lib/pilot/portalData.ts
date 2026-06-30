@@ -30,10 +30,30 @@ function numberFromPayload(value: unknown, keys: string[]): number {
 export async function getPilotDashboardData(pilotId: string) {
   const { start, end } = monthRange();
   const monthFilter = { gte: start, lt: end };
-  const [pilotPireps, topRows] = await Promise.all([
+  const [pilotPireps, latestPireps, topRows] = await Promise.all([
     prisma.pirep.findMany({
       where: { pilotId, status: "accepted", flownAt: monthFilter },
-      select: { passengers: true, rawData: true },
+      select: { passengers: true, cargoKg: true, rawData: true },
+    }),
+    prisma.pirep.findMany({
+      where: { pilotId, status: "accepted" },
+      select: {
+        id: true,
+        vamsysPirepId: true,
+        flightNumber: true,
+        departure: true,
+        arrival: true,
+        aircraftType: true,
+        passengers: true,
+        cargoKg: true,
+        fuelUsed: true,
+        passengerRevenueCents: true,
+        fuelCostCents: true,
+        flownAt: true,
+        createdAt: true,
+      },
+      orderBy: [{ flownAt: "desc" }, { createdAt: "desc" }],
+      take: 10,
     }),
     prisma.pirep.groupBy({
       by: ["pilotId"],
@@ -51,12 +71,20 @@ export async function getPilotDashboardData(pilotId: string) {
   return {
     acceptedPireps: pilotPireps.length,
     totalPassengers: pilotPireps.reduce((sum, row) => sum + (row.passengers ?? 0), 0),
-    totalCargo: pilotPireps.reduce((sum, row) => sum + numberFromPayload(row.rawData, ["cargo", "cargo_weight", "cargoWeight", "freight", "freight_weight", "freightWeight", "load", "payload"]), 0),
+    totalCargo: pilotPireps.reduce((sum, row) => sum + (row.cargoKg ?? numberFromPayload(row.rawData, ["cargo", "cargo_weight", "cargoWeight", "freight", "freight_weight", "freightWeight", "load", "payload"])), 0),
+    latestPireps,
     topPilots: topRows.map((row) => {
       const pilot = pilotNames.get(row.pilotId);
       return { pilotId: row.pilotId, name: pilot?.displayName ?? "Piloto", callsign: pilot?.callsign ?? null, count: row._count._all };
     }),
   };
+}
+
+export async function getPilotPirepDetail(pilotId: string, pirepId: string) {
+  return prisma.pirep.findFirst({
+    where: { id: pirepId, pilotId },
+    include: { payrollRecord: true },
+  });
 }
 
 export async function getPilotRosterRows() {
@@ -79,5 +107,33 @@ export async function getPilotPayrollRows(pilotId: string) {
     where: { pilotId },
     include: { pirep: { select: { flightNumber: true, aircraftType: true, flownAt: true } } },
     orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function getPilotPayrollDetail(pilotId: string, payrollId: string) {
+  return prisma.payrollRecord.findFirst({
+    where: { id: payrollId, pilotId },
+    include: {
+      pirep: {
+        select: {
+          id: true,
+          vamsysPirepId: true,
+          flightNumber: true,
+          departure: true,
+          arrival: true,
+          aircraftType: true,
+          network: true,
+          flightTimeMinutes: true,
+          landingRate: true,
+          score: true,
+          flownAt: true,
+          passengers: true,
+          cargoKg: true,
+          passengerRevenueCents: true,
+          fuelCostCents: true,
+        },
+      },
+      walletTransaction: true,
+    },
   });
 }
