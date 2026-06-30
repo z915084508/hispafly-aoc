@@ -8,10 +8,14 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   if (!isCronAuthorized(request)) return cronUnauthorizedResponse();
 
-  const result = await syncAcceptedOperationsPirepsIncremental({ limit: 50, cron: true });
+  const requestedLimit = Number(request.nextUrl.searchParams.get("limit") ?? "10");
+  const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(Math.round(requestedLimit), 50)) : 10;
+  console.info(`[vAMSYS PIREP cron] request accepted limit=${limit}`);
+  const result = await syncAcceptedOperationsPirepsIncremental({ limit, cron: true });
   const ok = result.errors.length === 0 || result.importedCount + result.updatedCount > 0;
   return Response.json({
     ok,
+    limit,
     imported: result.importedCount,
     updated: result.updatedCount,
     skipped: result.skippedCount,

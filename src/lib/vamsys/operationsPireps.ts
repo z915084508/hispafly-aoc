@@ -295,6 +295,7 @@ export async function syncAcceptedOperationsPirepsIncremental(options: { limit?:
       loadActivePayrollRule(),
     ]);
     for (const summary of rows) try {
+      console.info(`[vAMSYS PIREP cron] processing ${mapOperationsPirep(summary).data.vamsysPirepId}`);
       mergeResult(result, await processAcceptedOperationsPirep(summary, { rule }));
     } catch (error) {
       result.skippedCount++;

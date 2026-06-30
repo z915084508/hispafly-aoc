@@ -6,11 +6,27 @@ const env = (name: string, fallback = "") => process.env[name]?.trim() || fallba
 export const isOperationsConfigured = () => Boolean(env("VAMSYS_OPERATIONS_CLIENT_ID") && env("VAMSYS_OPERATIONS_CLIENT_SECRET"));
 let cached: { token: string; expiresAt: number } | null = null;
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}) {
+  const timeoutMs = Number(env("VAMSYS_OPERATIONS_TIMEOUT_MS", "10000"));
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs));
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`vAMSYS Operations request timed out after ${Math.max(1000, timeoutMs) / 1000}s.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function getOperationsAccessToken(force = false) {
   if (!force && cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
   const clientId = env("VAMSYS_OPERATIONS_CLIENT_ID"), secret = env("VAMSYS_OPERATIONS_CLIENT_SECRET");
   if (!clientId || !secret) throw new Error("La API Operations de vAMSYS no está configurada.");
-  const response = await fetch(env("VAMSYS_OPERATIONS_TOKEN_URL", "https://vamsys.io/oauth/token"), { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "client_credentials", client_id: clientId, client_secret: secret, scope: "*" }), cache: "no-store" });
+  const response = await fetchWithTimeout(env("VAMSYS_OPERATIONS_TOKEN_URL", "https://vamsys.io/oauth/token"), { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "client_credentials", client_id: clientId, client_secret: secret, scope: "*" }), cache: "no-store" });
   const body = await response.json().catch(() => ({})) as Record<string, unknown>;
   if (!response.ok || typeof body.access_token !== "string") throw new Error(`vAMSYS rechazó las credenciales Operations (${response.status}).`);
   cached = { token: body.access_token, expiresAt: Date.now() + (typeof body.expires_in === "number" ? body.expires_in : 604800) * 1000 };
@@ -114,7 +130,7 @@ export async function operationsRequest(path: string, retry = true): Promise<unk
   if (target.origin !== base.origin || !target.pathname.startsWith(`${base.pathname.replace(/\/$/, "")}/`)) {
     throw new Error("vAMSYS devolvió una URL de paginación fuera del API Operations configurado.");
   }
-  const response = await fetch(target, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` }, cache: "no-store" });
+  const response = await fetchWithTimeout(target, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` }, cache: "no-store" });
   if (response.status === 401 && retry) { cached = null; await getOperationsAccessToken(true); return operationsRequest(path, false); }
   if (response.status === 429) throw new Error("vAMSYS ha alcanzado el límite de 100 solicitudes por minuto.");
   if (!response.ok) throw new Error(`vAMSYS Operations respondió ${response.status}.`);
