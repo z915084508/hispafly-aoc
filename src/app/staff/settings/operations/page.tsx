@@ -9,16 +9,13 @@ type SearchParams = { success?: string; error?: string };
 const money = (cents: number) => `${(cents / 100).toLocaleString("es-ES", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} €/kg`;
 
 export default async function StaffOperationsSettingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [filters, counts] = await Promise.all([
+  const [filters, fleetCount, aircraftCount, state, fuelPriceRows] = await Promise.all([
     searchParams,
-    Promise.all([
-      prisma.fleet.count().catch(() => 0),
-      prisma.aircraft.count().catch(() => 0),
-      prisma.operationsApiState.findUnique({ where: { id: "vamsys" } }).catch(() => null),
-      prisma.fuelPrice.findMany({ orderBy: { effectiveFrom: "desc" }, take: 20 }).catch(() => []),
-    ]),
+    prisma.fleet.count().catch(() => 0),
+    prisma.aircraft.count().catch(() => 0),
+    prisma.operationsApiState.findUnique({ where: { id: "vamsys" } }).catch(() => null),
+    prisma.fuelPrice.findMany({ orderBy: { effectiveFrom: "desc" }, take: 20 }).catch(() => []),
   ]);
-  const [fleetCount, aircraftCount, state, fuelPriceRows] = counts;
   const configured = isOperationsConfigured();
   const latestFuelPrices = fuelPriceRows.filter((row, index, rows) => rows.findIndex((candidate) => candidate.region === row.region) === index);
 
