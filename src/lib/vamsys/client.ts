@@ -17,7 +17,9 @@ async function parseResponse<T>(response: Response): Promise<T> {
     const firstValidationError = errors
       ? Object.values(errors).flatMap((value) => Array.isArray(value) ? value : [value]).find((value): value is string => typeof value === "string")
       : undefined;
-    throw new VamsysApiError(firstValidationError || message || description || code || `vAMSYS request failed with status ${response.status}.`, response.status, code);
+    const authHint = response.headers.get("www-authenticate");
+    const baseMessage = firstValidationError || message || description || code || `vAMSYS request failed with status ${response.status}.`;
+    throw new VamsysApiError(authHint ? `${baseMessage} [${authHint}]` : baseMessage, response.status, code);
   }
   return payload as T;
 }

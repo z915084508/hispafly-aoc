@@ -13,7 +13,7 @@ export function getVamsysPilotConfig(): VamsysPilotConfig {
   const config = {
     clientId: value("VAMSYS_PILOT_CLIENT_ID"),
     redirectUri: value("VAMSYS_PILOT_REDIRECT_URI"),
-    scopes: value("VAMSYS_PILOT_SCOPES", "identity:basic pilot:read flights:read"),
+    scopes: value("VAMSYS_PILOT_SCOPES", "identity:basic identity:networks identity:discord identity:social pilot:read pilot:write flights:read flights:write activities:read activities:write"),
     apiBaseUrl: value("VAMSYS_API_BASE_URL", "https://vamsys.io/api/v3/pilot").replace(/\/$/, ""),
     authorizationUrl: value("VAMSYS_AUTH_URL", "https://vamsys.io/oauth/authorize"),
     tokenUrl: value("VAMSYS_TOKEN_URL", "https://vamsys.io/oauth/token"),

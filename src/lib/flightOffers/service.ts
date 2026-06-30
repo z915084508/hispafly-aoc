@@ -34,6 +34,11 @@ export async function dispatchFlightOffer(offerId: string, pilotId: string) {
     throw new Error("Esta oferta ha caducado.");
   }
 
+  const oauth = await prisma.vamsysOAuthToken.findUnique({ where: { pilotId }, select: { scopes: true, revokedAt: true } });
+  const grantedScopes = new Set(oauth?.scopes.split(/\s+/).filter(Boolean) ?? []);
+  if (!oauth || oauth.revokedAt || !grantedScopes.has("flights:write")) {
+    throw new Error("Reconecta vAMSYS para autorizar flights:write antes de hacer Dispatch.");
+  }
   const accessToken = await getValidVamsysAccessToken(pilotId).catch(() => {
     throw new Error("Conecta vAMSYS para dispatch.");
   });

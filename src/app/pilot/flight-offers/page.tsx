@@ -12,20 +12,36 @@ const reward = (cents: number, type: string) => type === "FIXED"
   ? new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(cents / 100)
   : `${(cents / 100).toLocaleString("es-ES")} % de nómina`;
 
+function tokenScopes(accessToken: string | undefined) {
+  if (!accessToken) return [] as string[];
+  try {
+    const payloadPart = accessToken.split(".")[1];
+    if (!payloadPart) return [];
+    const payload = JSON.parse(Buffer.from(payloadPart, "base64url").toString("utf8")) as { scopes?: unknown; scope?: unknown };
+    const value = payload.scopes ?? payload.scope;
+    if (Array.isArray(value)) return value.filter((scope): scope is string => typeof scope === "string");
+    return typeof value === "string" ? value.split(/\s+/).filter(Boolean) : [];
+  } catch { return []; }
+}
+
 export default async function PilotFlightOffersPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
   const pilot = await requirePilotSession();
   const [messages, offers, dispatches, oauth] = await Promise.all([
     searchParams,
     prisma.flightOffer.findMany({ where: { status: "PUBLISHED", validUntil: { gt: new Date() }, dispatches: { none: {} } }, orderBy: { scheduledDeparture: "asc" } }),
     prisma.flightDispatch.findMany({ where: { pilotId: pilot.id }, include: { flightOffer: true, matchedPirep: true, rewardWalletTransaction: true }, orderBy: { createdAt: "desc" } }),
-    prisma.vamsysOAuthToken.findUnique({ where: { pilotId: pilot.id }, select: { revokedAt: true } }),
+    prisma.vamsysOAuthToken.findUnique({ where: { pilotId: pilot.id }, select: { revokedAt: true, scopes: true, accessToken: true } }),
   ]);
-  const connected = Boolean(oauth && !oauth.revokedAt);
+  const storedScopes = oauth?.scopes.split(/\s+/).filter(Boolean) ?? [];
+  const actualScopes = tokenScopes(oauth?.accessToken);
+  const effectiveScopes = actualScopes.length ? actualScopes : storedScopes;
+  const connected = Boolean(oauth && !oauth.revokedAt && effectiveScopes.includes("flights:write"));
   return <PilotPortalShell>
     <PageHeading eyebrow="SELF DISPATCH" title="Ofertas de vuelo" copy="Selecciona una oferta disponible y crea tu booking directamente en vAMSYS." />
     {messages.success && <div className="feedback success">{messages.success}</div>}
     {messages.error && <div className="feedback error">{messages.error}</div>}
-    {!connected && <div className="notice">Conecta vAMSYS para dispatch. <a href="/api/vamsys/oauth/start">Conectar ahora</a></div>}
+    {!connected && <div className="notice">Reconecta vAMSYS para autorizar Self Dispatch (`flights:write`). <a href="/api/vamsys/oauth/start">Autorizar ahora</a></div>}
+    <div className="meta">OAuth scopes activos: {effectiveScopes.length ? effectiveScopes.join(" · ") : "No disponibles"}</div>
 
     <section className="card ranking-card">
       <div className="card-header"><h2 className="card-title">Disponibles</h2><span className="meta">Un piloto por oferta</span></div>
