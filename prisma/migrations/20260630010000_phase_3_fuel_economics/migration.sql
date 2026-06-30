@@ -1,13 +1,12 @@
-ALTER TABLE "Pirep"
-ADD COLUMN "cargoKg" INTEGER,
-ADD COLUMN "fuelCostCents" INTEGER,
-ADD COLUMN "fuelPricePerKgCents" INTEGER,
-ADD COLUMN "fuelPriceRegion" TEXT,
-ADD COLUMN "fuelPriceSource" TEXT;
+ALTER TABLE "Pirep" ADD COLUMN IF NOT EXISTS "cargoKg" INTEGER;
+ALTER TABLE "Pirep" ADD COLUMN IF NOT EXISTS "fuelCostCents" INTEGER;
+ALTER TABLE "Pirep" ADD COLUMN IF NOT EXISTS "fuelPricePerKgCents" INTEGER;
+ALTER TABLE "Pirep" ADD COLUMN IF NOT EXISTS "fuelPriceRegion" TEXT;
+ALTER TABLE "Pirep" ADD COLUMN IF NOT EXISTS "fuelPriceSource" TEXT;
 
-CREATE INDEX "Pirep_flownAt_fuelCostCents_idx" ON "Pirep"("flownAt", "fuelCostCents");
+CREATE INDEX IF NOT EXISTS "Pirep_flownAt_fuelCostCents_idx" ON "Pirep"("flownAt", "fuelCostCents");
 
-CREATE TABLE "FuelPrice" (
+CREATE TABLE IF NOT EXISTS "FuelPrice" (
   "id" TEXT NOT NULL,
   "region" TEXT NOT NULL,
   "pricePerKgCents" INTEGER NOT NULL,
@@ -18,8 +17,7 @@ CREATE TABLE "FuelPrice" (
   "manuallyMaintained" BOOLEAN NOT NULL DEFAULT true,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
-
   CONSTRAINT "FuelPrice_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "FuelPrice_region_effectiveFrom_idx" ON "FuelPrice"("region", "effectiveFrom");
+CREATE INDEX IF NOT EXISTS "FuelPrice_region_effectiveFrom_idx" ON "FuelPrice"("region", "effectiveFrom");
