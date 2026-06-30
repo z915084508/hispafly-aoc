@@ -1,9 +1,10 @@
 import { PageHeading } from "@/components/page-heading";
 import { SubmitButton } from "@/components/submit-button";
+import { EconomyBackfillRunner } from "@/components/economy-backfill-runner";
 import { prisma } from "@/lib/prisma";
 import { IATA_JET_FUEL_PRICE_URL, FUEL_REGIONS } from "@/lib/economy/fuel";
 import { isOperationsConfigured } from "@/lib/vamsys/operations";
-import { backfillCompanyEconomyAction, saveFuelPriceAction, syncFleetDataAction } from "./actions";
+import { saveFuelPriceAction, syncFleetDataAction } from "./actions";
 
 type SearchParams = { success?: string; error?: string };
 
@@ -64,10 +65,7 @@ export default async function StaffOperationsSettingsPage({ searchParams }: { se
         <div><strong>{fuelSnapshotCount}</strong><span>Fuel snapshots guardados</span></div>
         <div><strong>{fuelPendingCount}</strong><span>Fuel usados sin coste</span></div>
       </div>
-      <p className="meta">Cada pulsación procesa solo 10 PIREPs. Después de que vuelva la página, revisa estos contadores y vuelve a pulsar si quedan pendientes.</p>
-      <form action={backfillCompanyEconomyAction} className="settings-link">
-        <SubmitButton className="button" pendingChildren="Procesando lote de 10...">Procesar siguiente lote de economía</SubmitButton>
-      </form>
+      <EconomyBackfillRunner total={acceptedPirepCount} />
     </div>
 
     <div className="card settings-link">

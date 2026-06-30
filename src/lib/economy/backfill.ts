@@ -10,11 +10,14 @@ export type CompanyEconomyBackfillResult = {
   expensesGenerated: number;
   skipped: number;
   errors: string[];
+  nextCursor: string | null;
+  done: boolean;
 };
 
-export async function backfillCompanyEconomy(staffUserId?: string, limit = 500): Promise<CompanyEconomyBackfillResult> {
-  const result: CompanyEconomyBackfillResult = { scanned: 0, fuelUpdated: 0, expensesGenerated: 0, skipped: 0, errors: [] };
-  const pireps = await prisma.pirep.findMany({
+export async function backfillCompanyEconomy(staffUserId?: string, limit = 500, after?: string | null): Promise<CompanyEconomyBackfillResult> {
+  const result: CompanyEconomyBackfillResult = { scanned: 0, fuelUpdated: 0, expensesGenerated: 0, skipped: 0, errors: [], nextCursor: null, done: false };
+  const batchSize = Math.max(1, Math.min(limit, 1000));
+  const rows = await prisma.pirep.findMany({
     where: { status: "accepted" },
     select: {
       id: true,
@@ -27,9 +30,14 @@ export async function backfillCompanyEconomy(staffUserId?: string, limit = 500):
       rawData: true,
       companyExpenses: { select: { id: true } },
     },
-    orderBy: [{ flownAt: "desc" }, { createdAt: "desc" }],
-    take: Math.max(1, Math.min(limit, 1000)),
+    orderBy: { id: "asc" },
+    ...(after ? { cursor: { id: after }, skip: 1 } : {}),
+    take: batchSize + 1,
   });
+  const hasMore = rows.length > batchSize;
+  const pireps = rows.slice(0, batchSize);
+  result.nextCursor = hasMore ? pireps.at(-1)?.id ?? null : null;
+  result.done = !hasMore;
 
   for (const pirep of pireps) {
     result.scanned++;
