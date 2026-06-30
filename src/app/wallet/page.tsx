@@ -12,12 +12,22 @@ type CompanyMovement = {
 };
 
 const money = (cents: number) => `${new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(Math.abs(cents) / 100)}`;
+const expenseLabels: Record<string, string> = {
+  airport_landing: "Landing fee",
+  airport_passenger: "Passenger fee",
+  airport_service: "Passenger service",
+  airport_parking: "Parking",
+  handling: "Handling",
+  cargo_handling: "Cargo handling",
+  atc_enroute: "ATC enroute",
+  atc_terminal: "ATC terminal",
+};
 
 async function getCompanyMovements(): Promise<CompanyMovement[]> {
   if (!process.env.DATABASE_URL) return [];
 
   try {
-    const [passengerRevenuePireps, fuelCostPireps, payroll] = await Promise.all([
+    const [passengerRevenuePireps, fuelCostPireps, companyExpenses, payroll] = await Promise.all([
       prisma.pirep.findMany({
         where: { status: "accepted", passengerRevenueCents: { gt: 0 } },
         select: { id: true, flightNumber: true, passengerRevenueCents: true, flownAt: true, createdAt: true },
@@ -28,6 +38,11 @@ async function getCompanyMovements(): Promise<CompanyMovement[]> {
         where: { status: "accepted", fuelCostCents: { gt: 0 } },
         select: { id: true, flightNumber: true, fuelCostCents: true, fuelPriceRegion: true, fuelPriceSource: true, flownAt: true, createdAt: true },
         orderBy: [{ flownAt: "desc" }, { createdAt: "desc" }],
+        take: 250,
+      }),
+      prisma.companyExpense.findMany({
+        include: { pirep: { select: { flightNumber: true, flownAt: true, createdAt: true } } },
+        orderBy: { createdAt: "desc" },
         take: 250,
       }),
       prisma.payrollRecord.findMany({
@@ -55,6 +70,14 @@ async function getCompanyMovements(): Promise<CompanyMovement[]> {
         date: row.flownAt ?? row.createdAt,
         status: row.fuelPriceSource ?? "IATA Jet Fuel Price Monitor",
       })),
+      ...companyExpenses.map((row) => ({
+        id: row.id,
+        concept: `${expenseLabels[row.type] ?? row.type} · ${row.pirep.flightNumber ?? "Vuelo"}`,
+        type: "expense" as const,
+        amountCents: -row.amountCents,
+        date: row.pirep.flownAt ?? row.pirep.createdAt,
+        status: "AOC economy rules",
+      })),
       ...payroll.map((row) => ({
         id: row.id,
         concept: "Pago de nómina",
@@ -77,10 +100,10 @@ export default async function EconomyPage() {
   const resultCents = incomeCents - expenseCents;
 
   return <>
-    <PageHeading eyebrow="ECONOMÍA DE LA COMPAÑÍA" title="Movimientos económicos" copy="Ingresos de pasajeros, costes de combustible y nóminas pagadas desde la base de datos AOC." />
+    <PageHeading eyebrow="ECONOMÍA DE LA COMPAÑÍA" title="Movimientos económicos" copy="Ingresos, fuel, airport, ATC y nóminas pagadas desde la base de datos AOC." />
     <section className="grid stats">
       <div className="card"><div className="stat-label">Ingresos</div><div className="stat-value">{money(incomeCents)}</div><div className="stat-note">Passenger revenue desde PIREPs aceptados</div></div>
-      <div className="card"><div className="stat-label">Gastos</div><div className="stat-value">{money(expenseCents)}</div><div className="stat-note">Fuel cost + nóminas pagadas</div></div>
+      <div className="card"><div className="stat-label">Gastos</div><div className="stat-value">{money(expenseCents)}</div><div className="stat-note">Fuel + airport + ATC + nóminas</div></div>
       <div className="card"><div className="stat-label">Resultado</div><div className="stat-value">{resultCents < 0 ? "−" : ""}{money(resultCents)}</div><div className="stat-note">Resultado operativo virtual en EUR</div></div>
     </section>
     <div className="card">
