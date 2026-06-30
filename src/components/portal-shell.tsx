@@ -10,6 +10,7 @@ const navItems = [
   ["PIREPs", "/staff/pireps"],
   ["Nóminas", "/staff/payroll"],
   ["Economía de la compañía", "/staff/wallet"],
+  ["Gastos compañía", "/staff/expenses"],
   ["Registro de auditoría", "/staff/audit"],
   ["Conexión vAMSYS", "/staff/settings/vamsys"],
   ["Configuración", "/staff/settings"],
