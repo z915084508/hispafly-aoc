@@ -6,21 +6,32 @@ import { operationsRequest } from "./operations";
 const REQUEST_TIMEOUT_MS = 12_000;
 const MAX_SYNC_PAGES = 10;
 
-const rec = (v: unknown): Record<string, unknown> | null => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null;
-const str = (r: Record<string, unknown>, ...keys: string[]) => { for (const k of keys) if (typeof r[k] === "string" || typeof r[k] === "number") return String(r[k]); return null; };
-const num = (r: Record<string, unknown>, ...keys: string[]) => { const value = str(r, ...keys); if (value === null) return null; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : null; };
-const nested = (r: Record<string, unknown>, key: string) => rec(r[key]);
-const list = (v: unknown, resource: string) => {
-  const root = rec(v);
-  const singular = resource.endsWith("s") ? resource.slice(0, -1) : resource;
-  const data = root?.data ?? root?.[resource] ?? root?.[singular] ?? root?.items ?? root?.results ?? v;
-  return Array.isArray(data) ? data.map(rec).filter(Boolean) as Record<string, unknown>[] : [];
+type Row = Record<string, unknown>;
+
+const rec = (value: unknown): Row | null => value && typeof value === "object" && !Array.isArray(value) ? value as Row : null;
+const str = (row: Row | null | undefined, ...keys: string[]) => {
+  if (!row) return null;
+  for (const key of keys) if (typeof row[key] === "string" || typeof row[key] === "number") return String(row[key]);
+  return null;
 };
-const nextCursor = (v: unknown) => {
-  const root = rec(v);
-  const meta = rec(root?.meta);
-  const links = rec(root?.links);
-  return str(meta ?? {}, "next_cursor", "nextCursor") ?? str(meta ?? {}, "next_cursor_url", "nextCursorUrl") ?? str(links ?? {}, "next", "next_cursor", "nextCursor");
+const num = (row: Row | null | undefined, ...keys: string[]) => {
+  const value = str(row, ...keys);
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const nested = (row: Row | null | undefined, key: string) => rec(row?.[key]);
+const list = (value: unknown, resource: string) => {
+  const root = rec(value);
+  const singular = resource.endsWith("s") ? resource.slice(0, -1) : resource;
+  const data = root?.data ?? root?.[resource] ?? root?.[singular] ?? root?.items ?? root?.results ?? value;
+  return Array.isArray(data) ? data.map(rec).filter(Boolean) as Row[] : [];
+};
+const nextCursor = (value: unknown) => {
+  const root = rec(value);
+  const meta = nested(root, "meta");
+  const links = nested(root, "links");
+  return str(meta, "next_cursor", "nextCursor") ?? str(links, "next_cursor", "nextCursor");
 };
 
 function configuredPaths(name: string, fallbacks: string[]) {
@@ -41,7 +52,7 @@ async function requestWithTimeout(path: string, resource: string) {
 }
 
 async function fetchAll(path: string, resource: string) {
-  const records: Record<string, unknown>[] = [];
+  const records: Row[] = [];
   let cursor: string | null = null;
   for (let page = 0; page < MAX_SYNC_PAGES; page++) {
     const query = new URLSearchParams({ "page[size]": "100", sort: "id" });
@@ -62,8 +73,7 @@ async function fetchAllFromFirstAvailable(paths: string[], resource: string) {
   const errors: string[] = [];
   for (const path of paths) {
     try {
-      const rows = await fetchAll(path, resource);
-      return { path, rows, errors };
+      return { path, rows: await fetchAll(path, resource), errors };
     } catch (error) {
       errors.push(`${path}: ${error instanceof Error ? error.message : "unknown error"}`);
     }
@@ -86,31 +96,37 @@ function regionFromIcao(value: string | null | undefined) {
   return "GLOBAL";
 }
 
-function fleetId(row: Record<string, unknown>) {
+function fleetId(row: Row) {
   return str(row, "fleet_id", "fleetId", "id", "uuid", "identifier");
 }
 
-function aircraftId(row: Record<string, unknown>) {
+function aircraftId(row: Row) {
   return str(row, "aircraft_id", "aircraftId", "id", "uuid", "identifier", "registration", "reg", "tail", "tail_number", "tailNumber");
 }
 
-function aircraftType(row: Record<string, unknown>) {
+function aircraftType(row: Row) {
   const fleet = nested(row, "fleet");
-  return str(row, "aircraft_type", "aircraftType", "icao", "icao_type", "icaoType", "type_code", "typeCode", "type", "code", "name")
-    ?? (fleet ? str(fleet, "code", "icao", "icao_type", "name") : null);
+  return str(row, "aircraft_type", "aircraftType", "icao", "icao_type", "icaoType", "type_code", "typeCode", "type")
+    ?? str(fleet, "code", "icao", "icao_type", "name")
+    ?? str(row, "code", "name");
 }
 
-function aircraftFleetId(row: Record<string, unknown>, fallbackFleetId?: string | null) {
-  const fleet = nested(row, "fleet");
-  return str(row, "fleet_id", "fleetId") ?? (fleet ? fleetId(fleet) : null) ?? fallbackFleetId ?? null;
-}
-
-function airportIcao(row: Record<string, unknown>) {
+function airportIcao(row: Row) {
   return icao(str(row, "icao", "icao_code", "icaoCode", "ident", "code", "id"));
 }
 
-async function fetchAircraftForFleets(fleets: Record<string, unknown>[]) {
-  const aircraft: Record<string, unknown>[] = [];
+function countryName(row: Row) {
+  const country = nested(row, "country");
+  return str(row, "country", "country_name", "countryName") ?? str(country, "name", "iso2");
+}
+
+function rounded(row: Row, ...keys: string[]) {
+  const value = num(row, ...keys);
+  return value === null ? null : Math.round(value);
+}
+
+async function fetchAircraftForFleets(fleets: Row[]) {
+  const aircraft: Row[] = [];
   const errors: string[] = [];
   for (const fleet of fleets) {
     const id = fleetId(fleet);
@@ -125,17 +141,56 @@ async function fetchAircraftForFleets(fleets: Record<string, unknown>[]) {
   return { aircraft, errors };
 }
 
+async function upsertAircraft(row: Row) {
+  const id = aircraftId(row);
+  if (!id) throw new Error("Aircraft without id.");
+  const fleet = nested(row, "fleet");
+  const existing = await prisma.aircraft.findUnique({ where: { vamsysAircraftId: id }, select: { id: true } });
+  const data = {
+    registration: str(row, "registration", "reg", "tail", "tail_number", "tailNumber"),
+    aircraftType: aircraftType(row),
+    fleetId: str(row, "fleet_id", "fleetId") ?? (fleet ? fleetId(fleet) : null),
+    fleetName: str(fleet, "name", "title", "code", "icao"),
+    status: str(row, "status", "state", "aircraft_status", "aircraftStatus"),
+    seatCapacity: rounded(row, "seat_capacity", "seatCapacity", "seats", "pax", "passengers", "max_pax", "maxPax"),
+    cargoCapacityKg: rounded(row, "cargo_capacity", "cargoCapacity", "cargo_capacity_kg", "cargoCapacityKg", "cargo", "max_cargo", "maxCargo"),
+    mtowKg: rounded(row, "mtow", "mtow_kg", "mtowKg", "maximum_takeoff_weight", "maximumTakeoffWeight"),
+    rawData: row as Prisma.InputJsonValue,
+  };
+  await prisma.aircraft.upsert({ where: { vamsysAircraftId: id }, update: data, create: { vamsysAircraftId: id, ...data } });
+  return existing ? "updated" : "imported";
+}
+
+async function upsertAirport(row: Row) {
+  const code = airportIcao(row);
+  if (!code) throw new Error("Airport without ICAO.");
+  const existing = await prisma.airport.findUnique({ where: { icao: code }, select: { id: true } });
+  const data = {
+    iata: str(row, "iata", "iata_code", "iataCode"),
+    name: str(row, "name", "airport_name", "airportName"),
+    city: str(row, "city", "municipality"),
+    country: countryName(row),
+    region: str(row, "region") ?? regionFromIcao(code),
+    latitude: num(row, "latitude", "lat"),
+    longitude: num(row, "longitude", "lon", "lng"),
+    source: "vamsys_operations",
+    rawData: row as Prisma.InputJsonValue,
+  };
+  await prisma.airport.upsert({ where: { icao: code }, update: data, create: { icao: code, ...data } });
+  return existing ? "updated" : "imported";
+}
+
 export async function syncOperationsFleetData(staffUserId?: string) {
   const result = { fleetsImported: 0, fleetsUpdated: 0, aircraftImported: 0, aircraftUpdated: 0, airportsImported: 0, airportsUpdated: 0, skipped: 0, errors: [] as string[] };
   const fleetPaths = configuredPaths("VAMSYS_OPERATIONS_FLEETS_PATH", ["/fleet", "/fleets"]);
   const aircraftPaths = configuredPaths("VAMSYS_OPERATIONS_AIRCRAFT_PATH", []);
   const airportPaths = configuredPaths("VAMSYS_OPERATIONS_AIRPORTS_PATH", ["/airports"]);
-  let syncedFleets: Record<string, unknown>[] = [];
+  let syncedFleets: Row[] = [];
 
   try {
-    const { path: usedFleetPath, rows: fleets, errors } = await fetchAllFromFirstAvailable(fleetPaths, "fleet");
+    const { path, rows: fleets, errors } = await fetchAllFromFirstAvailable(fleetPaths, "fleet");
     syncedFleets = fleets;
-    if (errors.length) console.warn(`[vAMSYS Operations fleet] fallback used ${usedFleetPath}; previous errors: ${errors.join(" | ")}`);
+    if (errors.length) console.warn(`[vAMSYS Operations fleet] fallback used ${path}; previous errors: ${errors.join(" | ")}`);
     for (const row of fleets) {
       try {
         const id = fleetId(row);
@@ -157,50 +212,13 @@ export async function syncOperationsFleetData(staffUserId?: string) {
   }
 
   try {
-    let aircraft: Record<string, unknown>[] = [];
-    if (aircraftPaths.length) {
-      const response = await fetchAllFromFirstAvailable(aircraftPaths, "aircraft");
-      aircraft = response.rows;
-      if (response.errors.length) console.warn(`[vAMSYS Operations aircraft] fallback used ${response.path}; previous errors: ${response.errors.join(" | ")}`);
-    } else {
-      const nestedResponse = await fetchAircraftForFleets(syncedFleets);
-      aircraft = nestedResponse.aircraft;
-      if (nestedResponse.errors.length) result.errors.push(`Aircraft nested endpoints: ${nestedResponse.errors.slice(0, 3).join(" | ")}`);
-    }
+    const aircraft = aircraftPaths.length
+      ? (await fetchAllFromFirstAvailable(aircraftPaths, "aircraft")).rows
+      : (await fetchAircraftForFleets(syncedFleets)).aircraft;
     for (const row of aircraft) {
       try {
-        const id = aircraftId(row);
-        if (!id) throw new Error("Aircraft without id.");
-        const fleet = nested(row, "fleet");
-        const fleetExternalId = aircraftFleetId(row);
-        const existing = await prisma.aircraft.findUnique({ where: { vamsysAircraftId: id }, select: { id: true } });
-        await prisma.aircraft.upsert({
-          where: { vamsysAircraftId: id },
-          update: {
-            registration: str(row, "registration", "reg", "tail", "tail_number", "tailNumber"),
-            aircraftType: aircraftType(row),
-            fleetId: fleetExternalId,
-            fleetName: fleet ? str(fleet, "name", "title", "code", "icao") : null,
-            status: str(row, "status", "state", "aircraft_status", "aircraftStatus"),
-            seatCapacity: num(row, "seat_capacity", "seatCapacity", "seats", "pax", "passengers", "max_pax", "maxPax") === null ? null : Math.round(num(row, "seat_capacity", "seatCapacity", "seats", "pax", "passengers", "max_pax", "maxPax")!),
-            cargoCapacityKg: num(row, "cargo_capacity", "cargoCapacity", "cargo_capacity_kg", "cargoCapacityKg", "cargo", "max_cargo", "maxCargo") === null ? null : Math.round(num(row, "cargo_capacity", "cargoCapacity", "cargo_capacity_kg", "cargoCapacityKg", "cargo", "max_cargo", "maxCargo")!),
-            mtowKg: num(row, "mtow", "mtow_kg", "mtowKg", "maximum_takeoff_weight", "maximumTakeoffWeight") === null ? null : Math.round(num(row, "mtow", "mtow_kg", "mtowKg", "maximum_takeoff_weight", "maximumTakeoffWeight")!),
-            rawData: row as Prisma.InputJsonValue,
-          },
-          create: {
-            vamsysAircraftId: id,
-            registration: str(row, "registration", "reg", "tail", "tail_number", "tailNumber"),
-            aircraftType: aircraftType(row),
-            fleetId: fleetExternalId,
-            fleetName: fleet ? str(fleet, "name", "title", "code", "icao") : null,
-            status: str(row, "status", "state", "aircraft_status", "aircraftStatus"),
-            seatCapacity: num(row, "seat_capacity", "seatCapacity", "seats", "pax", "passengers", "max_pax", "maxPax") === null ? null : Math.round(num(row, "seat_capacity", "seatCapacity", "seats", "pax", "passengers", "max_pax", "maxPax")!),
-            cargoCapacityKg: num(row, "cargo_capacity", "cargoCapacity", "cargo_capacity_kg", "cargoCapacityKg", "cargo", "max_cargo", "maxCargo") === null ? null : Math.round(num(row, "cargo_capacity", "cargoCapacity", "cargo_capacity_kg", "cargoCapacityKg", "cargo", "max_cargo", "maxCargo")!),
-            mtowKg: num(row, "mtow", "mtow_kg", "mtowKg", "maximum_takeoff_weight", "maximumTakeoffWeight") === null ? null : Math.round(num(row, "mtow", "mtow_kg", "mtowKg", "maximum_takeoff_weight", "maximumTakeoffWeight")!),
-            rawData: row as Prisma.InputJsonValue,
-          },
-        });
-        if (existing) result.aircraftUpdated++; else result.aircraftImported++;
+        const status = await upsertAircraft(row);
+        if (status === "updated") result.aircraftUpdated++; else result.aircraftImported++;
       } catch (error) {
         result.skipped++;
         result.errors.push(error instanceof Error ? error.message : "Unknown aircraft sync error.");
@@ -211,40 +229,12 @@ export async function syncOperationsFleetData(staffUserId?: string) {
   }
 
   try {
-    const { path: usedAirportPath, rows: airports, errors } = await fetchAllFromFirstAvailable(airportPaths, "airports");
-    if (errors.length) console.warn(`[vAMSYS Operations airports] fallback used ${usedAirportPath}; previous errors: ${errors.join(" | ")}`);
+    const { path, rows: airports, errors } = await fetchAllFromFirstAvailable(airportPaths, "airports");
+    if (errors.length) console.warn(`[vAMSYS Operations airports] fallback used ${path}; previous errors: ${errors.join(" | ")}`);
     for (const row of airports) {
       try {
-        const code = airportIcao(row);
-        if (!code) throw new Error("Airport without ICAO.");
-        const existing = await prisma.airport.findUnique({ where: { icao: code }, select: { id: true } });
-        await prisma.airport.upsert({
-          where: { icao: code },
-          update: {
-            iata: str(row, "iata", "iata_code", "iataCode"),
-            name: str(row, "name", "airport_name", "airportName"),
-            city: str(row, "city", "municipality"),
-            country: str(row, "country", "country_name", "countryName") ?? nested(row, "country") ? str(nested(row, "country")!, "name", "iso2") : null,
-            region: str(row, "region") ?? regionFromIcao(code),
-            latitude: num(row, "latitude", "lat"),
-            longitude: num(row, "longitude", "lon", "lng"),
-            source: "vamsys_operations",
-            rawData: row as Prisma.InputJsonValue,
-          },
-          create: {
-            icao: code,
-            iata: str(row, "iata", "iata_code", "iataCode"),
-            name: str(row, "name", "airport_name", "airportName"),
-            city: str(row, "city", "municipality"),
-            country: str(row, "country", "country_name", "countryName") ?? nested(row, "country") ? str(nested(row, "country")!, "name", "iso2") : null,
-            region: str(row, "region") ?? regionFromIcao(code),
-            latitude: num(row, "latitude", "lat"),
-            longitude: num(row, "longitude", "lon", "lng"),
-            source: "vamsys_operations",
-            rawData: row as Prisma.InputJsonValue,
-          },
-        });
-        if (existing) result.airportsUpdated++; else result.airportsImported++;
+        const status = await upsertAirport(row);
+        if (status === "updated") result.airportsUpdated++; else result.airportsImported++;
       } catch (error) {
         result.skipped++;
         result.errors.push(error instanceof Error ? error.message : "Unknown airport sync error.");
