@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { operationsRequest } from "./operations";
 
+const REQUEST_TIMEOUT_MS = 12_000;
+const MAX_SYNC_PAGES = 10;
+
 const rec = (v: unknown): Record<string, unknown> | null => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null;
 const str = (r: Record<string, unknown>, ...keys: string[]) => { for (const k of keys) if (typeof r[k] === "string" || typeof r[k] === "number") return String(r[k]); return null; };
 const num = (r: Record<string, unknown>, ...keys: string[]) => { const value = str(r, ...keys); if (value === null) return null; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : null; };
@@ -23,19 +26,33 @@ function configuredPath(name: string, fallback: string) {
   return process.env[name]?.trim() || fallback;
 }
 
+async function requestWithTimeout(path: string, resource: string) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(`${resource} endpoint no respondió en ${REQUEST_TIMEOUT_MS / 1000}s (${path}).`)), REQUEST_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([operationsRequest(path), timeoutPromise]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 async function fetchAll(path: string, resource: string) {
   const records: Record<string, unknown>[] = [];
   let cursor: string | null = null;
-  for (let page = 0; page < 50; page++) {
+  for (let page = 0; page < MAX_SYNC_PAGES; page++) {
     const query = new URLSearchParams({ "page[size]": "100", sort: "id" });
     if (cursor) query.set("page[cursor]", cursor);
     const separator = path.includes("?") ? "&" : "?";
-    const body = await operationsRequest(`${path}${separator}${query}`);
+    const requestPath = `${path}${separator}${query}`;
+    const body = await requestWithTimeout(requestPath, resource);
     records.push(...list(body, resource));
     cursor = nextCursor(body);
+    console.info(`[vAMSYS Operations ${resource}] page=${page + 1} records=${records.length} next=${cursor ?? "none"}`);
     if (!cursor) return records;
   }
-  throw new Error(`Operations ${resource} pagination exceeded the safety limit.`);
+  throw new Error(`Operations ${resource} pagination exceeded the ${MAX_SYNC_PAGES} page safety limit.`);
 }
 
 function icao(value: string | null | undefined) {
