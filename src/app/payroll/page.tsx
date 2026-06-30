@@ -7,7 +7,7 @@ import { hasStaffPermission } from "@/lib/staff/permissions";
 import { approvePayroll, bulkApprovePayroll, bulkMarkPayrollPaid, bulkRejectPayroll, markPayrollPaid, recalculatePayroll, rejectPayroll } from "./actions";
 import { generateMissingPayroll } from "./backfill-actions";
 
-const credits = (cents: number) => `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(cents / 100)} cr`;
+const credits = (cents: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(cents / 100);
 const statusLabels: Record<string, string> = { pending: "Pendiente", approved: "Aprobado", rejected: "Rechazado", paid: "Pagado" };
 const statusTones = { pending: "amber", approved: "blue", rejected: "red", paid: "green" } as const;
 
@@ -65,7 +65,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
       @media (max-width: 1180px) { .app-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .nav-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } .sidebar-note { display: none; } .filter-card { grid-template-columns: 1fr 1fr; } }
       @media (max-width: 720px) { .filter-card { grid-template-columns: 1fr; } .content { padding: 22px 14px; } .topbar { height: auto; padding: 16px; align-items: flex-start; gap: 14px; flex-direction: column; } .data-card .table-wrap { padding: 14px; } .bulk-actions { width: 100%; } .bulk-actions .action-button { flex: 1; text-align: center; justify-content: center; } }
     `}</style>
-    <PageHeading eyebrow="COMPENSACIÓN VIRTUAL" title="Nóminas" copy="Acciones protegidas por rol y registradas para auditoría." />
+    <PageHeading eyebrow="NÓMINA EUR" title="Nóminas" copy="Importes en euros, acciones protegidas por rol y registradas para auditoría." />
     {filters.success && <div className="feedback success">{filters.success}</div>}
     {filters.error && <div className="feedback error">{filters.error}</div>}
     {!canMutatePayroll && <div className="notice">Vista de demostración: configura PostgreSQL y ejecuta la semilla para activar las acciones de nómina.</div>}
