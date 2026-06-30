@@ -7,6 +7,7 @@ import { saveFuelPriceAction, syncFleetDataAction } from "./actions";
 type SearchParams = { success?: string; error?: string };
 
 const money = (cents: number) => `${(cents / 100).toLocaleString("es-ES", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} €/kg`;
+const decimal = (cents: number) => (cents / 100).toFixed(3);
 
 export default async function StaffOperationsSettingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [filters, fleetCount, aircraftCount, state, fuelPriceRows] = await Promise.all([
@@ -56,13 +57,20 @@ export default async function StaffOperationsSettingsPage({ searchParams }: { se
       </form>
       <div className="table-wrap settings-link">
         <table>
-          <thead><tr><th>Región</th><th>Precio</th><th>Fuente</th><th>Vigente desde</th></tr></thead>
+          <thead><tr><th>Región</th><th>Precio actual</th><th>Fuente</th><th>Vigente desde</th><th>Modificar precio</th></tr></thead>
           <tbody>
-            {latestFuelPrices.length === 0 ? <tr><td colSpan={4} className="meta">Todavía no hay precios de combustible guardados.</td></tr> : latestFuelPrices.map((price) => <tr key={price.id}>
+            {latestFuelPrices.length === 0 ? <tr><td colSpan={5} className="meta">Todavía no hay precios de combustible guardados.</td></tr> : latestFuelPrices.map((price) => <tr key={price.id}>
               <td>{price.region}</td>
               <td>{money(price.pricePerKgCents)}</td>
               <td>{price.source}</td>
               <td>{new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "short" }).format(price.effectiveFrom)}</td>
+              <td>
+                <form action={saveFuelPriceAction} className="inline-action-form">
+                  <input type="hidden" name="region" value={price.region} />
+                  <input name="pricePerKg" type="number" min="0" step="0.001" defaultValue={decimal(price.pricePerKgCents)} aria-label={`Nuevo precio ${price.region}`} required />
+                  <button className="action-button" type="submit">Actualizar</button>
+                </form>
+              </td>
             </tr>)}
           </tbody>
         </table>
