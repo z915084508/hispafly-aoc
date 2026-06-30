@@ -1,4 +1,3 @@
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
@@ -51,7 +50,7 @@ export async function backfillCompanyEconomy(staffUserId?: string, limit = 500):
       skipped: result.skipped,
       errors: result.errors.length,
       firstError: result.errors[0]?.slice(0, 180) ?? null,
-    } as Prisma.InputJsonValue,
+    },
   });
 
   return result;
