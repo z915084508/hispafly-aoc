@@ -13,14 +13,14 @@ const nested = (r: Record<string, unknown>, key: string) => rec(r[key]);
 const list = (v: unknown, resource: string) => {
   const root = rec(v);
   const singular = resource.endsWith("s") ? resource.slice(0, -1) : resource;
-  const data = root?.data ?? root?.[resource] ?? root?.[singular] ?? root?.[`${resource}s`] ?? root?.items ?? root?.results ?? v;
+  const data = root?.data ?? root?.[resource] ?? root?.[singular] ?? root?.items ?? root?.results ?? v;
   return Array.isArray(data) ? data.map(rec).filter(Boolean) as Record<string, unknown>[] : [];
 };
 const nextCursor = (v: unknown) => {
   const root = rec(v);
   const meta = rec(root?.meta);
   const links = rec(root?.links);
-  return str(meta ?? {}, "next_cursor", "nextCursor") ?? str(links ?? {}, "next_cursor", "nextCursor");
+  return str(meta ?? {}, "next_cursor", "nextCursor") ?? str(meta ?? {}, "next_cursor_url", "nextCursorUrl") ?? str(links ?? {}, "next", "next_cursor", "nextCursor");
 };
 
 function configuredPaths(name: string, fallbacks: string[]) {
@@ -96,23 +96,46 @@ function aircraftId(row: Record<string, unknown>) {
 
 function aircraftType(row: Record<string, unknown>) {
   const fleet = nested(row, "fleet");
-  return str(row, "icao", "icao_type", "icaoType", "type_code", "typeCode", "aircraft_type", "aircraftType", "type", "code", "name")
-    ?? (fleet ? str(fleet, "icao", "icao_type", "code", "name") : null);
+  return str(row, "aircraft_type", "aircraftType", "icao", "icao_type", "icaoType", "type_code", "typeCode", "type", "code", "name")
+    ?? (fleet ? str(fleet, "code", "icao", "icao_type", "name") : null);
+}
+
+function aircraftFleetId(row: Record<string, unknown>, fallbackFleetId?: string | null) {
+  const fleet = nested(row, "fleet");
+  return str(row, "fleet_id", "fleetId") ?? (fleet ? fleetId(fleet) : null) ?? fallbackFleetId ?? null;
 }
 
 function airportIcao(row: Record<string, unknown>) {
   return icao(str(row, "icao", "icao_code", "icaoCode", "ident", "code", "id"));
 }
 
+async function fetchAircraftForFleets(fleets: Record<string, unknown>[]) {
+  const aircraft: Record<string, unknown>[] = [];
+  const errors: string[] = [];
+  for (const fleet of fleets) {
+    const id = fleetId(fleet);
+    if (!id) continue;
+    try {
+      const rows = await fetchAll(`/fleet/${encodeURIComponent(id)}/aircraft`, "aircraft");
+      aircraft.push(...rows.map((row) => ({ ...row, fleet_id: str(row, "fleet_id", "fleetId") ?? id, fleet: nested(row, "fleet") ?? fleet })));
+    } catch (error) {
+      errors.push(`/fleet/${id}/aircraft: ${error instanceof Error ? error.message : "unknown error"}`);
+    }
+  }
+  return { aircraft, errors };
+}
+
 export async function syncOperationsFleetData(staffUserId?: string) {
   const result = { fleetsImported: 0, fleetsUpdated: 0, aircraftImported: 0, aircraftUpdated: 0, airportsImported: 0, airportsUpdated: 0, skipped: 0, errors: [] as string[] };
-  const fleetPaths = configuredPaths("VAMSYS_OPERATIONS_FLEETS_PATH", ["/fleets", "/fleet"]);
-  const aircraftPaths = configuredPaths("VAMSYS_OPERATIONS_AIRCRAFT_PATH", ["/aircraft", "/aircrafts"]);
+  const fleetPaths = configuredPaths("VAMSYS_OPERATIONS_FLEETS_PATH", ["/fleet", "/fleets"]);
+  const aircraftPaths = configuredPaths("VAMSYS_OPERATIONS_AIRCRAFT_PATH", []);
   const airportPaths = configuredPaths("VAMSYS_OPERATIONS_AIRPORTS_PATH", ["/airports"]);
+  let syncedFleets: Record<string, unknown>[] = [];
 
   try {
-    const { path: usedFleetPath, rows: fleets, errors } = await fetchAllFromFirstAvailable(fleetPaths, "fleets");
-    if (errors.length) console.warn(`[vAMSYS Operations fleets] fallback used ${usedFleetPath}; previous errors: ${errors.join(" | ")}`);
+    const { path: usedFleetPath, rows: fleets, errors } = await fetchAllFromFirstAvailable(fleetPaths, "fleet");
+    syncedFleets = fleets;
+    if (errors.length) console.warn(`[vAMSYS Operations fleet] fallback used ${usedFleetPath}; previous errors: ${errors.join(" | ")}`);
     for (const row of fleets) {
       try {
         const id = fleetId(row);
@@ -134,24 +157,33 @@ export async function syncOperationsFleetData(staffUserId?: string) {
   }
 
   try {
-    const { path: usedAircraftPath, rows: aircraft, errors } = await fetchAllFromFirstAvailable(aircraftPaths, "aircraft");
-    if (errors.length) console.warn(`[vAMSYS Operations aircraft] fallback used ${usedAircraftPath}; previous errors: ${errors.join(" | ")}`);
+    let aircraft: Record<string, unknown>[] = [];
+    if (aircraftPaths.length) {
+      const response = await fetchAllFromFirstAvailable(aircraftPaths, "aircraft");
+      aircraft = response.rows;
+      if (response.errors.length) console.warn(`[vAMSYS Operations aircraft] fallback used ${response.path}; previous errors: ${response.errors.join(" | ")}`);
+    } else {
+      const nestedResponse = await fetchAircraftForFleets(syncedFleets);
+      aircraft = nestedResponse.aircraft;
+      if (nestedResponse.errors.length) result.errors.push(`Aircraft nested endpoints: ${nestedResponse.errors.slice(0, 3).join(" | ")}`);
+    }
     for (const row of aircraft) {
       try {
         const id = aircraftId(row);
         if (!id) throw new Error("Aircraft without id.");
         const fleet = nested(row, "fleet");
+        const fleetExternalId = aircraftFleetId(row);
         const existing = await prisma.aircraft.findUnique({ where: { vamsysAircraftId: id }, select: { id: true } });
         await prisma.aircraft.upsert({
           where: { vamsysAircraftId: id },
           update: {
             registration: str(row, "registration", "reg", "tail", "tail_number", "tailNumber"),
             aircraftType: aircraftType(row),
-            fleetId: str(row, "fleet_id", "fleetId") ?? (fleet ? fleetId(fleet) : null),
+            fleetId: fleetExternalId,
             fleetName: fleet ? str(fleet, "name", "title", "code", "icao") : null,
             status: str(row, "status", "state", "aircraft_status", "aircraftStatus"),
-            seatCapacity: num(row, "seat_capacity", "seatCapacity", "seats", "pax", "passenger_capacity", "passengerCapacity") === null ? null : Math.round(num(row, "seat_capacity", "seatCapacity", "seats", "pax", "passenger_capacity", "passengerCapacity")!),
-            cargoCapacityKg: num(row, "cargo_capacity", "cargoCapacity", "cargo_capacity_kg", "cargoCapacityKg") === null ? null : Math.round(num(row, "cargo_capacity", "cargoCapacity", "cargo_capacity_kg", "cargoCapacityKg")!),
+            seatCapacity: num(row, "seat_capacity", "seatCapacity", "seats", "pax", "passengers", "max_pax", "maxPax") === null ? null : Math.round(num(row, "seat_capacity", "seatCapacity", "seats", "pax", "passengers", "max_pax", "maxPax")!),
+            cargoCapacityKg: num(row, "cargo_capacity", "cargoCapacity", "cargo_capacity_kg", "cargoCapacityKg", "cargo", "max_cargo", "maxCargo") === null ? null : Math.round(num(row, "cargo_capacity", "cargoCapacity", "cargo_capacity_kg", "cargoCapacityKg", "cargo", "max_cargo", "maxCargo")!),
             mtowKg: num(row, "mtow", "mtow_kg", "mtowKg", "maximum_takeoff_weight", "maximumTakeoffWeight") === null ? null : Math.round(num(row, "mtow", "mtow_kg", "mtowKg", "maximum_takeoff_weight", "maximumTakeoffWeight")!),
             rawData: row as Prisma.InputJsonValue,
           },
@@ -159,11 +191,11 @@ export async function syncOperationsFleetData(staffUserId?: string) {
             vamsysAircraftId: id,
             registration: str(row, "registration", "reg", "tail", "tail_number", "tailNumber"),
             aircraftType: aircraftType(row),
-            fleetId: str(row, "fleet_id", "fleetId") ?? (fleet ? fleetId(fleet) : null),
+            fleetId: fleetExternalId,
             fleetName: fleet ? str(fleet, "name", "title", "code", "icao") : null,
             status: str(row, "status", "state", "aircraft_status", "aircraftStatus"),
-            seatCapacity: num(row, "seat_capacity", "seatCapacity", "seats", "pax", "passenger_capacity", "passengerCapacity") === null ? null : Math.round(num(row, "seat_capacity", "seatCapacity", "seats", "pax", "passenger_capacity", "passengerCapacity")!),
-            cargoCapacityKg: num(row, "cargo_capacity", "cargoCapacity", "cargo_capacity_kg", "cargoCapacityKg") === null ? null : Math.round(num(row, "cargo_capacity", "cargoCapacity", "cargo_capacity_kg", "cargoCapacityKg")!),
+            seatCapacity: num(row, "seat_capacity", "seatCapacity", "seats", "pax", "passengers", "max_pax", "maxPax") === null ? null : Math.round(num(row, "seat_capacity", "seatCapacity", "seats", "pax", "passengers", "max_pax", "maxPax")!),
+            cargoCapacityKg: num(row, "cargo_capacity", "cargoCapacity", "cargo_capacity_kg", "cargoCapacityKg", "cargo", "max_cargo", "maxCargo") === null ? null : Math.round(num(row, "cargo_capacity", "cargoCapacity", "cargo_capacity_kg", "cargoCapacityKg", "cargo", "max_cargo", "maxCargo")!),
             mtowKg: num(row, "mtow", "mtow_kg", "mtowKg", "maximum_takeoff_weight", "maximumTakeoffWeight") === null ? null : Math.round(num(row, "mtow", "mtow_kg", "mtowKg", "maximum_takeoff_weight", "maximumTakeoffWeight")!),
             rawData: row as Prisma.InputJsonValue,
           },
@@ -175,7 +207,7 @@ export async function syncOperationsFleetData(staffUserId?: string) {
       }
     }
   } catch (error) {
-    result.errors.push(`Aircraft endpoints ${aircraftPaths.join(", ")}: ${error instanceof Error ? error.message : "unknown error"}`);
+    result.errors.push(`Aircraft sync: ${error instanceof Error ? error.message : "unknown error"}`);
   }
 
   try {
@@ -192,7 +224,7 @@ export async function syncOperationsFleetData(staffUserId?: string) {
             iata: str(row, "iata", "iata_code", "iataCode"),
             name: str(row, "name", "airport_name", "airportName"),
             city: str(row, "city", "municipality"),
-            country: str(row, "country", "country_name", "countryName"),
+            country: str(row, "country", "country_name", "countryName") ?? nested(row, "country") ? str(nested(row, "country")!, "name", "iso2") : null,
             region: str(row, "region") ?? regionFromIcao(code),
             latitude: num(row, "latitude", "lat"),
             longitude: num(row, "longitude", "lon", "lng"),
@@ -204,7 +236,7 @@ export async function syncOperationsFleetData(staffUserId?: string) {
             iata: str(row, "iata", "iata_code", "iataCode"),
             name: str(row, "name", "airport_name", "airportName"),
             city: str(row, "city", "municipality"),
-            country: str(row, "country", "country_name", "countryName"),
+            country: str(row, "country", "country_name", "countryName") ?? nested(row, "country") ? str(nested(row, "country")!, "name", "iso2") : null,
             region: str(row, "region") ?? regionFromIcao(code),
             latitude: num(row, "latitude", "lat"),
             longitude: num(row, "longitude", "lon", "lng"),
