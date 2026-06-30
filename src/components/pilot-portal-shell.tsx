@@ -2,10 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { requirePilotSession } from "@/lib/pilot/session";
 
-const navItems = [
+const flightNavItems = [
   ["Panel Control", "/pilot/dashboard"],
   ["PIREPs", "/pilot/pireps"],
   ["Roster Piloto", "/pilot/roster"],
+] as const;
+
+const economyNavItems = [
   ["Movimiento de cartera", "/pilot/wallet"],
   ["Nómina", "/pilot/payroll"],
 ] as const;
@@ -26,7 +29,9 @@ export async function PilotPortalShell({ children }: { children: React.ReactNode
           <div className="brand-subtitle">Pilot Portal</div>
         </div>
         <div className="nav-label">Área de vuelo</div>
-        <nav className="nav-list">{navItems.map(([label, href]) => <Link className="nav-item" href={href} key={href}>{label}</Link>)}</nav>
+        <nav className="nav-list">{flightNavItems.map(([label, href]) => <Link className="nav-item" href={href} key={href}>{label}</Link>)}</nav>
+        <div className="nav-label">Estado económico</div>
+        <nav className="nav-list">{economyNavItems.map(([label, href]) => <Link className="nav-item" href={href} key={href}>{label}</Link>)}</nav>
         <div className="sidebar-note">Tu portal solo muestra tus datos personales de operación, nómina y cartera.<br/><Link href="/privacy">Política de privacidad</Link></div>
       </aside>
       <main className="main">
