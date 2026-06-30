@@ -11,7 +11,7 @@ type CompanyMovement = {
   status: string;
 };
 
-const money = (cents: number) => `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(Math.abs(cents) / 100)} cr`;
+const money = (cents: number) => `${new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(Math.abs(cents) / 100)}`;
 
 async function getCompanyMovements(): Promise<CompanyMovement[]> {
   if (!process.env.DATABASE_URL) return [];
@@ -57,7 +57,7 @@ async function getCompanyMovements(): Promise<CompanyMovement[]> {
       })),
       ...payroll.map((row) => ({
         id: row.id,
-        concept: "Pago de nómina virtual",
+        concept: "Pago de nómina",
         type: "expense" as const,
         amountCents: -row.amountCents,
         date: row.paidAt ?? row.createdAt,
@@ -81,7 +81,7 @@ export default async function EconomyPage() {
     <section className="grid stats">
       <div className="card"><div className="stat-label">Ingresos</div><div className="stat-value">{money(incomeCents)}</div><div className="stat-note">Passenger revenue desde PIREPs aceptados</div></div>
       <div className="card"><div className="stat-label">Gastos</div><div className="stat-value">{money(expenseCents)}</div><div className="stat-note">Fuel cost + nóminas pagadas</div></div>
-      <div className="card"><div className="stat-label">Resultado</div><div className="stat-value">{resultCents < 0 ? "−" : ""}{money(resultCents)}</div><div className="stat-note">Resultado operativo virtual</div></div>
+      <div className="card"><div className="stat-label">Resultado</div><div className="stat-value">{resultCents < 0 ? "−" : ""}{money(resultCents)}</div><div className="stat-note">Resultado operativo virtual en EUR</div></div>
     </section>
     <div className="card">
       {movements.length === 0
