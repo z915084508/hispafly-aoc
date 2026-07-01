@@ -4,6 +4,31 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireStaffPermission } from "@/lib/staff/authorization";
+import { operationsRequest } from "@/lib/vamsys/operations";
+
+type JsonRow = Record<string, unknown>;
+const record = (value: unknown): JsonRow | null => value && typeof value === "object" && !Array.isArray(value) ? value as JsonRow : null;
+
+export async function getRouteFleetIdsAction(routeId: string) {
+  await requireStaffPermission("FLIGHT_OFFER_MANAGE", { entityType: "FlightOffer", attemptedAction: "consultar flotas de una ruta" });
+  if (!/^\d+$/.test(routeId)) return { fleetIds: [] as string[], error: "El route_id debe ser numérico." };
+
+  try {
+    const payload = await operationsRequest(`/routes/${encodeURIComponent(routeId)}?weight_unit=kg`);
+    const root = record(payload);
+    const data = record(root?.data) ?? root;
+    const attributes = record(data?.attributes);
+    const detail = attributes ? { ...data, ...attributes } : data;
+    const fleetIds = Array.isArray(detail?.fleet_ids)
+      ? detail.fleet_ids.filter((id) => typeof id === "string" || typeof id === "number").map(String)
+      : [];
+
+    if (!fleetIds.length) return { fleetIds, error: "vAMSYS no devolvió flotas compatibles para esta ruta." };
+    return { fleetIds, error: null };
+  } catch (error) {
+    return { fleetIds: [] as string[], error: error instanceof Error ? error.message : "No se pudieron consultar las flotas de la ruta." };
+  }
+}
 
 const text = (data: FormData, name: string) => String(data.get(name) ?? "").trim();
 const optional = (data: FormData, name: string) => text(data, name) || null;

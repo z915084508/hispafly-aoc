@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { createFlightOfferAction } from "@/app/staff/flight-offers/actions";
+import { createFlightOfferAction, getRouteFleetIdsAction } from "@/app/staff/flight-offers/actions";
 import type { FlightOfferRouteOption } from "@/lib/flightOffers/options";
 
 interface AirportOption { icao: string; iata: string | null; name: string | null }
@@ -27,20 +27,36 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft }: {
   const [cargoKg, setCargoKg] = useState("");
   const [altitude, setAltitude] = useState("");
   const [userRoute, setUserRoute] = useState("");
+  const [routeFleetIds, setRouteFleetIds] = useState<string[] | null>(null);
+  const [routeFleetLoading, setRouteFleetLoading] = useState(false);
+  const [routeFleetError, setRouteFleetError] = useState<string | null>(null);
 
   const filteredRoutes = useMemo(() => routes.filter((route) => (!departure || route.departure === departure.toUpperCase()) && (!arrival || route.arrival === arrival.toUpperCase())), [routes, departure, arrival]);
-  const selectedRoute = routes.find((route) => route.id === routeId);
-  const filteredFleets = selectedRoute?.fleetIds.length ? fleets.filter((fleet) => selectedRoute.fleetIds.includes(fleet.id)) : fleets;
+  const filteredFleets = routeId
+    ? fleets.filter((fleet) => (routeFleetIds ?? []).includes(fleet.id))
+    : [];
   const filteredAircraft = aircraft.filter((item) => !fleetId || item.fleetId === fleetId);
+
+  async function loadRouteFleets(value: string, fallbackIds: string[] = []) {
+    if (!/^\d+$/.test(value)) return;
+    setRouteFleetLoading(true); setRouteFleetError(null); setRouteFleetIds([]);
+    const result = await getRouteFleetIdsAction(value);
+    const allowed = result.fleetIds.length ? result.fleetIds : fallbackIds;
+    setRouteFleetIds(allowed);
+    setRouteFleetError(result.error);
+    setRouteFleetLoading(false);
+    if (fleetId && !allowed.includes(fleetId)) selectFleet("");
+  }
 
   function selectRoute(value: string) {
     setRouteId(value);
     const route = routes.find((item) => item.id === value);
-    if (!route) return;
+    setFleetId(""); setAircraftId(""); setRegistration(""); setRouteFleetIds(null);
+    if (!route) { void loadRouteFleets(value); return; }
     setDeparture(route.departure); setArrival(route.arrival);
     setFlightNumber(route.flightNumber ?? ""); setCallsign(route.callsign ?? "");
     setAltitude(route.altitude?.toString() ?? ""); setUserRoute(route.userRoute ?? "");
-    if (route.fleetIds.length === 1) selectFleet(route.fleetIds[0]);
+    void loadRouteFleets(value, route.fleetIds);
   }
 
   function selectFleet(value: string) {
@@ -67,8 +83,8 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft }: {
     <label>Llegada ICAO<input list="offer-airports" name="arrivalIcao" value={arrival} onChange={(event) => { setArrival(event.target.value.toUpperCase()); setRouteId(""); }} required maxLength={4} /></label>
     <datalist id="offer-airports">{airports.map((airport) => <option key={airport.icao} value={airport.icao}>{airport.iata ? `${airport.iata} · ` : ""}{airport.name}</option>)}</datalist>
     <label className="wide">航线 / Route<select value={routeId} onChange={(event) => selectRoute(event.target.value)}><option value="">选择航线（或手动输入 ID）</option>{filteredRoutes.map((route) => <option key={route.id} value={route.id}>{route.flightNumber ?? route.id} · {route.departure}-{route.arrival}</option>)}</select></label>
-    <label>vAMSYS route_id<input name="vamsysRouteId" value={routeId} onChange={(event) => selectRoute(event.target.value)} required inputMode="numeric" /></label>
-    <label>Fleet<select value={fleetId} onChange={(event) => selectFleet(event.target.value)}><option value="">选择 Fleet（或手动输入 ID）</option>{filteredFleets.map((fleet) => <option key={fleet.id} value={fleet.id}>{fleet.code ?? fleet.name ?? fleet.id} · {fleet.name ?? fleet.id}</option>)}</select></label>
+    <label>vAMSYS route_id<input name="vamsysRouteId" value={routeId} onChange={(event) => setRouteId(event.target.value)} onBlur={(event) => void loadRouteFleets(event.target.value)} required inputMode="numeric" /></label>
+    <label>Fleet<select value={fleetId} onChange={(event) => selectFleet(event.target.value)} disabled={!routeId || routeFleetLoading}><option value="">{routeFleetLoading ? "Consultando vAMSYS…" : routeId ? "Seleccionar Fleet compatible" : "Seleccione primero una ruta"}</option>{filteredFleets.map((fleet) => <option key={fleet.id} value={fleet.id}>{fleet.code ?? fleet.name ?? fleet.id} · {fleet.name ?? fleet.id}</option>)}</select>{routeFleetError && <span className="field-note">{routeFleetError}</span>}</label>
     <label>vAMSYS fleet_id<input name="vamsysFleetId" value={fleetId} onChange={(event) => selectFleet(event.target.value)} inputMode="numeric" /></label>
     <label className="wide">Aircraft<select value={aircraftId} onChange={(event) => selectAircraft(event.target.value)}><option value="">选择 Aircraft（或手动输入 ID）</option>{filteredAircraft.map((item) => <option key={item.vamsysAircraftId} value={item.vamsysAircraftId}>{item.registration ?? item.vamsysAircraftId} · {item.aircraftType ?? "—"}{item.status ? ` · ${item.status}` : ""}</option>)}</select></label>
     <label>vAMSYS aircraft_id<input name="vamsysAircraftId" value={aircraftId} onChange={(event) => selectAircraft(event.target.value)} required inputMode="numeric" /></label>
