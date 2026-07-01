@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isOperationsConfigured, operationsRequest } from "@/lib/vamsys/operations";
 
 type Row = Record<string, unknown>;
 const rec = (value: unknown): Row | null => value && typeof value === "object" && !Array.isArray(value) ? value as Row : null;
@@ -13,6 +14,33 @@ const num = (row: Row | null, ...keys: string[]) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.round(parsed) : null;
 };
+const nested = (row: Row | null, key: string) => rec(row?.[key]);
+const rows = (value: unknown) => {
+  const root = rec(value);
+  const data = root?.data ?? root?.routes ?? value;
+  return Array.isArray(data) ? data.map(rec).filter(Boolean) as Row[] : [];
+};
+const cursor = (value: unknown) => {
+  const root = rec(value), meta = nested(root, "meta"), links = nested(root, "links");
+  return str(meta, "next_cursor", "nextCursor") ?? str(links, "next_cursor", "nextCursor");
+};
+
+let currentRoutesCache: { expiresAt: number; rows: Row[] } | null = null;
+async function currentOperationsRoutes() {
+  if (!isOperationsConfigured()) return [];
+  if (currentRoutesCache && currentRoutesCache.expiresAt > Date.now()) return currentRoutesCache.rows;
+  const result: Row[] = []; let next: string | null = null;
+  for (let page = 0; page < 20; page++) {
+    const query = new URLSearchParams({ "page[size]": "100", sort: "id" });
+    if (next) query.set("page[cursor]", next);
+    const payload = await operationsRequest(`/routes?${query}`);
+    result.push(...rows(payload));
+    next = cursor(payload);
+    if (!next) break;
+  }
+  currentRoutesCache = { expiresAt: Date.now() + 5 * 60_000, rows: result };
+  return result;
+}
 
 export interface FlightOfferRouteOption {
   id: string;
@@ -26,13 +54,21 @@ export interface FlightOfferRouteOption {
 }
 
 export async function getFlightOfferOptions() {
-  const [airports, fleets, aircraft, storedRoutes, pireps] = await Promise.all([
-    prisma.airport.findMany({ select: { icao: true, iata: true, name: true }, orderBy: { icao: "asc" } }),
+  const [airports, fleets, aircraft, storedRoutes, pireps, liveRoutes] = await Promise.all([
+    prisma.airport.findMany({ select: { icao: true, iata: true, name: true, rawData: true }, orderBy: { icao: "asc" } }),
     prisma.fleet.findMany({ select: { vamsysFleetId: true, name: true, rawData: true }, orderBy: { name: "asc" } }),
     prisma.aircraft.findMany({ select: { vamsysAircraftId: true, registration: true, aircraftType: true, fleetId: true, status: true }, orderBy: [{ aircraftType: "asc" }, { registration: "asc" }] }),
     prisma.route.findMany({ orderBy: [{ departure: "asc" }, { arrival: "asc" }, { flightNumber: "asc" }] }),
     prisma.pirep.findMany({ where: { source: "vamsys_operations" }, select: { rawData: true, departure: true, arrival: true, flightNumber: true, callsign: true }, orderBy: { flownAt: "desc" }, take: 2000 }),
+    currentOperationsRoutes().catch((error) => { console.warn("[Flight offers] current Operations routes unavailable; using local cache.", error); return [] as Row[]; }),
   ]);
+
+  const airportById = new Map<string, string>();
+  for (const airport of airports) {
+    const raw = rec(airport.rawData);
+    const id = str(raw, "id", "airport_id", "airportId");
+    if (id) airportById.set(id, airport.icao);
+  }
 
   const routeMap = new Map<string, FlightOfferRouteOption>();
   for (const stored of storedRoutes) {
@@ -73,8 +109,32 @@ export async function getFlightOfferOptions() {
     });
   }
 
+  if (liveRoutes.length) {
+    routeMap.clear();
+    for (const live of liveRoutes) {
+      const attributes = nested(live, "attributes");
+      const route = attributes ? { ...live, ...attributes } : live;
+      const id = str(route, "id", "route_id", "routeId");
+      if (!id) continue;
+      const departureObject = nested(route, "departure") ?? nested(route, "departure_airport");
+      const arrivalObject = nested(route, "arrival") ?? nested(route, "arrival_airport");
+      const departure = str(departureObject, "icao", "code") ?? airportById.get(str(route, "departure_id", "departureId") ?? "") ?? "";
+      const arrival = str(arrivalObject, "icao", "code") ?? airportById.get(str(route, "arrival_id", "arrivalId") ?? "") ?? "";
+      routeMap.set(id, {
+        id,
+        departure: departure.toUpperCase(),
+        arrival: arrival.toUpperCase(),
+        flightNumber: str(route, "flight_number", "flightNumber"),
+        callsign: str(route, "callsign"),
+        altitude: num(route, "altitude"),
+        userRoute: str(route, "route", "user_route", "userRoute"),
+        fleetIds: Array.isArray(route.fleet_ids) ? route.fleet_ids.map(String) : [],
+      });
+    }
+  }
+
   return {
-    airports,
+    airports: airports.map((airport) => ({ icao: airport.icao, iata: airport.iata, name: airport.name })),
     routes: [...routeMap.values()].filter((route) => route.departure && route.arrival).sort((a, b) => `${a.departure}${a.arrival}${a.flightNumber}`.localeCompare(`${b.departure}${b.arrival}${b.flightNumber}`)),
     fleets: fleets.map((fleet) => {
       const raw = rec(fleet.rawData);
