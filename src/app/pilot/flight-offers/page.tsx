@@ -23,7 +23,7 @@ function tokenScopes(accessToken: string | undefined) {
   } catch { return []; }
 }
 
-export default async function PilotFlightOffersPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
+export default async function PilotFlightOffersPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string; dispatchId?: string }> }) {
   const pilot = await requirePilotSession();
   const { t, locale } = await getTranslations();
   const when = (value: Date | null) => value ? formatDate(value, locale, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) + " UTC" : "—";
@@ -39,10 +39,12 @@ export default async function PilotFlightOffersPage({ searchParams }: { searchPa
   const actualScopes = tokenScopes(oauth?.accessToken);
   const effectiveScopes = actualScopes.length ? actualScopes : storedScopes;
   const connected = Boolean(oauth && !oauth.revokedAt && effectiveScopes.includes("flights:write"));
+  const bookingDetail = messages.dispatchId ? dispatches.find((item) => item.id === messages.dispatchId) : null;
   return <PilotPortalShell>
     <PageHeading eyebrow={t("flightOffers.eyebrow")} title={t("flightOffers.title")} copy={t("flightOffers.pilotCopy")} />
     {messages.success && <div className="feedback success">{messages.success}</div>}
     {messages.error && <div className="feedback error">{messages.error}</div>}
+    {bookingDetail && <section className="card booking-confirmation-card"><div className="card-header"><h2 className="card-title">{t("flightOffers.bookingDetail")}</h2><Badge tone="green">{t("status.dispatched")}</Badge></div><div className="workflow-summary"><div><span>{t("bookings.bookingId")}</span><strong>{bookingDetail.vamsysBookingId ?? "—"}</strong></div><div><span>{t("flightOffers.route")}</span><strong>{bookingDetail.flightOffer.departureIcao} → {bookingDetail.flightOffer.arrivalIcao}</strong></div><div><span>{t("bookings.aircraft")}</span><strong>{bookingDetail.flightOffer.aircraftRegistration ?? bookingDetail.flightOffer.aircraftType ?? bookingDetail.flightOffer.vamsysAircraftId}</strong></div><div><span>{t("flightOffers.selectedDepartureUtc")}</span><strong>{when(bookingDetail.selectedDepartureAt)}</strong></div><div><span>{t("flightOffers.estimatedArrival")}</span><strong>{when(bookingDetail.estimatedArrivalAt)}</strong></div><div><span>{t("flightOffers.reward")}</span><strong>{reward(bookingDetail.flightOffer.rewardCents, bookingDetail.flightOffer.rewardType)}</strong></div></div></section>}
     {!connected && <div className="notice">Reconecta vAMSYS para autorizar Self Dispatch (`flights:write`). <a href="/api/vamsys/oauth/start">Autorizar ahora</a></div>}
     <PilotFlightOfferCalendar connected={connected} offers={offers.map((offer) => ({
       id: offer.id,

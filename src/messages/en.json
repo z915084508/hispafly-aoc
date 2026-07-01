@@ -119,7 +119,18 @@
                          "selectedDeparture":  "Selected departure",
                          "validUntil":  "Valid until",
                          "reward":  "Reward",
-                         "bookingPirepReward":  "Booking, PIREP and reward"
+                         "bookingPirepReward":  "Booking, PIREP and reward",
+                         "previousMonth":  "Previous month",
+                         "nextMonth":  "Next month",
+                         "availablePeriod":  "Available period",
+                         "weekdays":  "Mon,Tue,Wed,Thu,Fri,Sat,Sun",
+                         "taskCount":  "{count} tasks",
+                         "selectedDepartureUtc":  "Selected departure (UTC)",
+                         "estimatedArrival":  "Estimated arrival",
+                         "confirmDispatch":  "Confirm dispatch",
+                         "authorizeVamsys":  "Authorize vAMSYS",
+                         "noTasksForDay":  "No tasks available for this day.",
+                         "bookingDetail":  "Created booking details"
                      },
     "bookings":  {
                      "eyebrow":  "SELF DISPATCH",
@@ -263,7 +274,8 @@
                               "viewDetails":  "View details",
                               "staleLocation":  "Stale location",
                               "externalMovement":  "External vAMSYS movement",
-                              "repositionUnavailable":  "Only available aircraft with a known airport can be repositioned."
+                              "repositionUnavailable":  "Only available aircraft with a known airport can be repositioned.",
+                              "pilotCopy":  "View the fleet's current operational location on the map. Read-only view."
                           },
                   "kpi":  {
                               "totalAircraft":  "Total aircraft",

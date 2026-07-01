@@ -9,13 +9,14 @@ export async function dispatchFlightOfferAction(formData: FormData) {
   const pilot = await requirePilotSession();
   const offerId = String(formData.get("offerId") ?? "");
   const selectedDepartureAt = new Date(String(formData.get("selectedDepartureAt") ?? ""));
+  let dispatchId: string;
   try {
-    await dispatchFlightOffer(offerId, pilot.id, selectedDepartureAt);
+    const dispatch = await dispatchFlightOffer(offerId, pilot.id, selectedDepartureAt); dispatchId = dispatch.id;
     revalidatePath("/pilot/flight-offers"); revalidatePath("/staff/flight-offers");
   } catch (error) {
     redirect("/pilot/flight-offers?error=" + encodeURIComponent(error instanceof Error ? error.message : "No se pudo realizar el dispatch."));
   }
-  redirect("/pilot/flight-offers?success=" + encodeURIComponent("Booking creado correctamente en vAMSYS."));
+  redirect(`/pilot/flight-offers?success=${encodeURIComponent("Booking creado correctamente en vAMSYS.")}&dispatchId=${encodeURIComponent(dispatchId)}`);
 }
 
 export async function cancelFlightDispatchAction(formData: FormData) {

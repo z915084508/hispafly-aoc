@@ -32,7 +32,7 @@ function FitAircraftBounds({ positions }: { positions: LatLngTuple[] }) {
   return null;
 }
 
-export default function StaffFleetMap({ aircraft, labels, locale }: { aircraft: AircraftLocationMapItem[]; labels: FleetMapLabels; locale: string }) {
+export default function StaffFleetMap({ aircraft, labels, locale, allowReposition = true }: { aircraft: AircraftLocationMapItem[]; labels: FleetMapLabels; locale: string; allowReposition?: boolean }) {
   const groups = useMemo(() => {
     const result = new Map<string, AircraftLocationMapItem[]>();
     for (const item of aircraft) {
@@ -60,9 +60,9 @@ export default function StaffFleetMap({ aircraft, labels, locale }: { aircraft: 
           {item.lastVamsysPirepId && <small>{labels.lastPirep}: {item.lastVamsysPirepId}</small>}
           {isStale(item) && <span className="fleet-popup-warning">{labels.staleLocation}</span>}
           {item.source === "VAMSYS_EXTERNAL" && <span className="fleet-popup-warning">{labels.externalMovement}</span>}
-          {canReposition(item)
+          {allowReposition && (canReposition(item)
             ? <a className="action-button approve" href={repositionUrl(item)}>{labels.createRepositionOffer}</a>
-            : <button className="action-button" disabled title={labels.unavailable}>{labels.createRepositionOffer}</button>}
+            : <button className="action-button" disabled title={labels.unavailable}>{labels.createRepositionOffer}</button>)}
         </div>)}
       </div></Popup></Marker>;
     })}

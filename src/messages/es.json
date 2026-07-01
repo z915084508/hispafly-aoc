@@ -119,7 +119,18 @@
                          "selectedDeparture":  "Salida elegida",
                          "validUntil":  "Válida hasta",
                          "reward":  "Recompensa",
-                         "bookingPirepReward":  "Booking, PIREP y recompensa"
+                         "bookingPirepReward":  "Booking, PIREP y recompensa",
+                         "previousMonth":  "Mes anterior",
+                         "nextMonth":  "Mes siguiente",
+                         "availablePeriod":  "Periodo disponible",
+                         "weekdays":  "Lun,Mar,Mié,Jue,Vie,Sáb,Dom",
+                         "taskCount":  "{count} tareas",
+                         "selectedDepartureUtc":  "Salida elegida (UTC)",
+                         "estimatedArrival":  "Llegada estimada",
+                         "confirmDispatch":  "Confirmar dispatch",
+                         "authorizeVamsys":  "Autorizar vAMSYS",
+                         "noTasksForDay":  "No hay tareas disponibles para este día.",
+                         "bookingDetail":  "Detalle del booking creado"
                      },
     "bookings":  {
                      "eyebrow":  "SELF DISPATCH",
@@ -263,7 +274,8 @@
                               "viewDetails":  "Ver detalles",
                               "staleLocation":  "Ubicación desactualizada",
                               "externalMovement":  "Movimiento externo vAMSYS",
-                              "repositionUnavailable":  "Solo las aeronaves disponibles con aeropuerto conocido pueden reposicionarse."
+                              "repositionUnavailable":  "Solo las aeronaves disponibles con aeropuerto conocido pueden reposicionarse.",
+                              "pilotCopy":  "Consulta en el mapa la ubicación operativa actual de la flota. Vista de solo lectura."
                           },
                   "kpi":  {
                               "totalAircraft":  "Total aeronaves",

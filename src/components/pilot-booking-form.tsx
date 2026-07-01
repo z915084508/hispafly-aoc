@@ -14,7 +14,6 @@ const utcInput = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCM
 
 export function PilotBookingForm({ routes, fleets, aircraft }: { routes: FlightOfferRouteOption[]; fleets: FleetOption[]; aircraft: AircraftOption[] }) {
   const { t, locale } = useTranslations();
-  const airports = useMemo(() => [...new Set(routes.flatMap((route) => [route.departure, route.arrival]))].sort(), [routes]);
   const [departure, setDeparture] = useState("");
   const [arrival, setArrival] = useState("");
   const [routeId, setRouteId] = useState("");
@@ -26,6 +25,8 @@ export function PilotBookingForm({ routes, fleets, aircraft }: { routes: FlightO
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const route = routes.find((item) => item.id === routeId) ?? null;
+  const departureChoices = useMemo(() => [...new Set(routes.filter((item) => !arrival || item.arrival === arrival).map((item) => item.departure))].sort(), [routes, arrival]);
+  const arrivalChoices = useMemo(() => [...new Set(routes.filter((item) => !departure || item.departure === departure).map((item) => item.arrival))].sort(), [routes, departure]);
   const routeChoices = routes.filter((item) => (!departure || item.departure === departure) && (!arrival || item.arrival === arrival));
   const compatibleFleetIds = routeFleetIds ?? route?.fleetIds ?? [];
   const fleetChoices = compatibleFleetIds.length ? fleets.filter((fleet) => compatibleFleetIds.includes(fleet.id)) : fleets;
@@ -50,8 +51,8 @@ export function PilotBookingForm({ routes, fleets, aircraft }: { routes: FlightO
     <fieldset>
       <legend><span>01</span> {t("bookings.routeAircraft")}</legend>
       <div className="pilot-booking-grid">
-        <label>{t("bookings.departure")}<select value={departure} onChange={(event) => { setDeparture(event.target.value); setRouteId(""); setFleetId(""); setAircraftId(""); }} required><option value="">{t("bookings.selectAirport")}</option>{airports.map((icao) => <option key={icao}>{icao}</option>)}</select></label>
-        <label>{t("bookings.arrival")}<select value={arrival} onChange={(event) => { setArrival(event.target.value); setRouteId(""); setFleetId(""); setAircraftId(""); }} required><option value="">{t("bookings.selectAirport")}</option>{airports.filter((icao) => icao !== departure).map((icao) => <option key={icao}>{icao}</option>)}</select></label>
+        <label>{t("bookings.departure")}<select value={departure} onChange={(event) => { const value = event.target.value; setDeparture(value); if (arrival && !routes.some((item) => item.departure === value && item.arrival === arrival)) setArrival(""); setRouteId(""); setFleetId(""); setAircraftId(""); }} required><option value="">{t("bookings.selectAirport")}</option>{departureChoices.map((icao) => <option key={icao}>{icao}</option>)}</select></label>
+        <label>{t("bookings.arrival")}<select value={arrival} onChange={(event) => { const value = event.target.value; setArrival(value); if (departure && !routes.some((item) => item.departure === departure && item.arrival === value)) setDeparture(""); setRouteId(""); setFleetId(""); setAircraftId(""); }} required><option value="">{t("bookings.selectAirport")}</option>{arrivalChoices.map((icao) => <option key={icao}>{icao}</option>)}</select></label>
         <label className="span-2">{t("bookings.route")}<select name="routeId" value={routeId} onChange={(event) => void chooseRoute(event.target.value)} required><option value="">{t("bookings.selectRoute")}</option>{routeChoices.map((item) => <option value={item.id} key={item.id}>{item.flightNumber ?? item.callsign ?? item.id} · {item.departure}-{item.arrival}</option>)}</select></label>
         <label>{t("bookings.compatibleFleet")}<select name="fleetId" value={fleetId} onChange={(event) => { setFleetId(event.target.value); setAircraftId(""); }} disabled={!routeId || routeLoading} required><option value="">{routeLoading ? "vAMSYS…" : t("bookings.selectFleet")}</option>{fleetChoices.map((fleet) => <option value={fleet.id} key={fleet.id}>{fleet.name ?? fleet.code ?? fleet.id}</option>)}</select>{routeError && <span className="field-note">{routeError}</span>}</label>
         <label>{t("bookings.aircraft")}<select name="aircraftId" value={aircraftId} onChange={(event) => setAircraftId(event.target.value)} disabled={!fleetId} required><option value="">{t("bookings.selectAircraft")}</option>{aircraftChoices.map((item) => <option value={item.vamsysAircraftId} key={item.vamsysAircraftId}>{item.registration ?? item.vamsysAircraftId} · {item.aircraftType ?? "—"}</option>)}</select></label>
