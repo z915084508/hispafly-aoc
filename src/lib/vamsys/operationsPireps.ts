@@ -8,6 +8,7 @@ import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
 import { completeFlightDispatchFromPirep } from "@/lib/flightOffers/service";
 import { completePilotBookingFromPirep } from "@/lib/pilotBookings/service";
+import { extractAircraftLocationData, updateAircraftLocationFromAcceptedPirep } from "@/lib/aircraft-location/tracker";
 import { operationsRequest } from "./operations";
 import { nextVamsysCursor, nextVamsysPageUrl } from "./pagination";
 import { isCompletedOperationsPirep, mergeOperationsPirepRecords, operationsPirepStatus } from "./operationsPirepPayload";
@@ -234,12 +235,32 @@ export async function processAcceptedOperationsPirep(pirepSummaryOrId: Row | str
   await generateExpensesSafely(stored.id, result);
   if (existing) result.updatedCount++; else result.importedCount++;
   await generatePayrollAndWallet({ stored, pilotId: pilot.id, rule: options.rule ?? await loadActivePayrollRule(), pirepData, result });
-  await completeFlightDispatchFromPirep({
+  const dispatchResult = await completeFlightDispatchFromPirep({
     pirepId: stored.id,
     vamsysPirepId: stored.vamsysPirepId,
     vamsysBookingId: stored.vamsysBookingId,
   });
   await completePilotBookingFromPirep({ pirepId: stored.id, vamsysBookingId: stored.vamsysBookingId });
+  try {
+    const location = extractAircraftLocationData(stored.rawData, { arrival: stored.arrival, aircraftType: stored.aircraftType });
+    if (location.vamsysAircraftId && location.arrivalIcao) {
+      await updateAircraftLocationFromAcceptedPirep({
+        ...location,
+        vamsysAircraftId: location.vamsysAircraftId,
+        arrivalIcao: location.arrivalIcao,
+        pirepId: stored.id,
+        vamsysPirepId: stored.vamsysPirepId,
+        matchedDispatchId: dispatchResult.matched && stored.vamsysBookingId
+          ? (await prisma.flightDispatch.findUnique({ where: { vamsysBookingId: stored.vamsysBookingId }, select: { id: true } }))?.id
+          : null,
+        reportAt: stored.flownAt ?? stored.acceptedAt ?? new Date(),
+      });
+    } else {
+      console.warn(`[Aircraft location] PIREP ${stored.vamsysPirepId} missing aircraft_id or arrival ICAO; skipped.`);
+    }
+  } catch (locationError) {
+    console.error(`[Aircraft location] PIREP update failed pirep=${stored.vamsysPirepId}`, locationError);
+  }
   return result;
 }
 

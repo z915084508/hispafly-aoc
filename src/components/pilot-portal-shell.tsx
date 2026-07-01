@@ -6,7 +6,7 @@ import { getTranslations } from "@/lib/i18n/server";
 import { formatCurrency } from "@/lib/i18n/core";
 
 const flightNavItems = [
-  ["dashboard", "/pilot/dashboard"], ["pireps", "/pilot/pireps"], ["offers", "/pilot/flight-offers"], ["bookings", "/pilot/bookings"], ["roster", "/pilot/roster"],
+  ["dashboard", "/pilot/dashboard"], ["pireps", "/pilot/pireps"], ["offers", "/pilot/flight-offers"], ["bookings", "/pilot/bookings"], ["fleet", "/pilot/fleet"], ["roster", "/pilot/roster"],
 ] as const;
 
 const economyNavItems = [

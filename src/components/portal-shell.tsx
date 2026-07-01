@@ -7,7 +7,7 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { getTranslations } from "@/lib/i18n/server";
 
 const navItems = [
-  ["dashboard", "/staff"], ["pilots", "/staff/pilots"], ["pireps", "/staff/pireps"], ["offers", "/staff/flight-offers"],
+  ["dashboard", "/staff"], ["pilots", "/staff/pilots"], ["fleet", "/staff/fleet"], ["pireps", "/staff/pireps"], ["offers", "/staff/flight-offers"],
   ["payroll", "/staff/payroll"], ["economy", "/staff/wallet"], ["expenses", "/staff/expenses"], ["expenseRules", "/staff/expenses/rules"],
   ["audit", "/staff/audit"], ["vamsys", "/staff/settings/vamsys"], ["settings", "/staff/settings"], ["operations", "/staff/settings/operations"],
 ] as const;

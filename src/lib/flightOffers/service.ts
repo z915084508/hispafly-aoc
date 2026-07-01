@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { cancelVamsysBooking, createVamsysBooking, VamsysApiError, type CreateVamsysBookingInput } from "@/lib/vamsys/client";
 import { getValidVamsysAccessToken } from "@/lib/vamsys/token";
+import { updateAircraftLocationFromDispatch } from "@/lib/aircraft-location/tracker";
 
 type JsonRow = Record<string, unknown>;
 
@@ -92,6 +93,19 @@ export async function dispatchFlightOffer(offerId: string, pilotId: string, sele
       message: `Booking ${vamsysBookingId} creado desde la oferta ${offer.title}.`,
       metadata: { pilotId, offerId: offer.id, vamsysBookingId, selectedDepartureAt: selectedDepartureAt.toISOString(), estimatedArrivalAt: estimatedArrivalAt.toISOString() },
     });
+    try {
+      await updateAircraftLocationFromDispatch({
+        vamsysAircraftId: offer.vamsysAircraftId,
+        registration: offer.aircraftRegistration,
+        aircraftType: offer.aircraftType,
+        departureIcao: offer.departureIcao,
+        dispatchId: completed.id,
+        bookingId: vamsysBookingId,
+        reportAt: completed.dispatchedAt ?? new Date(),
+      });
+    } catch (locationError) {
+      console.error(`[Aircraft location] dispatch update failed dispatch=${completed.id}`, locationError);
+    }
     return completed;
   } catch (error) {
     const message = error instanceof VamsysApiError

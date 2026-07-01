@@ -81,6 +81,23 @@ enum PilotBookingStatus {
   FAILED
 }
 
+enum AircraftLocationStatus {
+  AVAILABLE
+  RESERVED
+  IN_FLIGHT
+  MAINTENANCE
+  UNKNOWN
+}
+
+enum AircraftLocationSource {
+  MANUAL
+  PIREP
+  DISPATCH
+  ACARS
+  VAMSYS_EXTERNAL
+  IMPORTED
+}
+
 model StaffUser {
   id        String        @id @default(cuid())
   name      String        @map("displayName")
@@ -408,6 +425,36 @@ model WalletTransaction {
 
   @@index([pilotId, createdAt])
   @@index([type])
+}
+
+model AircraftLocationSnapshot {
+  id                     String                 @id @default(cuid())
+  vamsysAircraftId       String                 @unique
+  registration           String?
+  aircraftType           String?
+  currentAirportId       String?
+  currentAirportIcao     String?
+  currentAirportIata     String?
+  status                 AircraftLocationStatus @default(UNKNOWN)
+  source                 AircraftLocationSource @default(IMPORTED)
+  reservedByDispatchId   String?
+  lastBookingId          String?
+  lastPirepId            String?
+  lastVamsysPirepId      String?
+  lastLatitude           Float?
+  lastLongitude          Float?
+  lastAltitude           Float?
+  lastGroundSpeed        Float?
+  lastReportAt           DateTime?
+  notes                  String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  @@index([currentAirportIcao])
+  @@index([status])
+  @@index([source])
+  @@index([lastBookingId])
+  @@index([lastVamsysPirepId])
 }
 
 model FlightOffer {
