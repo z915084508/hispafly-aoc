@@ -4,15 +4,16 @@ import { useMemo, useState } from "react";
 import { createPilotBookingAction } from "@/app/pilot/bookings/actions";
 import { getPilotRouteDetailsAction } from "@/app/pilot/bookings/actions";
 import type { FlightOfferRouteOption } from "@/lib/flightOffers/options";
+import { useTranslations } from "@/lib/i18n/client";
 
 type FleetOption = { id: string; name: string | null; code: string | null; passengers: number | null; cargoKg: number | null };
 type AircraftOption = { vamsysAircraftId: string; registration: string | null; aircraftType: string | null; fleetId: string | null; status: string | null };
 
 const isoFromUtcInput = (value: string) => value ? new Date(`${value}:00Z`).toISOString() : "";
 const utcInput = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}T${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
-const utcDisplay = (date: Date) => new Intl.DateTimeFormat("es-ES", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(date) + " UTC";
 
 export function PilotBookingForm({ routes, fleets, aircraft }: { routes: FlightOfferRouteOption[]; fleets: FleetOption[]; aircraft: AircraftOption[] }) {
+  const { t, locale } = useTranslations();
   const airports = useMemo(() => [...new Set(routes.flatMap((route) => [route.departure, route.arrival]))].sort(), [routes]);
   const [departure, setDeparture] = useState("");
   const [arrival, setArrival] = useState("");
@@ -32,6 +33,7 @@ export function PilotBookingForm({ routes, fleets, aircraft }: { routes: FlightO
   const selectedAircraft = aircraft.find((item) => item.vamsysAircraftId === aircraftId) ?? null;
   const effectiveDuration = durationMinutes ?? route?.durationMinutes ?? null;
   const arrivalAt = effectiveDuration && departureAt ? new Date(new Date(isoFromUtcInput(departureAt)).getTime() + effectiveDuration * 60_000) : null;
+  const displayUtc = (date: Date) => new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-ES", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(date) + " UTC";
 
   async function chooseRoute(value: string) {
     setRouteId(value); setFleetId(""); setAircraftId(""); setRouteFleetIds(null); setRouteError(null); setDurationMinutes(null);
@@ -46,36 +48,36 @@ export function PilotBookingForm({ routes, fleets, aircraft }: { routes: FlightO
   return <form className="pilot-booking-form" action={createPilotBookingAction}>
     <input type="hidden" name="departureAt" value={isoFromUtcInput(departureAt)}/>
     <fieldset>
-      <legend><span>01</span> Ruta y aeronave</legend>
+      <legend><span>01</span> {t("bookings.routeAircraft")}</legend>
       <div className="pilot-booking-grid">
-        <label>Salida ICAO<select value={departure} onChange={(event) => { setDeparture(event.target.value); setRouteId(""); setFleetId(""); setAircraftId(""); }} required><option value="">Seleccionar aeropuerto</option>{airports.map((icao) => <option key={icao}>{icao}</option>)}</select></label>
-        <label>Llegada ICAO<select value={arrival} onChange={(event) => { setArrival(event.target.value); setRouteId(""); setFleetId(""); setAircraftId(""); }} required><option value="">Seleccionar aeropuerto</option>{airports.filter((icao) => icao !== departure).map((icao) => <option key={icao}>{icao}</option>)}</select></label>
-        <label className="span-2">Ruta vAMSYS<select name="routeId" value={routeId} onChange={(event) => void chooseRoute(event.target.value)} required><option value="">Seleccionar ruta disponible</option>{routeChoices.map((item) => <option value={item.id} key={item.id}>{item.flightNumber ?? item.callsign ?? item.id} · {item.departure}-{item.arrival}</option>)}</select></label>
-        <label>Fleet compatible<select name="fleetId" value={fleetId} onChange={(event) => { setFleetId(event.target.value); setAircraftId(""); }} disabled={!routeId || routeLoading} required><option value="">{routeLoading ? "Consultando vAMSYS…" : "Seleccionar Fleet"}</option>{fleetChoices.map((fleet) => <option value={fleet.id} key={fleet.id}>{fleet.name ?? fleet.code ?? fleet.id}</option>)}</select>{routeError && <span className="field-note">{routeError}</span>}</label>
-        <label>Aircraft<select name="aircraftId" value={aircraftId} onChange={(event) => setAircraftId(event.target.value)} disabled={!fleetId} required><option value="">Seleccionar Aircraft</option>{aircraftChoices.map((item) => <option value={item.vamsysAircraftId} key={item.vamsysAircraftId}>{item.registration ?? item.vamsysAircraftId} · {item.aircraftType ?? "Tipo desconocido"}</option>)}</select></label>
+        <label>{t("bookings.departure")}<select value={departure} onChange={(event) => { setDeparture(event.target.value); setRouteId(""); setFleetId(""); setAircraftId(""); }} required><option value="">{t("bookings.selectAirport")}</option>{airports.map((icao) => <option key={icao}>{icao}</option>)}</select></label>
+        <label>{t("bookings.arrival")}<select value={arrival} onChange={(event) => { setArrival(event.target.value); setRouteId(""); setFleetId(""); setAircraftId(""); }} required><option value="">{t("bookings.selectAirport")}</option>{airports.filter((icao) => icao !== departure).map((icao) => <option key={icao}>{icao}</option>)}</select></label>
+        <label className="span-2">{t("bookings.route")}<select name="routeId" value={routeId} onChange={(event) => void chooseRoute(event.target.value)} required><option value="">{t("bookings.selectRoute")}</option>{routeChoices.map((item) => <option value={item.id} key={item.id}>{item.flightNumber ?? item.callsign ?? item.id} · {item.departure}-{item.arrival}</option>)}</select></label>
+        <label>{t("bookings.compatibleFleet")}<select name="fleetId" value={fleetId} onChange={(event) => { setFleetId(event.target.value); setAircraftId(""); }} disabled={!routeId || routeLoading} required><option value="">{routeLoading ? "vAMSYS…" : t("bookings.selectFleet")}</option>{fleetChoices.map((fleet) => <option value={fleet.id} key={fleet.id}>{fleet.name ?? fleet.code ?? fleet.id}</option>)}</select>{routeError && <span className="field-note">{routeError}</span>}</label>
+        <label>{t("bookings.aircraft")}<select name="aircraftId" value={aircraftId} onChange={(event) => setAircraftId(event.target.value)} disabled={!fleetId} required><option value="">{t("bookings.selectAircraft")}</option>{aircraftChoices.map((item) => <option value={item.vamsysAircraftId} key={item.vamsysAircraftId}>{item.registration ?? item.vamsysAircraftId} · {item.aircraftType ?? "—"}</option>)}</select></label>
         <label>Flight number<input value={route?.flightNumber ?? ""} placeholder="Se completa con la ruta" readOnly/></label>
-        <label>Tipo de aeronave<input value={selectedAircraft?.aircraftType ?? ""} placeholder="Se completa con el aircraft" readOnly/></label>
+        <label>{t("bookings.aircraftType")}<input value={selectedAircraft?.aircraftType ?? ""} readOnly/></label>
       </div>
     </fieldset>
     <fieldset>
-      <legend><span>02</span> Programación UTC</legend>
+      <legend><span>02</span> {t("bookings.schedule")}</legend>
       <div className="pilot-booking-grid">
-        <label>Salida programada (UTC)<input type="datetime-local" value={departureAt} min={utcInput(new Date(Date.now() + 5 * 60_000))} onChange={(event) => setDepartureAt(event.target.value)} required/></label>
-        <label>Llegada estimada (UTC)<input value={arrivalAt ? utcDisplay(arrivalAt) : "Se calcula con Route API"} readOnly/></label>
-        <div className="booking-time-note span-2">La duración y la llegada se calculan automáticamente con la ruta oficial de vAMSYS.</div>
+        <label>{t("bookings.departureUtc")}<input type="datetime-local" value={departureAt} min={utcInput(new Date(Date.now() + 5 * 60_000))} onChange={(event) => setDepartureAt(event.target.value)} required/></label>
+        <label>{t("bookings.arrivalUtc")}<input value={arrivalAt ? displayUtc(arrivalAt) : t("bookings.calculatedByApi")} readOnly/></label>
+        <div className="booking-time-note span-2">{t("bookings.arrivalHint")}</div>
       </div>
     </fieldset>
     <fieldset>
-      <legend><span>03</span> Operación y carga</legend>
+      <legend><span>03</span> {t("bookings.operationsLoad")}</legend>
       <div className="pilot-booking-grid">
         <label key={`callsign-${routeId}`}>Callsign<input name="callsign" defaultValue={route?.callsign ?? ""} maxLength={7}/></label>
-        <label>Red<select name="network" defaultValue="vatsim"><option value="vatsim">VATSIM</option><option value="ivao">IVAO</option><option value="poscon">POSCON</option><option value="offline">Offline</option><option value="other">Other</option></select></label>
-        <label key={`altitude-${routeId}`}>Altitud<input name="altitude" type="number" min="10" max="70000" defaultValue={route?.altitude ?? undefined} placeholder="Ej. 35000"/></label>
-        <label>Pasajeros<input name="passengers" type="number" min="0" placeholder="Opcional"/></label>
-        <label>Carga (kg)<input name="cargoKg" type="number" min="0" placeholder="Opcional"/></label>
-        <label className="span-3" key={`user-route-${routeId}`}>Ruta operacional<textarea name="userRoute" defaultValue={route?.userRoute ?? ""} placeholder="Ruta ATC opcional"/></label>
+        <label>{t("bookings.network")}<select name="network" defaultValue="vatsim"><option value="vatsim">VATSIM</option><option value="ivao">IVAO</option><option value="poscon">POSCON</option><option value="offline">Offline</option><option value="other">Other</option></select></label>
+        <label key={`altitude-${routeId}`}>{t("bookings.altitude")}<input name="altitude" type="number" min="10" max="70000" defaultValue={route?.altitude ?? undefined}/></label>
+        <label>{t("bookings.passengers")}<input name="passengers" type="number" min="0"/></label>
+        <label>{t("bookings.cargo")}<input name="cargoKg" type="number" min="0"/></label>
+        <label className="span-3" key={`user-route-${routeId}`}>{t("bookings.operationalRoute")}<textarea name="userRoute" defaultValue={route?.userRoute ?? ""}/></label>
       </div>
     </fieldset>
-    <div className="pilot-booking-submit"><div><strong>Listo para reservar</strong><span>El booking aparecerá inmediatamente en vAMSYS.</span></div><button className="button" type="submit" disabled={!routeId || !fleetId || !aircraftId || !departureAt}>Crear Booking en vAMSYS</button></div>
+    <div className="pilot-booking-submit"><div><strong>{t("bookings.ready")}</strong><span>{t("bookings.appearsImmediately")}</span></div><button className="button" type="submit" disabled={!routeId || !fleetId || !aircraftId || !departureAt}>{t("bookings.create")}</button></div>
   </form>;
 }

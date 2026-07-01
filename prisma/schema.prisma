@@ -413,6 +413,10 @@ model WalletTransaction {
 model FlightOffer {
   id                   String                @id @default(cuid())
   title                String
+  titleEs              String?
+  titleEn              String?
+  descriptionEs        String?
+  descriptionEn        String?
   flightNumber         String?
   callsign             String?
   departureIcao        String

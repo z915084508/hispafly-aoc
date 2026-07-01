@@ -1,14 +1,16 @@
 import { PageHeading } from "@/components/page-heading";
 import { getDashboardSummary } from "@/lib/workflow-data";
 import { prisma } from "@/lib/prisma";
+import { getTranslations } from "@/lib/i18n/server";
+import { formatCurrency, formatNumber } from "@/lib/i18n/core";
 
 export const dynamic = "force-dynamic";
 
-const money = (cents: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(cents / 100);
-const integer = (value: number) => new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(value);
-const decimal = (value: number) => new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(value);
-
 export default async function StaffDashboard() {
+  const { t, locale } = await getTranslations();
+  const money = (cents: number) => formatCurrency(cents, locale);
+  const integer = (value: number) => formatNumber(value, locale, { maximumFractionDigits: 0 });
+  const decimal = (value: number) => formatNumber(value, locale, { maximumFractionDigits: 1 });
   const [summary, activeOffers, dispatchedOffers, completedDispatches, rewardTotal] = await Promise.all([
     getDashboardSummary(),
     prisma.flightOffer.count({ where: { status: "PUBLISHED", validUntil: { gt: new Date() } } }),
@@ -47,7 +49,7 @@ export default async function StaffDashboard() {
       @media (max-width: 1180px) { .annual-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
       @media (max-width: 720px) { .annual-stats { grid-template-columns: 1fr; } }
     `}</style>
-    <PageHeading eyebrow="RESUMEN DE OPERACIONES" title="Panel AOC" copy="PIREPs aceptados, estado de nóminas y clasificación mensual." />
+    <PageHeading eyebrow={t("dashboard.staffEyebrow")} title={t("dashboard.staffTitle")} copy={t("dashboard.staffCopy")} />
 
     <section className="grid stats">{monthlyStats.map(([label, value, note]) => <div className="card" key={label}><div className="stat-label">{label}</div><div className="stat-value">{value}</div><div className="stat-note">{note}</div></div>)}</section>
     <section className="grid stats dashboard-section">

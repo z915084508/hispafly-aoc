@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { dispatchFlightOfferAction } from "@/app/pilot/flight-offers/actions";
+import { useTranslations } from "@/lib/i18n/client";
 
 export interface CalendarFlightOffer {
   id: string;
@@ -42,6 +43,7 @@ function initialDeparture(offer: CalendarFlightOffer, key: string) {
 }
 
 export function PilotFlightOfferCalendar({ offers, connected }: { offers: CalendarFlightOffer[]; connected: boolean }) {
+  const { locale } = useTranslations();
   const first = offers[0] ? new Date(offers[0].availableFrom) : new Date();
   const [month, setMonth] = useState(new Date(first.getFullYear(), first.getMonth(), 1));
   const [selectedDay, setSelectedDay] = useState(dayKey(first));
@@ -66,7 +68,7 @@ export function PilotFlightOfferCalendar({ offers, connected }: { offers: Calend
   return <section className="offer-calendar-shell">
     <div className="offer-calendar-toolbar">
       <button type="button" onClick={() => moveMonth(-1)} aria-label="Mes anterior">‹</button>
-      <h2>{new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(month)}</h2>
+      <h2>{new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-ES", { month: "long", year: "numeric", timeZone: "UTC" }).format(month)}</h2>
       <button type="button" onClick={() => moveMonth(1)} aria-label="Mes siguiente">›</button>
     </div>
     <div className="offer-calendar-legend"><span/><span>Periodo disponible</span></div>
@@ -88,7 +90,7 @@ export function PilotFlightOfferCalendar({ offers, connected }: { offers: Calend
     </div>
 
     <div className="offer-calendar-selection">
-      <h3>{new Intl.DateTimeFormat("es-ES", { dateStyle: "full" }).format(new Date(`${selectedDay}T12:00:00`))}</h3>
+      <h3>{new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-ES", { dateStyle: "full", timeZone: "UTC" }).format(new Date(`${selectedDay}T12:00:00Z`))}</h3>
       {selectedOffers.length ? selectedOffers.map((offer) => {
         const departure = departureFor(offer);
         const arrival = departure ? new Date(new Date(`${departure}:00Z`).getTime() + offer.durationMinutes * 60_000) : null;

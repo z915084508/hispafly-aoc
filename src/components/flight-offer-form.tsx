@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { createFlightOfferAction, getRouteFleetIdsAction } from "@/app/staff/flight-offers/actions";
 import type { FlightOfferRouteOption } from "@/lib/flightOffers/options";
+import { useTranslations } from "@/lib/i18n/client";
 
 interface AirportOption { icao: string; iata: string | null; name: string | null }
 interface FleetOption { id: string; name: string | null; code: string | null; passengers: number | null; cargoKg: number | null }
@@ -14,6 +15,7 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft }: {
   fleets: FleetOption[];
   aircraft: AircraftOption[];
 }) {
+  const { t } = useTranslations();
   const [departure, setDeparture] = useState("");
   const [arrival, setArrival] = useState("");
   const [routeId, setRouteId] = useState("");
@@ -87,11 +89,11 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft }: {
     <label>Salida ICAO<input list="offer-airports" name="departureIcao" value={departure} onChange={(event) => { setDeparture(event.target.value.toUpperCase()); setRouteId(""); }} required maxLength={4} /></label>
     <label>Llegada ICAO<input list="offer-airports" name="arrivalIcao" value={arrival} onChange={(event) => { setArrival(event.target.value.toUpperCase()); setRouteId(""); }} required maxLength={4} /></label>
     <datalist id="offer-airports">{airports.map((airport) => <option key={airport.icao} value={airport.icao}>{airport.iata ? `${airport.iata} · ` : ""}{airport.name}</option>)}</datalist>
-    <label className="wide">航线 / Route<select value={routeId} onChange={(event) => selectRoute(event.target.value)}><option value="">选择航线（或手动输入 ID）</option>{filteredRoutes.map((route) => <option key={route.id} value={route.id}>{route.flightNumber ?? route.id} · {route.departure}-{route.arrival}</option>)}</select></label>
+    <label className="wide">{t("flightOffers.route")}<select value={routeId} onChange={(event) => selectRoute(event.target.value)}><option value="">{t("flightOffers.selectRoute")} ({t("flightOffers.manualId")})</option>{filteredRoutes.map((route) => <option key={route.id} value={route.id}>{route.flightNumber ?? route.id} · {route.departure}-{route.arrival}</option>)}</select></label>
     <label>vAMSYS route_id<input name="vamsysRouteId" value={routeId} onChange={(event) => setRouteId(event.target.value)} onBlur={(event) => void loadRouteFleets(event.target.value)} required inputMode="numeric" /></label>
     <label>Fleet<select value={fleetId} onChange={(event) => selectFleet(event.target.value)} disabled={!routeId || routeFleetLoading}><option value="">{routeFleetLoading ? "Consultando vAMSYS…" : routeId ? "Seleccionar Fleet compatible" : "Seleccione primero una ruta"}</option>{filteredFleets.map((fleet) => <option key={fleet.id} value={fleet.id}>{fleet.code ?? fleet.name ?? fleet.id} · {fleet.name ?? fleet.id}</option>)}</select>{routeFleetError && <span className="field-note">{routeFleetError}</span>}</label>
     <label>vAMSYS fleet_id<input name="vamsysFleetId" value={fleetId} onChange={(event) => selectFleet(event.target.value)} inputMode="numeric" /></label>
-    <label className="wide">Aircraft<select value={aircraftId} onChange={(event) => selectAircraft(event.target.value)}><option value="">选择 Aircraft（或手动输入 ID）</option>{filteredAircraft.map((item) => <option key={item.vamsysAircraftId} value={item.vamsysAircraftId}>{item.registration ?? item.vamsysAircraftId} · {item.aircraftType ?? "—"}{item.status ? ` · ${item.status}` : ""}</option>)}</select></label>
+    <label className="wide">Aircraft<select value={aircraftId} onChange={(event) => selectAircraft(event.target.value)}><option value="">{t("flightOffers.selectAircraft")} ({t("flightOffers.manualId")})</option>{filteredAircraft.map((item) => <option key={item.vamsysAircraftId} value={item.vamsysAircraftId}>{item.registration ?? item.vamsysAircraftId} · {item.aircraftType ?? "—"}{item.status ? ` · ${item.status}` : ""}</option>)}</select></label>
     <label>vAMSYS aircraft_id<input name="vamsysAircraftId" value={aircraftId} onChange={(event) => selectAircraft(event.target.value)} required inputMode="numeric" /></label>
     <label>Tipo aeronave<input name="aircraftType" value={aircraftType} onChange={(event) => setAircraftType(event.target.value.toUpperCase())} placeholder="A320" /></label>
     <label>Matrícula<input name="aircraftRegistration" value={registration} onChange={(event) => setRegistration(event.target.value.toUpperCase())} /></label>

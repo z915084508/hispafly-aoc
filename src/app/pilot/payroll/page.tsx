@@ -5,11 +5,11 @@ import { PilotFilterBar, PilotListStyles } from "@/components/pilot-list-tools";
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
 import { getPilotPayrollRows } from "@/lib/pilot/portalData";
 import { requirePilotSession } from "@/lib/pilot/session";
+import { getTranslations } from "@/lib/i18n/server";
+import { formatCurrency, formatDate } from "@/lib/i18n/core";
 
 export const dynamic = "force-dynamic";
 
-const money = (cents: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(cents / 100);
-const statusLabels: Record<string, string> = { pending: "Pendiente", approved: "Aprobado", rejected: "Rechazado", paid: "Pagado" };
 const statusTones = { pending: "amber", approved: "blue", rejected: "red", paid: "green" } as const;
 type SearchParams = { q?: string; month?: string; status?: string; sort?: string };
 
@@ -21,16 +21,18 @@ function isoWeek(date: Date) {
   return `${day.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
-function weekRange(date: Date) {
+function weekDates(date: Date) {
   const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
   const end = new Date(start); end.setUTCDate(end.getUTCDate() + 6);
-  const formatter = new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
-  return `${formatter.format(start)} – ${formatter.format(end)}`;
+  return { start, end };
 }
 
 export default async function PilotPayrollPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const pilot = await requirePilotSession();
+  const { t, locale } = await getTranslations();
+  const money = (cents: number) => formatCurrency(cents, locale);
+  const statusLabels: Record<string, string> = { pending: t("status.pending"), approved: t("status.approved"), rejected: t("status.rejected"), paid: t("status.paid") };
   const [payroll, filters] = await Promise.all([getPilotPayrollRows(pilot.id), searchParams]);
   const q = (filters.q ?? "").trim().toLowerCase();
   const filtered = payroll.filter((row) => {
@@ -57,12 +59,12 @@ export default async function PilotPayrollPage({ searchParams }: { searchParams:
 
   return <PilotPortalShell>
     <PilotListStyles />
-    <PageHeading eyebrow="NÓMINA" title="Tus nóminas semanales" copy="Compensación agrupada por semana ISO, con el detalle de cada PIREP disponible al desplegarla." />
+    <PageHeading eyebrow={t("payroll.eyebrow")} title={t("payroll.title")} copy={t("payroll.copy")} />
     <div className="pilot-list-tools">
       <PilotFilterBar q={filters.q} month={filters.month} sort={filters.sort} clearHref="/pilot/payroll" extra={{ name: "status", label: "Estado", value: filters.status, options: Object.entries(statusLabels).map(([value, label]) => ({ value, label })) }} />
-      <div className="pilot-filter-meta">{filtered.length} registros distribuidos en {weeks.length} semanas.</div>
+      <div className="pilot-filter-meta">{t("payroll.records", { records: filtered.length, weeks: weeks.length })}</div>
     </div>
-    {weeks.length === 0 ? <div className="card empty-state">No hay nóminas que coincidan con los filtros.</div> : <div className="weekly-payroll">
+    {weeks.length === 0 ? <div className="card empty-state">{t("payroll.empty")}</div> : <div className="weekly-payroll">
       {weeks.map(([key, group]) => {
         const base = group.rows.reduce((sum, row) => sum + row.basePayCents, 0);
         const bonus = group.rows.reduce((sum, row) => sum + row.bonusCents, 0);
@@ -71,20 +73,20 @@ export default async function PilotPayrollPage({ searchParams }: { searchParams:
         const paid = group.rows.filter((row) => row.status === "paid").length;
         return <details className="card" key={key}>
           <summary className="weekly-summary">
-            <div><strong>{key}</strong><span>{weekRange(group.date)}</span></div>
-            <div><strong>{group.rows.length}</strong><span>Vuelos</span></div>
-            <div><strong>{money(base)}</strong><span>Base</span></div>
-            <div><strong className="amount-positive">+{money(bonus)}</strong><span>Bonificación</span></div>
-            <div><strong className={penalty ? "amount-negative" : ""}>−{money(penalty)}</strong><span>Penalización</span></div>
-            <div><strong>{money(total)}</strong><span>Total · {paid}/{group.rows.length} pagados</span></div>
+            <div><strong>{key}</strong><span>{formatDate(weekDates(group.date).start, locale, { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })} – {formatDate(weekDates(group.date).end, locale, { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })}</span></div>
+            <div><strong>{group.rows.length}</strong><span>{t("payroll.flights")}</span></div>
+            <div><strong>{money(base)}</strong><span>{t("payroll.base")}</span></div>
+            <div><strong className="amount-positive">+{money(bonus)}</strong><span>{t("payroll.bonus")}</span></div>
+            <div><strong className={penalty ? "amount-negative" : ""}>−{money(penalty)}</strong><span>{t("payroll.penalty")}</span></div>
+            <div><strong>{money(total)}</strong><span>{t("payroll.total")} · {t("payroll.paidCount", { paid, total: group.rows.length })}</span></div>
           </summary>
-          <DataTable headers={["Vuelo", "Aeronave", "Base", "Bonificación", "Penalización", "Importe", "Estado", "Detalle"]} rows={group.rows.map((row) => [
+          <DataTable headers={["Flight", t("payroll.aircraft"), t("payroll.base"), t("payroll.bonus"), t("payroll.penalty"), t("common.amount"), t("common.status"), t("common.viewDetail")]} rows={group.rows.map((row) => [
             row.pirep.flightNumber ?? "—", row.pirep.aircraftType ?? "—", money(row.basePayCents),
             <span key="bonus" className="amount-positive">+{money(row.bonusCents)}</span>,
             <span key="penalty" className={row.penaltyCents ? "amount-negative" : ""}>−{money(row.penaltyCents)}</span>,
             <strong key="amount">{money(row.amountCents)}</strong>,
             <Badge key="status" tone={statusTones[row.status as keyof typeof statusTones] ?? "gray"}>{statusLabels[row.status] ?? row.status}</Badge>,
-            <Link key="detail" className="action-button" href={`/pilot/payroll/${row.id}`}>Ver detalle</Link>,
+            <Link key="detail" className="action-button" href={`/pilot/payroll/${row.id}`}>{t("common.viewDetail")}</Link>,
           ])} />
         </details>;
       })}

@@ -148,6 +148,7 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .pilot-welcome-card p { margin: 0; color: var(--muted); line-height: 1.55; }
 .pilot-user-summary { display: flex; gap: 12px; align-items: center; }
 .logout-button { border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; background: white; color: var(--muted); font-size: 11px; font-weight: 800; cursor: pointer; }
+.language-switcher{display:inline-flex;padding:3px;border:1px solid var(--line);border-radius:999px;background:#f7f8fb}.language-switcher button{border:0;border-radius:999px;padding:5px 8px;background:transparent;color:var(--muted);font-size:10px;font-weight:850;cursor:pointer}.language-switcher button.active{background:#172234;color:#fff}
 .user-session { gap: 14px; }
 
 @media (max-width: 1050px) { .stats { grid-template-columns: repeat(2, 1fr); } .two-column { grid-template-columns: 1fr; } .gateway-portal-grid { grid-template-columns: 1fr; } .login-panel { grid-template-columns: 1fr; } }
