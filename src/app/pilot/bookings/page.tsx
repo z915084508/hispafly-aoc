@@ -21,11 +21,11 @@ export default async function PilotBookingsPage({ searchParams }: { searchParams
     <PageHeading eyebrow="SELF DISPATCH" title="Reservar vuelo" copy="Crea un booking ordinario directamente en vAMSYS. Todas las horas se muestran en UTC." />
     {messages.success && <div className="feedback success">{messages.success}</div>}
     {messages.error && <div className="feedback error">{messages.error}</div>}
-    <section className="card ranking-card">
+    <section className="card booking-card">
       <div className="card-header"><h2 className="card-title">Nuevo booking</h2><span className="meta">Sin recompensa ni penalización de tarea</span></div>
       <PilotBookingForm routes={options.routes} fleets={options.fleets} aircraft={options.aircraft}/>
     </section>
-    <section className="card ranking-card">
+    <section className="card booking-card">
       <div className="card-header"><h2 className="card-title">Mis bookings</h2><span className="meta">vAMSYS Pilot API</span></div>
       {bookings.length ? <DataTable headers={["Vuelo", "Ruta", "Aircraft", "Salida UTC", "Llegada estimada", "Estado", "Booking ID", "PIREP", "Acción"]} rows={bookings.map((booking) => [
         booking.flightNumber ?? booking.callsign ?? "—",

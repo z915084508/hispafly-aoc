@@ -43,23 +43,39 @@ export function PilotBookingForm({ routes, fleets, aircraft }: { routes: FlightO
     setRouteFleetIds(details.fleetIds); setDurationMinutes(details.durationMinutes); setRouteError(details.error); setRouteLoading(false);
   }
 
-  return <form className="offer-form" action={createPilotBookingAction}>
+  return <form className="pilot-booking-form" action={createPilotBookingAction}>
     <input type="hidden" name="departureAt" value={isoFromUtcInput(departureAt)}/>
-    <label>Salida ICAO<select value={departure} onChange={(event) => { setDeparture(event.target.value); setRouteId(""); setFleetId(""); setAircraftId(""); }} required><option value="">Seleccionar</option>{airports.map((icao) => <option key={icao}>{icao}</option>)}</select></label>
-    <label>Llegada ICAO<select value={arrival} onChange={(event) => { setArrival(event.target.value); setRouteId(""); setFleetId(""); setAircraftId(""); }} required><option value="">Seleccionar</option>{airports.filter((icao) => icao !== departure).map((icao) => <option key={icao}>{icao}</option>)}</select></label>
-    <label className="wide">Ruta vAMSYS<select name="routeId" value={routeId} onChange={(event) => void chooseRoute(event.target.value)} required><option value="">Seleccionar ruta</option>{routeChoices.map((item) => <option value={item.id} key={item.id}>{item.flightNumber ?? item.callsign ?? item.id} · {item.departure}-{item.arrival}</option>)}</select></label>
-    <label>Fleet compatible<select name="fleetId" value={fleetId} onChange={(event) => { setFleetId(event.target.value); setAircraftId(""); }} disabled={!routeId || routeLoading} required><option value="">{routeLoading ? "Consultando vAMSYS…" : "Seleccionar Fleet"}</option>{fleetChoices.map((fleet) => <option value={fleet.id} key={fleet.id}>{fleet.name ?? fleet.code ?? fleet.id}</option>)}</select>{routeError && <span className="field-note">{routeError}</span>}</label>
-    <label>Aircraft<select name="aircraftId" value={aircraftId} onChange={(event) => setAircraftId(event.target.value)} required><option value="">Seleccionar Aircraft</option>{aircraftChoices.map((item) => <option value={item.vamsysAircraftId} key={item.vamsysAircraftId}>{item.registration ?? item.vamsysAircraftId} · {item.aircraftType ?? "Tipo desconocido"}</option>)}</select></label>
-    <label>Salida programada (UTC)<input type="datetime-local" value={departureAt} min={utcInput(new Date(Date.now() + 5 * 60_000))} onChange={(event) => setDepartureAt(event.target.value)} required/></label>
-    <label>Llegada estimada (UTC)<input value={arrivalAt ? utcDisplay(arrivalAt) : "Se calcula con Route API"} readOnly/></label>
-    <label>Flight number<input value={route?.flightNumber ?? ""} readOnly/></label>
-    <label key={`callsign-${routeId}`}>Callsign<input name="callsign" defaultValue={route?.callsign ?? ""} maxLength={7}/></label>
-    <label>Tipo de aeronave<input value={selectedAircraft?.aircraftType ?? ""} readOnly/></label>
-    <label>Red<select name="network" defaultValue="vatsim"><option value="vatsim">VATSIM</option><option value="ivao">IVAO</option><option value="poscon">POSCON</option><option value="offline">Offline</option><option value="other">Other</option></select></label>
-    <label key={`altitude-${routeId}`}>Altitud<input name="altitude" type="number" min="10" max="70000" defaultValue={route?.altitude ?? undefined}/></label>
-    <label>Pasajeros<input name="passengers" type="number" min="0"/></label>
-    <label>Carga kg<input name="cargoKg" type="number" min="0"/></label>
-    <label className="wide" key={`user-route-${routeId}`}>Ruta operacional<textarea name="userRoute" defaultValue={route?.userRoute ?? ""}/></label>
-    <div className="wide"><button className="button" type="submit" disabled={!routeId || !fleetId || !aircraftId || !departureAt}>Crear Booking en vAMSYS</button></div>
+    <fieldset>
+      <legend><span>01</span> Ruta y aeronave</legend>
+      <div className="pilot-booking-grid">
+        <label>Salida ICAO<select value={departure} onChange={(event) => { setDeparture(event.target.value); setRouteId(""); setFleetId(""); setAircraftId(""); }} required><option value="">Seleccionar aeropuerto</option>{airports.map((icao) => <option key={icao}>{icao}</option>)}</select></label>
+        <label>Llegada ICAO<select value={arrival} onChange={(event) => { setArrival(event.target.value); setRouteId(""); setFleetId(""); setAircraftId(""); }} required><option value="">Seleccionar aeropuerto</option>{airports.filter((icao) => icao !== departure).map((icao) => <option key={icao}>{icao}</option>)}</select></label>
+        <label className="span-2">Ruta vAMSYS<select name="routeId" value={routeId} onChange={(event) => void chooseRoute(event.target.value)} required><option value="">Seleccionar ruta disponible</option>{routeChoices.map((item) => <option value={item.id} key={item.id}>{item.flightNumber ?? item.callsign ?? item.id} · {item.departure}-{item.arrival}</option>)}</select></label>
+        <label>Fleet compatible<select name="fleetId" value={fleetId} onChange={(event) => { setFleetId(event.target.value); setAircraftId(""); }} disabled={!routeId || routeLoading} required><option value="">{routeLoading ? "Consultando vAMSYS…" : "Seleccionar Fleet"}</option>{fleetChoices.map((fleet) => <option value={fleet.id} key={fleet.id}>{fleet.name ?? fleet.code ?? fleet.id}</option>)}</select>{routeError && <span className="field-note">{routeError}</span>}</label>
+        <label>Aircraft<select name="aircraftId" value={aircraftId} onChange={(event) => setAircraftId(event.target.value)} disabled={!fleetId} required><option value="">Seleccionar Aircraft</option>{aircraftChoices.map((item) => <option value={item.vamsysAircraftId} key={item.vamsysAircraftId}>{item.registration ?? item.vamsysAircraftId} · {item.aircraftType ?? "Tipo desconocido"}</option>)}</select></label>
+        <label>Flight number<input value={route?.flightNumber ?? ""} placeholder="Se completa con la ruta" readOnly/></label>
+        <label>Tipo de aeronave<input value={selectedAircraft?.aircraftType ?? ""} placeholder="Se completa con el aircraft" readOnly/></label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend><span>02</span> Programación UTC</legend>
+      <div className="pilot-booking-grid">
+        <label>Salida programada (UTC)<input type="datetime-local" value={departureAt} min={utcInput(new Date(Date.now() + 5 * 60_000))} onChange={(event) => setDepartureAt(event.target.value)} required/></label>
+        <label>Llegada estimada (UTC)<input value={arrivalAt ? utcDisplay(arrivalAt) : "Se calcula con Route API"} readOnly/></label>
+        <div className="booking-time-note span-2">La duración y la llegada se calculan automáticamente con la ruta oficial de vAMSYS.</div>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend><span>03</span> Operación y carga</legend>
+      <div className="pilot-booking-grid">
+        <label key={`callsign-${routeId}`}>Callsign<input name="callsign" defaultValue={route?.callsign ?? ""} maxLength={7}/></label>
+        <label>Red<select name="network" defaultValue="vatsim"><option value="vatsim">VATSIM</option><option value="ivao">IVAO</option><option value="poscon">POSCON</option><option value="offline">Offline</option><option value="other">Other</option></select></label>
+        <label key={`altitude-${routeId}`}>Altitud<input name="altitude" type="number" min="10" max="70000" defaultValue={route?.altitude ?? undefined} placeholder="Ej. 35000"/></label>
+        <label>Pasajeros<input name="passengers" type="number" min="0" placeholder="Opcional"/></label>
+        <label>Carga (kg)<input name="cargoKg" type="number" min="0" placeholder="Opcional"/></label>
+        <label className="span-3" key={`user-route-${routeId}`}>Ruta operacional<textarea name="userRoute" defaultValue={route?.userRoute ?? ""} placeholder="Ruta ATC opcional"/></label>
+      </div>
+    </fieldset>
+    <div className="pilot-booking-submit"><div><strong>Listo para reservar</strong><span>El booking aparecerá inmediatamente en vAMSYS.</span></div><button className="button" type="submit" disabled={!routeId || !fleetId || !aircraftId || !departureAt}>Crear Booking en vAMSYS</button></div>
   </form>;
 }
