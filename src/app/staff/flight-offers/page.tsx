@@ -9,7 +9,7 @@ import { formatCurrency, formatDate, formatNumber } from "@/lib/i18n/core";
 
 export const dynamic = "force-dynamic";
 
-export default async function FlightOffersStaffPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
+export default async function FlightOffersStaffPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string; type?: string; aircraftId?: string; departure?: string; aircraftRegistration?: string; aircraftType?: string }> }) {
   const { t, locale } = await getTranslations();
   const when = (value: Date | null) => value ? formatDate(value, locale, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) + " UTC" : "—";
   const reward = (cents: number, type: string) => type === "FIXED" ? formatCurrency(cents, locale) : `${formatNumber(cents / 100, locale)} %`;
@@ -36,7 +36,7 @@ export default async function FlightOffersStaffPage({ searchParams }: { searchPa
 
     <section className="card">
       <div className="card-header"><h2 className="card-title">Nueva oferta</h2><span className="meta">Se guarda como DRAFT</span></div>
-      <FlightOfferForm {...options} />
+      <FlightOfferForm {...options} initialValues={{ offerType: messages.type ?? null, vamsysAircraftId: messages.aircraftId ?? "", departureIcao: messages.departure ?? "", aircraftRegistration: messages.aircraftRegistration ?? "", aircraftType: messages.aircraftType ?? "" }} />
     </section>
 
     <section className="card ranking-card">

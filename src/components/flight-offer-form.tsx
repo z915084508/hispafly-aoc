@@ -9,22 +9,23 @@ interface AirportOption { icao: string; iata: string | null; name: string | null
 interface FleetOption { id: string; name: string | null; code: string | null; passengers: number | null; cargoKg: number | null }
 interface AircraftOption { vamsysAircraftId: string; registration: string | null; aircraftType: string | null; fleetId: string | null; status: string | null }
 
-export function FlightOfferForm({ airports, routes, fleets, aircraft }: {
+export function FlightOfferForm({ airports, routes, fleets, aircraft, initialValues }: {
   airports: AirportOption[];
   routes: FlightOfferRouteOption[];
   fleets: FleetOption[];
   aircraft: AircraftOption[];
+  initialValues?: { offerType: string | null; vamsysAircraftId: string; departureIcao: string; aircraftRegistration: string; aircraftType: string };
 }) {
   const { t } = useTranslations();
-  const [departure, setDeparture] = useState("");
+  const [departure, setDeparture] = useState(initialValues?.departureIcao ?? "");
   const [arrival, setArrival] = useState("");
   const [routeId, setRouteId] = useState("");
   const [fleetId, setFleetId] = useState("");
-  const [aircraftId, setAircraftId] = useState("");
+  const [aircraftId, setAircraftId] = useState(initialValues?.vamsysAircraftId ?? "");
   const [flightNumber, setFlightNumber] = useState("");
   const [callsign, setCallsign] = useState("");
-  const [aircraftType, setAircraftType] = useState("");
-  const [registration, setRegistration] = useState("");
+  const [aircraftType, setAircraftType] = useState(initialValues?.aircraftType ?? "");
+  const [registration, setRegistration] = useState(initialValues?.aircraftRegistration ?? "");
   const [passengers, setPassengers] = useState("");
   const [cargoKg, setCargoKg] = useState("");
   const [altitude, setAltitude] = useState("");
@@ -83,6 +84,7 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft }: {
   }
 
   return <form className="offer-form" action={createFlightOfferAction}>
+    <input type="hidden" name="offerType" value={initialValues?.offerType ?? ""} />
     <label className="wide">Título<input name="title" required placeholder="LEMD-LEBL · A320 evening service" /></label>
     <label>Flight number<input name="flightNumber" value={flightNumber} onChange={(event) => setFlightNumber(event.target.value)} placeholder="HF123" /></label>
     <label>Callsign<input name="callsign" value={callsign} onChange={(event) => setCallsign(event.target.value)} placeholder="HPF123" /></label>

@@ -107,7 +107,7 @@ export async function getAircraftLocationSummary() {
 }
 
 export function getAircraftLocationList() {
-  return prisma.aircraftLocationSnapshot.findMany({ orderBy: [{ status: "asc" }, { registration: "asc" }, { vamsysAircraftId: "asc" }], select: { id: true, vamsysAircraftId: true, registration: true, aircraftType: true, currentAirportIcao: true, currentAirportIata: true, status: true, source: true, lastReportAt: true, updatedAt: true } });
+  return prisma.aircraftLocationSnapshot.findMany({ orderBy: [{ status: "asc" }, { registration: "asc" }, { vamsysAircraftId: "asc" }], select: { id: true, vamsysAircraftId: true, registration: true, aircraftType: true, currentAirportIcao: true, currentAirportIata: true, status: true, source: true, lastBookingId: true, lastVamsysPirepId: true, lastLatitude: true, lastLongitude: true, lastReportAt: true, updatedAt: true } });
 }
 
 export async function getRepositionCandidates() {

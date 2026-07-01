@@ -252,5 +252,62 @@
                                                  "VAMSYS_EXTERNAL":  "External PIREP",
                                                  "IMPORTED":  "Imported"
                                              }
-                         }
+                         },
+    "fleet":  {
+                  "map":  {
+                              "title":  "Aircraft location map",
+                              "empty":  "No aircraft with coordinates available.",
+                              "noCoordinates":  "No coordinates",
+                              "aircraftAtAirport":  "{count} aircraft at {airport}",
+                              "createRepositionOffer":  "Create reposition offer",
+                              "viewDetails":  "View details",
+                              "staleLocation":  "Stale location",
+                              "externalMovement":  "External vAMSYS movement",
+                              "repositionUnavailable":  "Only available aircraft with a known airport can be repositioned."
+                          },
+                  "kpi":  {
+                              "totalAircraft":  "Total aircraft",
+                              "available":  "Available",
+                              "reserved":  "Reserved",
+                              "inFlight":  "In flight",
+                              "maintenance":  "Maintenance",
+                              "unknown":  "Unknown",
+                              "airportsWithAircraft":  "Airports with aircraft",
+                              "externalMovedAircraft":  "External moved aircraft",
+                              "noCoordinates":  "No coordinates"
+                          },
+                  "filters":  {
+                                  "title":  "Filters",
+                                  "status":  "Status",
+                                  "aircraftType":  "Aircraft type",
+                                  "airport":  "Current airport",
+                                  "source":  "Source",
+                                  "onlyAvailable":  "Only available",
+                                  "onlyExternalMoved":  "Only external moved",
+                                  "onlyNoCoordinates":  "Only no coordinates",
+                                  "onlyStale":  "Only stale"
+                              },
+                  "status":  {
+                                 "available":  "Available",
+                                 "reserved":  "Reserved",
+                                 "inFlight":  "In flight",
+                                 "maintenance":  "Maintenance",
+                                 "unknown":  "Unknown"
+                             },
+                  "source":  {
+                                 "manual":  "Manual",
+                                 "pirep":  "PIREP",
+                                 "dispatch":  "Dispatch",
+                                 "acars":  "ACARS",
+                                 "vamsysExternal":  "External vAMSYS",
+                                 "imported":  "Imported"
+                             },
+                  "table":  {
+                                "lastBooking":  "Last booking",
+                                "lastPirep":  "Last vAMSYS PIREP",
+                                "updatedAt":  "Updated",
+                                "coordinates":  "Coordinates",
+                                "coordinatesOk":  "OK"
+                            }
+              }
 }

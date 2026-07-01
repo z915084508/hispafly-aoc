@@ -252,5 +252,62 @@
                                                  "VAMSYS_EXTERNAL":  "PIREP externo",
                                                  "IMPORTED":  "Importada"
                                              }
-                         }
+                         },
+    "fleet":  {
+                  "map":  {
+                              "title":  "Mapa de ubicación de aeronaves",
+                              "empty":  "No hay aeronaves con coordenadas disponibles.",
+                              "noCoordinates":  "Sin coordenadas",
+                              "aircraftAtAirport":  "{count} aeronaves en {airport}",
+                              "createRepositionOffer":  "Crear oferta de reposicionamiento",
+                              "viewDetails":  "Ver detalles",
+                              "staleLocation":  "Ubicación desactualizada",
+                              "externalMovement":  "Movimiento externo vAMSYS",
+                              "repositionUnavailable":  "Solo las aeronaves disponibles con aeropuerto conocido pueden reposicionarse."
+                          },
+                  "kpi":  {
+                              "totalAircraft":  "Total aeronaves",
+                              "available":  "Disponibles",
+                              "reserved":  "Reservadas",
+                              "inFlight":  "En vuelo",
+                              "maintenance":  "Mantenimiento",
+                              "unknown":  "Desconocidas",
+                              "airportsWithAircraft":  "Aeropuertos con aeronaves",
+                              "externalMovedAircraft":  "Movidas externamente",
+                              "noCoordinates":  "Sin coordenadas"
+                          },
+                  "filters":  {
+                                  "title":  "Filtros",
+                                  "status":  "Estado",
+                                  "aircraftType":  "Tipo de aeronave",
+                                  "airport":  "Aeropuerto actual",
+                                  "source":  "Fuente",
+                                  "onlyAvailable":  "Solo disponibles",
+                                  "onlyExternalMoved":  "Solo movimientos externos",
+                                  "onlyNoCoordinates":  "Solo sin coordenadas",
+                                  "onlyStale":  "Solo ubicaciones desactualizadas"
+                              },
+                  "status":  {
+                                 "available":  "Disponible",
+                                 "reserved":  "Reservada",
+                                 "inFlight":  "En vuelo",
+                                 "maintenance":  "Mantenimiento",
+                                 "unknown":  "Desconocida"
+                             },
+                  "source":  {
+                                 "manual":  "Manual",
+                                 "pirep":  "PIREP",
+                                 "dispatch":  "Dispatch",
+                                 "acars":  "ACARS",
+                                 "vamsysExternal":  "vAMSYS externo",
+                                 "imported":  "Importada"
+                             },
+                  "table":  {
+                                "lastBooking":  "Último booking",
+                                "lastPirep":  "Último PIREP vAMSYS",
+                                "updatedAt":  "Actualizado",
+                                "coordinates":  "Coordenadas",
+                                "coordinatesOk":  "OK"
+                            }
+              }
 }
