@@ -3,6 +3,7 @@ import { PageHeading } from "@/components/page-heading";
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { prisma } from "@/lib/prisma";
+import { expireOverdueFlightDispatches } from "@/lib/flightOffers/service";
 import { cancelFlightDispatchAction, dispatchFlightOfferAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ function tokenScopes(accessToken: string | undefined) {
 
 export default async function PilotFlightOffersPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
   const pilot = await requirePilotSession();
+  await expireOverdueFlightDispatches(10, pilot.id);
   const [messages, offers, dispatches, oauth] = await Promise.all([
     searchParams,
     prisma.flightOffer.findMany({ where: { status: "PUBLISHED", validUntil: { gt: new Date() }, dispatches: { none: { status: { in: ["DISPATCHING", "DISPATCHED"] } } } }, orderBy: { scheduledDeparture: "asc" } }),
@@ -60,18 +62,18 @@ export default async function PilotFlightOffersPage({ searchParams }: { searchPa
 
     <section className="card ranking-card">
       <div className="card-header"><h2 className="card-title">Mis dispatches</h2><span className="meta">Booking, PIREP y recompensa</span></div>
-      {dispatches.length ? <DataTable headers={["Oferta", "Ruta", "Estado", "Booking ID", "PIREP", "Recompensa / penalización", "Error", "Fecha", "Acción"]} rows={dispatches.map((dispatch) => [
+      {dispatches.length ? <DataTable headers={["Oferta", "Ruta", "Estado", "Booking ID", "PIREP", "Recompensa / penalización", "Fecha", "Válida hasta", "Acción"]} rows={dispatches.map((dispatch) => [
         dispatch.flightOffer.title,
         `${dispatch.flightOffer.departureIcao}–${dispatch.flightOffer.arrivalIcao}`,
         <Badge key="status" tone={dispatch.status === "REWARDED" || dispatch.status === "FLOWN" ? "green" : dispatch.status === "FAILED" ? "red" : "amber"}>{dispatch.status}</Badge>,
         dispatch.vamsysBookingId ?? "—",
         dispatch.matchedPirep?.flightNumber ?? dispatch.vamsysPirepId ?? "—",
         dispatch.rewardWalletTransaction ? new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(dispatch.rewardWalletTransaction.amountCents / 100) : reward(dispatch.flightOffer.rewardCents, dispatch.flightOffer.rewardType),
-        dispatch.errorMessage ?? "—",
         when(dispatch.dispatchedAt ?? dispatch.createdAt),
+        when(dispatch.flightOffer.validUntil),
         dispatch.status === "DISPATCHED" && dispatch.flightOffer.validUntil > new Date()
           ? <form action={cancelFlightDispatchAction} key="cancel"><input type="hidden" name="dispatchId" value={dispatch.id}/><button className="action-button reject" type="submit">Cancelar (-50 €)</button></form>
-          : "—",
+          : dispatch.status === "EXPIRED" ? "Expirada (-100 €)" : dispatch.status === "CANCELLED" ? "Cancelada" : "—",
       ])} /> : <div className="empty-state">Todavía no has realizado ningún dispatch.</div>}
     </section>
   </PilotPortalShell>;

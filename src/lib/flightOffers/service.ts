@@ -163,9 +163,9 @@ export async function cancelFlightDispatchByPilot(dispatchId: string, pilotId: s
   return cancelled;
 }
 
-export async function expireOverdueFlightDispatches(limit = 10) {
+export async function expireOverdueFlightDispatches(limit = 10, pilotId?: string) {
   const overdue = await prisma.flightDispatch.findMany({
-    where: { status: "DISPATCHED", matchedPirepId: null, flightOffer: { validUntil: { lte: new Date() } } },
+    where: { status: "DISPATCHED", matchedPirepId: null, ...(pilotId ? { pilotId } : {}), flightOffer: { validUntil: { lte: new Date() } } },
     include: { flightOffer: true },
     orderBy: { flightOffer: { validUntil: "asc" } },
     take: Math.max(1, Math.min(limit, 50)),
