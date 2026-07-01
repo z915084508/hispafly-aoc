@@ -16,13 +16,13 @@ export interface CalendarFlightOffer {
   rewardLabel: string;
 }
 
-const dayKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-const localInput = (date: Date) => `${dayKey(date)}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-const formatDateTime = (date: Date) => new Intl.DateTimeFormat("es-ES", { dateStyle: "medium", timeStyle: "short" }).format(date);
+const dayKey = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+const utcInput = (date: Date) => `${dayKey(date)}T${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
+const formatDateTime = (date: Date) => new Intl.DateTimeFormat("es-ES", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(date) + " UTC";
 
 function dayBounds(key: string) {
-  const start = new Date(`${key}T00:00:00`);
-  const end = new Date(start); end.setHours(23, 59, 59, 999);
+  const start = new Date(`${key}T00:00:00Z`);
+  const end = new Date(start); end.setUTCHours(23, 59, 59, 999);
   return { start, end };
 }
 
@@ -37,8 +37,8 @@ function initialDeparture(offer: CalendarFlightOffer, key: string) {
   const { start } = dayBounds(key);
   const now = new Date();
   let selected = new Date(Math.max(start.getTime() + 9 * 60 * 60_000, new Date(offer.availableFrom).getTime(), now.getTime() + 10 * 60_000));
-  selected.setMinutes(Math.ceil(selected.getMinutes() / 15) * 15, 0, 0);
-  return localInput(selected);
+  selected.setUTCMinutes(Math.ceil(selected.getUTCMinutes() / 15) * 15, 0, 0);
+  return utcInput(selected);
 }
 
 export function PilotFlightOfferCalendar({ offers, connected }: { offers: CalendarFlightOffer[]; connected: boolean }) {
@@ -91,18 +91,18 @@ export function PilotFlightOfferCalendar({ offers, connected }: { offers: Calend
       <h3>{new Intl.DateTimeFormat("es-ES", { dateStyle: "full" }).format(new Date(`${selectedDay}T12:00:00`))}</h3>
       {selectedOffers.length ? selectedOffers.map((offer) => {
         const departure = departureFor(offer);
-        const arrival = departure ? new Date(new Date(departure).getTime() + offer.durationMinutes * 60_000) : null;
+        const arrival = departure ? new Date(new Date(`${departure}:00Z`).getTime() + offer.durationMinutes * 60_000) : null;
         const latestDeparture = new Date(new Date(offer.validUntil).getTime() - offer.durationMinutes * 60_000);
         return <article className="offer-calendar-card" key={offer.id}>
           <div><span className="offer-calendar-flight">{offer.flightNumber ?? offer.title}</span><strong>{offer.departureIcao} → {offer.arrivalIcao}</strong><small>{offer.aircraftLabel} · {offer.durationMinutes} min · {offer.rewardLabel}</small></div>
           <form action={dispatchFlightOfferAction}>
             <input type="hidden" name="offerId" value={offer.id}/>
-            <input type="hidden" name="selectedDepartureAt" value={departure ? new Date(departure).toISOString() : ""}/>
-            <label>Salida elegida<input
+            <input type="hidden" name="selectedDepartureAt" value={departure ? new Date(`${departure}:00Z`).toISOString() : ""}/>
+            <label>Salida elegida (UTC)<input
               type="datetime-local"
               value={departure}
-              min={localInput(new Date(Math.max(new Date(offer.availableFrom).getTime(), Date.now())))}
-              max={localInput(latestDeparture)}
+              min={utcInput(new Date(Math.max(new Date(offer.availableFrom).getTime(), Date.now())))}
+              max={utcInput(latestDeparture)}
               onChange={(event) => setDepartures((current) => ({ ...current, [offer.id]: event.target.value }))}
               required
             /></label>

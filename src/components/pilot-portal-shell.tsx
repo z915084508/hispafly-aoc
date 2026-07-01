@@ -6,6 +6,7 @@ const flightNavItems = [
   ["Panel Control", "/pilot/dashboard"],
   ["PIREPs", "/pilot/pireps"],
   ["Ofertas de vuelo", "/pilot/flight-offers"],
+  ["Reservar vuelo", "/pilot/bookings"],
   ["Roster Piloto", "/pilot/roster"],
 ] as const;
 

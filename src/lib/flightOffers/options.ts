@@ -65,6 +65,19 @@ export interface FlightOfferRouteOption {
   durationMinutes: number | null;
 }
 
+export async function getOperationsRouteDetails(routeId: string) {
+  if (!/^\d+$/.test(routeId)) throw new Error("El route_id debe ser numérico.");
+  const payload = await operationsRequest(`/routes/${encodeURIComponent(routeId)}?weight_unit=kg`);
+  const root = rec(payload);
+  const data = rec(root?.data) ?? root;
+  const attributes = nested(data, "attributes");
+  const detail = attributes ? { ...data, ...attributes } : data;
+  return {
+    fleetIds: Array.isArray(detail?.fleet_ids) ? detail.fleet_ids.filter((id) => typeof id === "string" || typeof id === "number").map(String) : [],
+    durationMinutes: durationMinutes(detail, "flight_length", "flightLength", "duration_minutes", "durationMinutes"),
+  };
+}
+
 export async function getFlightOfferOptions() {
   const [airports, fleets, aircraft, storedRoutes, pireps, liveRoutes] = await Promise.all([
     prisma.airport.findMany({ select: { icao: true, iata: true, name: true, rawData: true }, orderBy: { icao: "asc" } }),

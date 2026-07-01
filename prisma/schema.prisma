@@ -74,6 +74,13 @@ enum FlightOfferRewardType {
   PERCENTAGE
 }
 
+enum PilotBookingStatus {
+  BOOKED
+  FLOWN
+  CANCELLED
+  FAILED
+}
+
 model StaffUser {
   id        String        @id @default(cuid())
   name      String        @map("displayName")
@@ -115,6 +122,7 @@ model Pilot {
   operationsRawData    Json?
   notes                PilotNote[]
   flightDispatches     FlightDispatch[]
+  pilotBookings        PilotBooking[]
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
@@ -313,6 +321,7 @@ model Pirep {
   payrollRecord         PayrollRecord?
   companyExpenses       CompanyExpense[]
   flightDispatch        FlightDispatch?
+  pilotBooking          PilotBooking?
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
@@ -460,6 +469,40 @@ model FlightDispatch {
 
   @@index([pilotId, status])
   @@index([flightOfferId, status])
+}
+
+model PilotBooking {
+  id                       String             @id @default(cuid())
+  pilotId                  String
+  pilot                    Pilot              @relation(fields: [pilotId], references: [id], onDelete: Restrict)
+  vamsysBookingId          String             @unique
+  vamsysRouteId            String
+  vamsysAircraftId         String
+  vamsysFleetId            String?
+  departureIcao            String
+  arrivalIcao              String
+  flightNumber             String?
+  callsign                  String?
+  aircraftType             String?
+  aircraftRegistration     String?
+  selectedDepartureAt      DateTime
+  estimatedArrivalAt       DateTime?
+  estimatedDurationMinutes Int?
+  network                   String?
+  altitude                  Int?
+  passengers                Int?
+  cargoKg                   Int?
+  userRoute                 String?
+  status                    PilotBookingStatus @default(BOOKED)
+  matchedPirepId            String?            @unique
+  matchedPirep              Pirep?              @relation(fields: [matchedPirepId], references: [id], onDelete: Restrict)
+  cancelledAt               DateTime?
+  errorMessage              String?
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+
+  @@index([pilotId, status])
+  @@index([selectedDepartureAt])
 }
 
 model PayrollRule {

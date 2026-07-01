@@ -95,10 +95,10 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft }: {
     <label>vAMSYS aircraft_id<input name="vamsysAircraftId" value={aircraftId} onChange={(event) => selectAircraft(event.target.value)} required inputMode="numeric" /></label>
     <label>Tipo aeronave<input name="aircraftType" value={aircraftType} onChange={(event) => setAircraftType(event.target.value.toUpperCase())} placeholder="A320" /></label>
     <label>Matrícula<input name="aircraftRegistration" value={registration} onChange={(event) => setRegistration(event.target.value.toUpperCase())} /></label>
-    <input name="availableFrom" type="hidden" value={availableFrom ? new Date(availableFrom).toISOString() : ""} />
-    <input name="validUntil" type="hidden" value={validUntil ? new Date(validUntil).toISOString() : ""} />
-    <label>Disponible desde<input type="datetime-local" value={availableFrom} onChange={(event) => setAvailableFrom(event.target.value)} required /></label>
-    <label>Fecha límite<input type="datetime-local" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} required /></label>
+    <input name="availableFrom" type="hidden" value={availableFrom ? new Date(`${availableFrom}:00Z`).toISOString() : ""} />
+    <input name="validUntil" type="hidden" value={validUntil ? new Date(`${validUntil}:00Z`).toISOString() : ""} />
+    <label>Disponible desde (UTC)<input type="datetime-local" value={availableFrom} onChange={(event) => setAvailableFrom(event.target.value)} required /></label>
+    <label>Fecha límite (UTC)<input type="datetime-local" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} required /></label>
     <label>Duración estimada<input value={estimatedDurationMinutes ? `${estimatedDurationMinutes} min` : "Selecciona una ruta"} readOnly /><input name="estimatedDurationMinutes" value={estimatedDurationMinutes} type="hidden" /></label>
     <label>Pasajeros<input name="passengers" value={passengers} onChange={(event) => setPassengers(event.target.value)} type="number" min="0" /></label>
     <label>Carga kg<input name="cargoKg" value={cargoKg} onChange={(event) => setCargoKg(event.target.value)} type="number" min="0" /></label>

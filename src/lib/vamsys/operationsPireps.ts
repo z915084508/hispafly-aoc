@@ -7,6 +7,7 @@ import { payrollRulesFromStoredRule } from "@/lib/payroll/rules";
 import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
 import { completeFlightDispatchFromPirep } from "@/lib/flightOffers/service";
+import { completePilotBookingFromPirep } from "@/lib/pilotBookings/service";
 import { operationsRequest } from "./operations";
 import { nextVamsysCursor, nextVamsysPageUrl } from "./pagination";
 import { isCompletedOperationsPirep, mergeOperationsPirepRecords, operationsPirepStatus } from "./operationsPirepPayload";
@@ -238,6 +239,7 @@ export async function processAcceptedOperationsPirep(pirepSummaryOrId: Row | str
     vamsysPirepId: stored.vamsysPirepId,
     vamsysBookingId: stored.vamsysBookingId,
   });
+  await completePilotBookingFromPirep({ pirepId: stored.id, vamsysBookingId: stored.vamsysBookingId });
   return result;
 }
 

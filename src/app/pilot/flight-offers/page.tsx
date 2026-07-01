@@ -44,8 +44,6 @@ export default async function PilotFlightOffersPage({ searchParams }: { searchPa
     {messages.success && <div className="feedback success">{messages.success}</div>}
     {messages.error && <div className="feedback error">{messages.error}</div>}
     {!connected && <div className="notice">Reconecta vAMSYS para autorizar Self Dispatch (`flights:write`). <a href="/api/vamsys/oauth/start">Autorizar ahora</a></div>}
-    <div className="meta">OAuth scopes activos: {effectiveScopes.length ? effectiveScopes.join(" · ") : "No disponibles"}</div>
-
     <PilotFlightOfferCalendar connected={connected} offers={offers.map((offer) => ({
       id: offer.id,
       title: offer.title,
