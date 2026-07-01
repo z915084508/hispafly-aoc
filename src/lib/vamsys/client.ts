@@ -57,6 +57,10 @@ export function createVamsysBooking(accessToken: string, input: CreateVamsysBook
   return pilotApiRequest("/bookings", accessToken, { method: "POST", body: JSON.stringify(input) });
 }
 
+export function cancelVamsysBooking(accessToken: string, bookingId: string) {
+  return pilotApiRequest(`/bookings/${encodeURIComponent(bookingId)}`, accessToken, { method: "DELETE" });
+}
+
 export function fetchVamsysUser(accessToken: string) {
   return pilotApiRequest("/user", accessToken);
 }

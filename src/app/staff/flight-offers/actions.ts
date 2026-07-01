@@ -118,7 +118,7 @@ export async function reopenFailedFlightOfferAction(formData: FormData) {
     const id = text(formData, "id");
     const staff = await requireStaffPermission("FLIGHT_OFFER_MANAGE", { entityType: "FlightOffer", entityId: id, attemptedAction: "reabrir una oferta fallida" });
     const offer = await prisma.flightOffer.findUnique({ where: { id }, include: { dispatches: true } });
-    const dispatch = offer?.dispatches[0];
+    const dispatch = offer?.dispatches.find((item) => item.status === "FAILED");
     if (!offer || !dispatch || dispatch.status !== "FAILED") throw new Error("Solo se pueden reabrir ofertas con dispatch fallido.");
     await prisma.$transaction([
       prisma.flightDispatch.delete({ where: { id: dispatch.id } }),

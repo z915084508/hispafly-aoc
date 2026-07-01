@@ -436,7 +436,7 @@ model FlightOffer {
 
 model FlightDispatch {
   id                        String               @id @default(cuid())
-  flightOfferId             String               @unique
+  flightOfferId             String
   flightOffer               FlightOffer          @relation(fields: [flightOfferId], references: [id], onDelete: Restrict)
   pilotId                   String
   pilot                     Pilot                @relation(fields: [pilotId], references: [id], onDelete: Restrict)

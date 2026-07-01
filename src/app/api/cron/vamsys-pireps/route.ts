@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { cronUnauthorizedResponse, isCronAuthorized } from "@/lib/cron/auth";
 import { syncAcceptedOperationsPirepsIncremental } from "@/lib/vamsys/operationsPirepsIncremental";
+import { expireOverdueFlightDispatches } from "@/lib/flightOffers/service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(Math.round(requestedLimit), 50)) : 10;
   console.info(`[vAMSYS PIREP cron] request accepted limit=${limit}`);
   return Promise.race([
-    syncAcceptedOperationsPirepsIncremental({ limit, cron: true }).then((result) => {
+    Promise.all([syncAcceptedOperationsPirepsIncremental({ limit, cron: true }), expireOverdueFlightDispatches(Math.min(limit, 10))]).then(([result, offerExpiry]) => {
       const ok = result.errors.length === 0 || result.importedCount + result.updatedCount > 0;
       return Response.json({
         ok,
@@ -37,6 +38,8 @@ export async function GET(request: NextRequest) {
         payrollGenerated: result.payrollGeneratedCount,
         expensesGenerated: result.expensesGeneratedCount,
         walletTransactions: result.walletTransactionsCount,
+        offersExpired: offerExpiry.expired,
+        offerExpiryErrors: offerExpiry.errors,
         errors: result.errors,
       }, { status: ok ? 200 : 500 });
     }),

@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
-import { createVamsysBooking, VamsysApiError, type CreateVamsysBookingInput } from "@/lib/vamsys/client";
+import { cancelVamsysBooking, createVamsysBooking, VamsysApiError, type CreateVamsysBookingInput } from "@/lib/vamsys/client";
 import { getValidVamsysAccessToken } from "@/lib/vamsys/token";
 
 type JsonRow = Record<string, unknown>;
@@ -46,9 +46,9 @@ export async function dispatchFlightOffer(offerId: string, pilotId: string) {
   let dispatch;
   try {
     dispatch = await prisma.$transaction(async (tx) => {
-      const current = await tx.flightOffer.findUnique({ where: { id: offer.id }, select: { status: true } });
-      if (current?.status !== "PUBLISHED") throw new Error("Esta oferta ya ha sido despachada.");
-      const existing = await tx.flightDispatch.findUnique({ where: { flightOfferId: offer.id } });
+      const claimed = await tx.flightOffer.updateMany({ where: { id: offer.id, status: "PUBLISHED" }, data: { status: "DISPATCHED" } });
+      if (claimed.count !== 1) throw new Error("Esta oferta ya ha sido despachada.");
+      const existing = await tx.flightDispatch.findFirst({ where: { flightOfferId: offer.id, status: { in: ["DISPATCHING", "DISPATCHED"] } } });
       if (existing) throw new Error("Esta oferta ya ha sido despachada.");
       return tx.flightDispatch.create({ data: { flightOfferId: offer.id, pilotId, status: "DISPATCHING" } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
@@ -92,7 +92,10 @@ export async function dispatchFlightOffer(offerId: string, pilotId: string) {
     const message = error instanceof VamsysApiError
       ? `vAMSYS respondió ${error.status}: ${error.message}`
       : error instanceof Error ? error.message : "Error desconocido al crear el booking.";
-    await prisma.flightDispatch.update({ where: { id: dispatch.id }, data: { status: "FAILED", errorMessage: message } });
+    await prisma.$transaction([
+      prisma.flightDispatch.update({ where: { id: dispatch.id }, data: { status: "FAILED", errorMessage: message } }),
+      prisma.flightOffer.update({ where: { id: offer.id }, data: { status: offer.validUntil > new Date() ? "PUBLISHED" : "EXPIRED" } }),
+    ]);
     await writeAuditLogSafely({
       action: "VAMSYS_BOOKING_FAILED", entityType: "FlightDispatch", entityId: dispatch.id,
       message: `No se pudo crear el booking de la oferta ${offer.title}: ${message}`,
@@ -100,6 +103,96 @@ export async function dispatchFlightOffer(offerId: string, pilotId: string) {
     });
     throw new Error(message);
   }
+}
+
+const PILOT_CANCEL_PENALTY_CENTS = 5_000;
+const EXPIRED_OFFER_PENALTY_CENTS = 10_000;
+
+async function applyDispatchPenalty(dispatchId: string, amountCents: number, description: string, status: "CANCELLED" | "EXPIRED") {
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.flightDispatch.findUnique({ where: { id: dispatchId }, include: { flightOffer: true } });
+    if (!current) throw new Error("El dispatch no existe.");
+    if (current.status === "CANCELLED" || current.status === "EXPIRED") return current;
+    if (current.status !== "DISPATCHED") throw new Error("Este dispatch ya no se puede cancelar.");
+
+    await tx.walletTransaction.create({
+      data: {
+        pilotId: current.pilotId,
+        flightDispatchId: current.id,
+        type: "penalty",
+        amountCents: -amountCents,
+        description,
+        reference: current.vamsysBookingId,
+      },
+    });
+    await tx.pilot.update({ where: { id: current.pilotId }, data: { walletBalanceCents: { decrement: amountCents } } });
+    const dispatch = await tx.flightDispatch.update({
+      where: { id: current.id },
+      data: { status, cancelledAt: status === "CANCELLED" ? new Date() : current.cancelledAt, completedAt: status === "EXPIRED" ? new Date() : current.completedAt, errorMessage: null },
+    });
+    await tx.flightOffer.update({
+      where: { id: current.flightOfferId },
+      data: { status: status === "CANCELLED" && current.flightOffer.validUntil > new Date() ? "PUBLISHED" : "EXPIRED" },
+    });
+    return dispatch;
+  });
+}
+
+export async function cancelFlightDispatchByPilot(dispatchId: string, pilotId: string) {
+  const dispatch = await prisma.flightDispatch.findFirst({
+    where: { id: dispatchId, pilotId },
+    include: { flightOffer: true },
+  });
+  if (!dispatch) throw new Error("No tienes acceso a este dispatch.");
+  if (dispatch.status !== "DISPATCHED" || !dispatch.vamsysBookingId) throw new Error("Este dispatch ya no se puede cancelar.");
+  if (dispatch.flightOffer.validUntil <= new Date()) throw new Error("La oferta ya ha caducado; se aplicará la penalización por expiración.");
+
+  const accessToken = await getValidVamsysAccessToken(pilotId);
+  try {
+    await cancelVamsysBooking(accessToken, dispatch.vamsysBookingId);
+  } catch (error) {
+    if (!(error instanceof VamsysApiError && error.status === 404)) throw error;
+  }
+
+  const cancelled = await applyDispatchPenalty(dispatch.id, PILOT_CANCEL_PENALTY_CENTS, `Cancelación voluntaria: ${dispatch.flightOffer.title}`, "CANCELLED");
+  await writeAuditLogSafely({
+    action: "FLIGHT_DISPATCH_CANCELLED_BY_PILOT", entityType: "FlightDispatch", entityId: dispatch.id,
+    message: `El piloto canceló ${dispatch.flightOffer.title}; la oferta volvió a publicarse y se descontaron 50 € de su cartera.`,
+    metadata: { pilotId, offerId: dispatch.flightOfferId, bookingId: dispatch.vamsysBookingId, penaltyCents: PILOT_CANCEL_PENALTY_CENTS },
+  });
+  return cancelled;
+}
+
+export async function expireOverdueFlightDispatches(limit = 10) {
+  const overdue = await prisma.flightDispatch.findMany({
+    where: { status: "DISPATCHED", matchedPirepId: null, flightOffer: { validUntil: { lte: new Date() } } },
+    include: { flightOffer: true },
+    orderBy: { flightOffer: { validUntil: "asc" } },
+    take: Math.max(1, Math.min(limit, 50)),
+  });
+  let expired = 0; const errors: string[] = [];
+  for (const dispatch of overdue) {
+    try {
+      if (dispatch.vamsysBookingId) {
+        try {
+          const accessToken = await getValidVamsysAccessToken(dispatch.pilotId);
+          await cancelVamsysBooking(accessToken, dispatch.vamsysBookingId);
+        } catch (error) {
+          if (!(error instanceof VamsysApiError && error.status === 404)) console.warn(`[Flight offer expiry] booking cancellation failed dispatch=${dispatch.id}`, error);
+        }
+      }
+      await applyDispatchPenalty(dispatch.id, EXPIRED_OFFER_PENALTY_CENTS, `Oferta expirada sin volar: ${dispatch.flightOffer.title}`, "EXPIRED");
+      await writeAuditLogSafely({
+        action: "FLIGHT_DISPATCH_EXPIRED", entityType: "FlightDispatch", entityId: dispatch.id,
+        message: `${dispatch.flightOffer.title} expiró sin PIREP aceptado; se descontaron 100 € de la cartera del piloto.`,
+        metadata: { pilotId: dispatch.pilotId, offerId: dispatch.flightOfferId, bookingId: dispatch.vamsysBookingId, penaltyCents: EXPIRED_OFFER_PENALTY_CENTS },
+      });
+      expired++;
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : "Error desconocido al expirar dispatch.");
+    }
+  }
+  return { expired, errors };
 }
 
 export async function completeFlightDispatchFromPirep(input: {
