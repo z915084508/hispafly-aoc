@@ -41,10 +41,11 @@ export default async function FlightOffersStaffPage({ searchParams }: { searchPa
 
     <section className="card ranking-card">
       <div className="card-header"><h2 className="card-title">Ofertas</h2><span className="meta">{offers.length} registros</span></div>
-      {offers.length ? <DataTable headers={["Oferta", "Ruta", "Salida", "Aeronave", "Recompensa", "Estado", "Acciones"]} rows={offers.map((offer) => [
+      {offers.length ? <DataTable headers={["Oferta", "Ruta", "Periodo disponible", "Duración", "Aeronave", "Recompensa", "Estado", "Acciones"]} rows={offers.map((offer) => [
         offer.title,
         `${offer.departureIcao}–${offer.arrivalIcao}`,
-        when(offer.scheduledDeparture),
+        `${when(offer.availableFrom)} — ${when(offer.validUntil)}`,
+        `${offer.estimatedDurationMinutes} min`,
         offer.aircraftRegistration ?? offer.aircraftType ?? offer.vamsysAircraftId,
         reward(offer.rewardCents, offer.rewardType),
         <Badge key="status" tone={offer.status === "PUBLISHED" ? "green" : offer.status === "CANCELLED" || offer.status === "EXPIRED" ? "red" : "amber"}>{offer.status}</Badge>,
@@ -57,11 +58,12 @@ export default async function FlightOffersStaffPage({ searchParams }: { searchPa
 
     <section className="card ranking-card">
       <div className="card-header"><h2 className="card-title">Dispatch records</h2><span className="meta">Booking y PIREP matching</span></div>
-      {dispatches.length ? <DataTable headers={["Oferta", "Piloto", "Estado", "Booking ID", "PIREP", "Error", "Dispatch", "Acción"]} rows={dispatches.map(({ offer, dispatch }) => [
+      {dispatches.length ? <DataTable headers={["Oferta", "Piloto", "Estado", "Booking ID", "PIREP", "Error", "Salida elegida", "Llegada estimada", "Acción"]} rows={dispatches.map(({ offer, dispatch }) => [
         offer.title, dispatch.pilot.displayName, dispatch.status, dispatch.vamsysBookingId ?? "—",
         dispatch.matchedPirep?.flightNumber ?? dispatch.vamsysPirepId ?? "—",
         dispatch.errorMessage ?? "—",
-        when(dispatch.dispatchedAt),
+        when(dispatch.selectedDepartureAt ?? dispatch.dispatchedAt),
+        when(dispatch.estimatedArrivalAt),
         dispatch.status === "FAILED" ? <form action={reopenFailedFlightOfferAction} key="reopen"><input type="hidden" name="id" value={offer.id}/><button className="action-button approve" type="submit">Reabrir</button></form> : when(dispatch.rewardedAt),
       ])} /> : <div className="empty-state">Todavía no hay vuelos despachados.</div>}
     </section>

@@ -25,7 +25,7 @@ function numericId(value: string, label: string): number {
   return parsed;
 }
 
-export async function dispatchFlightOffer(offerId: string, pilotId: string) {
+export async function dispatchFlightOffer(offerId: string, pilotId: string, selectedDepartureAt: Date) {
   const offer = await prisma.flightOffer.findUnique({ where: { id: offerId } });
   if (!offer) throw new Error("La oferta de vuelo no existe.");
   if (offer.status !== "PUBLISHED") throw new Error("Esta oferta ya no está publicada.");
@@ -33,6 +33,11 @@ export async function dispatchFlightOffer(offerId: string, pilotId: string) {
     await prisma.flightOffer.update({ where: { id: offer.id }, data: { status: "EXPIRED" } });
     throw new Error("Esta oferta ha caducado.");
   }
+  if (Number.isNaN(selectedDepartureAt.getTime())) throw new Error("Selecciona una fecha y hora de salida válidas.");
+  if (selectedDepartureAt < offer.availableFrom) throw new Error("La salida seleccionada es anterior al inicio de la tarea.");
+  if (selectedDepartureAt.getTime() < Date.now() - 2 * 60_000) throw new Error("La salida seleccionada ya ha pasado.");
+  const estimatedArrivalAt = new Date(selectedDepartureAt.getTime() + offer.estimatedDurationMinutes * 60_000);
+  if (estimatedArrivalAt > offer.validUntil) throw new Error("El vuelo terminaría después de la fecha límite de la tarea.");
 
   const oauth = await prisma.vamsysOAuthToken.findUnique({ where: { pilotId }, select: { scopes: true, revokedAt: true } });
   const grantedScopes = new Set(oauth?.scopes.split(/\s+/).filter(Boolean) ?? []);
@@ -50,7 +55,7 @@ export async function dispatchFlightOffer(offerId: string, pilotId: string) {
       if (claimed.count !== 1) throw new Error("Esta oferta ya ha sido despachada.");
       const existing = await tx.flightDispatch.findFirst({ where: { flightOfferId: offer.id, status: { in: ["DISPATCHING", "DISPATCHED"] } } });
       if (existing) throw new Error("Esta oferta ya ha sido despachada.");
-      return tx.flightDispatch.create({ data: { flightOfferId: offer.id, pilotId, status: "DISPATCHING" } });
+      return tx.flightDispatch.create({ data: { flightOfferId: offer.id, pilotId, status: "DISPATCHING", selectedDepartureAt, estimatedArrivalAt } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new Error("Esta oferta ya ha sido despachada.");
@@ -60,7 +65,7 @@ export async function dispatchFlightOffer(offerId: string, pilotId: string) {
   const body: CreateVamsysBookingInput = {
     route_id: numericId(offer.vamsysRouteId, "route_id"),
     aircraft_id: numericId(offer.vamsysAircraftId, "aircraft_id"),
-    departure_time: offer.scheduledDeparture.toISOString(),
+    departure_time: selectedDepartureAt.toISOString(),
     ...(offer.network ? { network: offer.network } : {}),
     ...(offer.callsign ? { callsign: offer.callsign } : {}),
     ...(offer.flightNumber ? { flight_number: offer.flightNumber } : {}),
@@ -85,7 +90,7 @@ export async function dispatchFlightOffer(offerId: string, pilotId: string) {
     await writeAuditLogSafely({
       action: "VAMSYS_BOOKING_CREATED", entityType: "FlightDispatch", entityId: dispatch.id,
       message: `Booking ${vamsysBookingId} creado desde la oferta ${offer.title}.`,
-      metadata: { pilotId, offerId: offer.id, vamsysBookingId },
+      metadata: { pilotId, offerId: offer.id, vamsysBookingId, selectedDepartureAt: selectedDepartureAt.toISOString(), estimatedArrivalAt: estimatedArrivalAt.toISOString() },
     });
     return completed;
   } catch (error) {
@@ -203,11 +208,15 @@ export async function completeFlightDispatchFromPirep(input: {
   if (!input.vamsysBookingId) return { matched: false, rewarded: false };
   const dispatch = await prisma.flightDispatch.findUnique({
     where: { vamsysBookingId: input.vamsysBookingId },
-    include: { flightOffer: true },
+    include: { flightOffer: true, rewardWalletTransaction: true },
   });
   if (!dispatch) return { matched: false, rewarded: false };
 
-  const completedAt = dispatch.completedAt ?? new Date();
+  const pirep = await prisma.pirep.findUnique({ where: { id: input.pirepId }, select: { flownAt: true, acceptedAt: true, blockTimeMinutes: true } });
+  const completedAt = pirep?.flownAt
+    ? new Date(pirep.flownAt.getTime() + (pirep.blockTimeMinutes ?? 0) * 60_000)
+    : pirep?.acceptedAt ?? dispatch.completedAt ?? new Date();
+  const completedWithinWindow = completedAt >= dispatch.flightOffer.availableFrom && completedAt <= dispatch.flightOffer.validUntil;
   await prisma.flightDispatch.update({
     where: { id: dispatch.id },
     data: {
@@ -215,7 +224,7 @@ export async function completeFlightDispatchFromPirep(input: {
       vamsysPirepId: input.vamsysPirepId,
       matchedPirepId: input.pirepId,
       completedAt,
-      errorMessage: null,
+      errorMessage: completedWithinWindow ? null : "Vuelo completado fuera del plazo de la oferta; recompensa no aplicable.",
     },
   });
   await prisma.flightOffer.update({ where: { id: dispatch.flightOfferId }, data: { status: "FLOWN" } });
@@ -227,6 +236,7 @@ export async function completeFlightDispatchFromPirep(input: {
     });
   }
 
+  if (!completedWithinWindow || dispatch.rewardWalletTransaction?.type === "penalty") return { matched: true, rewarded: false };
   if (dispatch.rewardedAt || dispatch.flightOffer.rewardCents <= 0) return { matched: true, rewarded: Boolean(dispatch.rewardedAt) };
   const payroll = await prisma.payrollRecord.findUnique({ where: { pirepId: input.pirepId }, select: { amountCents: true } });
   const rewardCents = dispatch.flightOffer.rewardType === "FIXED"

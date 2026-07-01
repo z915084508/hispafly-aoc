@@ -8,8 +8,9 @@ import { cancelFlightDispatchByPilot, dispatchFlightOffer } from "@/lib/flightOf
 export async function dispatchFlightOfferAction(formData: FormData) {
   const pilot = await requirePilotSession();
   const offerId = String(formData.get("offerId") ?? "");
+  const selectedDepartureAt = new Date(String(formData.get("selectedDepartureAt") ?? ""));
   try {
-    await dispatchFlightOffer(offerId, pilot.id);
+    await dispatchFlightOffer(offerId, pilot.id, selectedDepartureAt);
     revalidatePath("/pilot/flight-offers"); revalidatePath("/staff/flight-offers");
   } catch (error) {
     redirect("/pilot/flight-offers?error=" + encodeURIComponent(error instanceof Error ? error.message : "No se pudo realizar el dispatch."));

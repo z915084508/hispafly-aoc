@@ -30,6 +30,9 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft }: {
   const [routeFleetIds, setRouteFleetIds] = useState<string[] | null>(null);
   const [routeFleetLoading, setRouteFleetLoading] = useState(false);
   const [routeFleetError, setRouteFleetError] = useState<string | null>(null);
+  const [estimatedDurationMinutes, setEstimatedDurationMinutes] = useState("");
+  const [availableFrom, setAvailableFrom] = useState("");
+  const [validUntil, setValidUntil] = useState("");
 
   const filteredRoutes = useMemo(() => routes.filter((route) => (!departure || route.departure === departure.toUpperCase()) && (!arrival || route.arrival === arrival.toUpperCase())), [routes, departure, arrival]);
   const filteredFleets = routeId
@@ -44,6 +47,7 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft }: {
     const allowed = result.fleetIds.length ? result.fleetIds : fallbackIds;
     setRouteFleetIds(allowed);
     setRouteFleetError(result.error);
+    if (result.durationMinutes) setEstimatedDurationMinutes(String(result.durationMinutes));
     setRouteFleetLoading(false);
     if (fleetId && !allowed.includes(fleetId)) selectFleet("");
   }
@@ -56,6 +60,7 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft }: {
     setDeparture(route.departure); setArrival(route.arrival);
     setFlightNumber(route.flightNumber ?? ""); setCallsign(route.callsign ?? "");
     setAltitude(route.altitude?.toString() ?? ""); setUserRoute(route.userRoute ?? "");
+    setEstimatedDurationMinutes(route.durationMinutes?.toString() ?? "");
     void loadRouteFleets(value, route.fleetIds);
   }
 
@@ -90,9 +95,11 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft }: {
     <label>vAMSYS aircraft_id<input name="vamsysAircraftId" value={aircraftId} onChange={(event) => selectAircraft(event.target.value)} required inputMode="numeric" /></label>
     <label>Tipo aeronave<input name="aircraftType" value={aircraftType} onChange={(event) => setAircraftType(event.target.value.toUpperCase())} placeholder="A320" /></label>
     <label>Matrícula<input name="aircraftRegistration" value={registration} onChange={(event) => setRegistration(event.target.value.toUpperCase())} /></label>
-    <label>Salida programada<input name="scheduledDeparture" type="datetime-local" required /></label>
-    <label>Llegada programada<input name="scheduledArrival" type="datetime-local" /></label>
-    <label>Válida hasta<input name="validUntil" type="datetime-local" required /></label>
+    <input name="availableFrom" type="hidden" value={availableFrom ? new Date(availableFrom).toISOString() : ""} />
+    <input name="validUntil" type="hidden" value={validUntil ? new Date(validUntil).toISOString() : ""} />
+    <label>Disponible desde<input type="datetime-local" value={availableFrom} onChange={(event) => setAvailableFrom(event.target.value)} required /></label>
+    <label>Fecha límite<input type="datetime-local" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} required /></label>
+    <label>Duración estimada<input value={estimatedDurationMinutes ? `${estimatedDurationMinutes} min` : "Selecciona una ruta"} readOnly /><input name="estimatedDurationMinutes" value={estimatedDurationMinutes} type="hidden" /></label>
     <label>Pasajeros<input name="passengers" value={passengers} onChange={(event) => setPassengers(event.target.value)} type="number" min="0" /></label>
     <label>Carga kg<input name="cargoKg" value={cargoKg} onChange={(event) => setCargoKg(event.target.value)} type="number" min="0" /></label>
     <label>Altitud<input name="altitude" value={altitude} onChange={(event) => setAltitude(event.target.value)} type="number" min="0" /></label>

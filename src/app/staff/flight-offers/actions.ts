@@ -8,10 +8,16 @@ import { operationsRequest } from "@/lib/vamsys/operations";
 
 type JsonRow = Record<string, unknown>;
 const record = (value: unknown): JsonRow | null => value && typeof value === "object" && !Array.isArray(value) ? value as JsonRow : null;
+const routeDurationMinutes = (value: unknown) => {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) return Math.max(1, Math.round(value));
+  if (typeof value !== "string" || !/^\d{1,3}:\d{2}(?::\d{2})?$/.test(value)) return null;
+  const [hours, minutes, seconds = 0] = value.split(":").map(Number);
+  return Math.max(1, Math.round(hours * 60 + minutes + seconds / 60));
+};
 
 export async function getRouteFleetIdsAction(routeId: string) {
   await requireStaffPermission("FLIGHT_OFFER_MANAGE", { entityType: "FlightOffer", attemptedAction: "consultar flotas de una ruta" });
-  if (!/^\d+$/.test(routeId)) return { fleetIds: [] as string[], error: "El route_id debe ser numérico." };
+  if (!/^\d+$/.test(routeId)) return { fleetIds: [] as string[], durationMinutes: null, error: "El route_id debe ser numérico." };
 
   try {
     const payload = await operationsRequest(`/routes/${encodeURIComponent(routeId)}?weight_unit=kg`);
@@ -23,10 +29,11 @@ export async function getRouteFleetIdsAction(routeId: string) {
       ? detail.fleet_ids.filter((id) => typeof id === "string" || typeof id === "number").map(String)
       : [];
 
-    if (!fleetIds.length) return { fleetIds, error: "vAMSYS no devolvió flotas compatibles para esta ruta." };
-    return { fleetIds, error: null };
+    const durationMinutes = routeDurationMinutes(detail?.flight_length ?? detail?.flightLength ?? detail?.duration_minutes);
+    if (!fleetIds.length) return { fleetIds, durationMinutes, error: "vAMSYS no devolvió flotas compatibles para esta ruta." };
+    return { fleetIds, durationMinutes, error: null };
   } catch (error) {
-    return { fleetIds: [] as string[], error: error instanceof Error ? error.message : "No se pudieron consultar las flotas de la ruta." };
+    return { fleetIds: [] as string[], durationMinutes: null, error: error instanceof Error ? error.message : "No se pudieron consultar las flotas de la ruta." };
   }
 }
 
@@ -65,19 +72,24 @@ export async function createFlightOfferAction(formData: FormData) {
     const rewardEuros = Number((text(formData, "reward") || "0").replace(",", "."));
     if (!Number.isFinite(rewardEuros) || rewardEuros < 0) throw new Error("La recompensa no es válida.");
     const rewardType = text(formData, "rewardType") === "PERCENTAGE" ? "PERCENTAGE" : "FIXED";
+    const availableFrom = date(formData, "availableFrom", true)!;
+    const validUntil = date(formData, "validUntil", true)!;
+    const estimatedDurationMinutes = integer(formData, "estimatedDurationMinutes");
+    if (availableFrom >= validUntil) throw new Error("La fecha límite debe ser posterior al inicio de la tarea.");
+    if (!estimatedDurationMinutes || estimatedDurationMinutes <= 0) throw new Error("vAMSYS no devolvió una duración válida para esta ruta.");
     const offer = await prisma.flightOffer.create({ data: {
       title,
       flightNumber: optional(formData, "flightNumber"), callsign: optional(formData, "callsign"),
       departureIcao, arrivalIcao, vamsysRouteId, vamsysAircraftId,
       vamsysFleetId: optional(formData, "vamsysFleetId"),
-      scheduledDeparture: date(formData, "scheduledDeparture", true)!, scheduledArrival: date(formData, "scheduledArrival"),
+      availableFrom, scheduledDeparture: null, scheduledArrival: null, estimatedDurationMinutes,
       aircraftType: optional(formData, "aircraftType")?.toUpperCase() ?? null,
       aircraftRegistration: optional(formData, "aircraftRegistration")?.toUpperCase() ?? null,
       passengers: integer(formData, "passengers"), cargoKg: integer(formData, "cargoKg"), altitude: integer(formData, "altitude"),
       network: optional(formData, "network"), userRoute: optional(formData, "userRoute"),
       rewardType,
       rewardCents: rewardType === "FIXED" ? Math.round(rewardEuros * 100) : Math.round(rewardEuros * 100),
-      validUntil: date(formData, "validUntil", true)!, createdByStaffId: staff.id,
+      validUntil, createdByStaffId: staff.id,
     } });
     await prisma.aocAuditLog.create({ data: { staffUserId: staff.id, action: "FLIGHT_OFFER_CREATED", entityType: "FlightOffer", entityId: offer.id, message: `${staff.name} creó la oferta ${offer.title}.`, metadata: { route: `${departureIcao}-${arrivalIcao}` } } });
     revalidatePath("/staff/flight-offers"); revalidatePath("/pilot/flight-offers");

@@ -14,6 +14,17 @@ const num = (row: Row | null, ...keys: string[]) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.round(parsed) : null;
 };
+const durationMinutes = (row: Row | null, ...keys: string[]) => {
+  const value = str(row, ...keys);
+  if (!value) return null;
+  if (/^\d{1,3}:\d{2}(?::\d{2})?$/.test(value)) {
+    const parts = value.split(":").map(Number);
+    const [hours, minutes, seconds = 0] = parts;
+    return Math.max(1, Math.round(hours * 60 + minutes + seconds / 60));
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.max(1, Math.round(numeric)) : null;
+};
 const nested = (row: Row | null, key: string) => rec(row?.[key]);
 const rows = (value: unknown) => {
   const root = rec(value);
@@ -51,6 +62,7 @@ export interface FlightOfferRouteOption {
   altitude: number | null;
   userRoute: string | null;
   fleetIds: string[];
+  durationMinutes: number | null;
 }
 
 export async function getFlightOfferOptions() {
@@ -82,6 +94,7 @@ export async function getFlightOfferOptions() {
       altitude: num(raw, "altitude"),
       userRoute: str(raw, "route", "user_route"),
       fleetIds: Array.isArray(raw?.fleet_ids) ? raw.fleet_ids.map(String) : [],
+      durationMinutes: durationMinutes(raw, "flight_length", "flightLength", "duration_minutes", "durationMinutes"),
     });
   }
 
@@ -106,6 +119,7 @@ export async function getFlightOfferOptions() {
       altitude: num(route, "altitude") ?? existing?.altitude ?? null,
       userRoute: str(route, "route", "user_route") ?? existing?.userRoute ?? null,
       fleetIds: fleetIds.length ? fleetIds : existing?.fleetIds ?? [],
+      durationMinutes: durationMinutes(route, "flight_length", "flightLength", "duration_minutes", "durationMinutes") ?? existing?.durationMinutes ?? null,
     });
   }
 
@@ -129,6 +143,7 @@ export async function getFlightOfferOptions() {
         altitude: num(route, "altitude"),
         userRoute: str(route, "route", "user_route", "userRoute"),
         fleetIds: Array.isArray(route.fleet_ids) ? route.fleet_ids.map(String) : [],
+        durationMinutes: durationMinutes(route, "flight_length", "flightLength", "duration_minutes", "durationMinutes"),
       });
     }
   }

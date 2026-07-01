@@ -411,8 +411,10 @@ model FlightOffer {
   vamsysRouteId        String
   vamsysAircraftId     String
   vamsysFleetId        String?
-  scheduledDeparture   DateTime
+  availableFrom        DateTime
+  scheduledDeparture   DateTime?
   scheduledArrival     DateTime?
+  estimatedDurationMinutes Int
   aircraftType         String?
   aircraftRegistration String?
   passengers           Int?
@@ -431,7 +433,7 @@ model FlightOffer {
   updatedAt            DateTime              @updatedAt
 
   @@index([status, validUntil])
-  @@index([scheduledDeparture])
+  @@index([availableFrom, validUntil])
 }
 
 model FlightDispatch {
@@ -447,6 +449,8 @@ model FlightDispatch {
   matchedPirep              Pirep?                @relation(fields: [matchedPirepId], references: [id], onDelete: Restrict)
   rewardWalletTransaction   WalletTransaction?
   dispatchedAt              DateTime?
+  selectedDepartureAt       DateTime?
+  estimatedArrivalAt        DateTime?
   completedAt               DateTime?
   rewardedAt                DateTime?
   cancelledAt               DateTime?
