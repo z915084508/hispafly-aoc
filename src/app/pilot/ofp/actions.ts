@@ -9,11 +9,13 @@ import { writeAuditLogSafely } from "@/lib/audit/log";
 import { finalDispatchFlightOffer } from "@/lib/flightOffers/service";
 import { normalizeSimbriefUserId } from "@/lib/simbrief/userId";
 import { getTranslations } from "@/lib/i18n/server";
+import { assertNavigraphConnected } from "@/lib/navigraph/token";
 
 export async function importSimbriefOFPAction(formData: FormData) {
   const pilot = await requirePilotSession(); const ofpId = String(formData.get("ofpId") ?? ""); const { t } = await getTranslations();
   let error: string | null = null;
   try {
+    await assertNavigraphConnected(pilot.id);
     let temporaryId: string | null;
     try { temporaryId = normalizeSimbriefUserId(formData.get("simbriefUserId")); }
     catch { throw new Error(t("pilot.profile.simbriefIdInvalid")); }

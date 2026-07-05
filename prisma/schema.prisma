@@ -170,6 +170,7 @@ model Pilot {
   payrollRecords       PayrollRecord[]
   walletTransactions   WalletTransaction[]
   vamsysOAuthToken     VamsysOAuthToken?
+  navigraphOAuthToken  NavigraphOAuthToken?
   lastPirepSyncAt      DateTime?
   lastOperationsSyncAt DateTime?
   operationsRawData    Json?
@@ -398,6 +399,24 @@ model Pirep {
   @@index([flownAt, passengerRevenueCents])
   @@index([flownAt, fuelCostCents])
   @@index([vamsysAircraftId, flownAt])
+}
+
+model NavigraphOAuthToken {
+  id               String    @id @default(cuid())
+  pilotId          String    @unique
+  pilot            Pilot     @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  navigraphUserId  String?
+  accessToken      String
+  refreshToken     String
+  expiresAt        DateTime
+  scopes           String
+  revokedAt        DateTime?
+  connectedAt      DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([expiresAt])
+  @@index([revokedAt])
 }
 
 model FuelPrice {

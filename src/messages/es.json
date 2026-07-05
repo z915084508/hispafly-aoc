@@ -42,12 +42,23 @@
                                 "simbriefIdSaved": "ID de SimBrief guardado.",
                                 "simbriefIdRequired": "Guarda tu ID de piloto SimBrief antes de preparar el OFP.",
                                 "simbriefIdInvalid": "Usa solo letras, números, guiones bajos o guiones, con un máximo de 64 caracteres."
-                              }
+                              },
+                 "integrations": {
+                                      "connectNavigraph": "Conectar Navigraph / SimBrief",
+                                      "navigraphConnected": "Navigraph conectado",
+                                      "reconnectNavigraph": "Reconectar Navigraph",
+                                      "disconnectNavigraph": "Desconectar Navigraph",
+                                      "navigraphDisconnected": "Navigraph desconectado",
+                                      "navigraphFailed": "No se pudo conectar Navigraph. Inténtalo de nuevo.",
+                                      "notConnected": "No conectado",
+                                      "navigraphHelp": "SimBrief API V2 se utiliza para generar OFP con tu propia cuenta de Navigraph."
+                                    }
                },
     "ofp": {
                "simbriefId": "ID de SimBrief",
                "changeSimbriefId": "Cambiar ID de SimBrief",
-               "prepareRequiresSimbriefId": "Se necesita un ID de piloto SimBrief para preparar este OFP."
+               "prepareRequiresSimbriefId": "Se necesita un ID de piloto SimBrief para preparar este OFP.",
+               "prepareRequiresNavigraph": "Debes conectar Navigraph / SimBrief antes de preparar un OFP."
              },
     "status":  {
                    "pending":  "Pendiente",

@@ -4,6 +4,7 @@ import { getFlightOfferOptions, getOperationsRouteDetails } from "@/lib/flightOf
 import { cancelVamsysBooking, createVamsysBooking, VamsysApiError, type CreateVamsysBookingInput } from "@/lib/vamsys/client";
 import { getValidVamsysAccessToken } from "@/lib/vamsys/token";
 import { assertAircraftDispatchAllowed } from "@/lib/aircraft-maintenance/service";
+import { assertNavigraphConnected } from "@/lib/navigraph/token";
 import { calculateDispatchPayload } from "@/lib/dispatch/loadFactor";
 import { prepareFlightOffer } from "@/lib/flightOffers/service";
 import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
@@ -46,6 +47,7 @@ export interface PreparePilotBookingInput extends Omit<CreatePilotBookingInput, 
 }
 
 export async function preparePilotBooking(pilotId: string, input: PreparePilotBookingInput) {
+  await assertNavigraphConnected(pilotId);
   if (Number.isNaN(input.departureAt.getTime()) || input.departureAt.getTime() < Date.now() - 60_000) throw new Error("Select a valid future UTC departure.");
   const options = await getFlightOfferOptions();
   const route = options.routes.find((item) => item.id === input.routeId);

@@ -7,6 +7,7 @@ import { updateAircraftLocationFromDispatch } from "@/lib/aircraft-location/trac
 import { createDispatchOfpBriefing } from "@/lib/simbrief/ofp";
 import { assertAircraftDispatchAllowed } from "@/lib/aircraft-maintenance/service";
 import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
+import { assertNavigraphConnected } from "@/lib/navigraph/token";
 
 type JsonRow = Record<string, unknown>;
 
@@ -30,6 +31,7 @@ function numericId(value: string, label: string): number {
 }
 
 export async function prepareFlightOffer(offerId: string, pilotId: string, selectedDepartureAt: Date) {
+  await assertNavigraphConnected(pilotId);
   const offer = await prisma.flightOffer.findUnique({ where: { id: offerId } });
   if (!offer) throw new Error("La oferta de vuelo no existe.");
   if (offer.status !== "PUBLISHED") throw new Error("Esta oferta ya no está publicada.");

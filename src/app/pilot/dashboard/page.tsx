@@ -13,23 +13,28 @@ export const dynamic = "force-dynamic";
 
 const route = (departure: string | null, arrival: string | null) => departure || arrival ? `${departure ?? "—"}-${arrival ?? "—"}` : "—";
 
-export default async function PilotDashboardPage({ searchParams }: { searchParams: Promise<{ simbrief?: string }> }) {
+export default async function PilotDashboardPage({ searchParams }: { searchParams: Promise<{ simbrief?: string; navigraph?: string }> }) {
   const pilot = await requirePilotSession();
   const messages = await searchParams;
   const { t, locale } = await getTranslations();
   const number = (value: number) => formatNumber(value, locale, { maximumFractionDigits: 0 });
   const money = (cents: number | null) => cents === null ? "—" : formatCurrency(cents, locale);
-  const [summary, availableOffers, activeDispatches, earnedRewards] = await Promise.all([
+  const [summary, availableOffers, activeDispatches, earnedRewards, navigraphToken] = await Promise.all([
     getPilotDashboardData(pilot.id),
     prisma.flightOffer.count({ where: { status: "PUBLISHED", validUntil: { gt: new Date() }, dispatches: { none: {} } } }),
     prisma.flightDispatch.count({ where: { pilotId: pilot.id, status: { in: ["DISPATCHING", "DISPATCHED"] } } }),
     prisma.walletTransaction.aggregate({ where: { pilotId: pilot.id, flightDispatchId: { not: null } }, _sum: { amountCents: true } }),
+    prisma.navigraphOAuthToken.findUnique({ where: { pilotId: pilot.id }, select: { revokedAt: true, connectedAt: true } }),
   ]);
+  const navigraphConnected = Boolean(navigraphToken && !navigraphToken.revokedAt);
 
   return <PilotPortalShell>
     <PageHeading eyebrow={t("dashboard.pilotEyebrow")} title={t("dashboard.pilotTitle")} copy={t("dashboard.pilotCopy")} />
     {messages.simbrief === "saved" && <div className="feedback success">{t("pilot.profile.simbriefIdSaved")}</div>}
     {messages.simbrief === "invalid" && <div className="feedback error">{t("pilot.profile.simbriefIdInvalid")}</div>}
+    {messages.navigraph === "connected" && <div className="feedback success">{t("pilot.integrations.navigraphConnected")}</div>}
+    {messages.navigraph === "disconnected" && <div className="feedback success">{t("pilot.integrations.navigraphDisconnected")}</div>}
+    {messages.navigraph === "failed" && <div className="feedback error">{t("pilot.integrations.navigraphFailed")}</div>}
     <div className="grid stats">
       <div className="card"><div className="stat-label">{t("dashboard.acceptedPireps")}</div><div className="stat-value">{summary.acceptedPireps}</div></div>
       <div className="card"><div className="stat-label">{t("dashboard.passengers")}</div><div className="stat-value">{number(summary.totalPassengers)}</div></div>
@@ -41,6 +46,8 @@ export default async function PilotDashboardPage({ searchParams }: { searchParam
       <div className="card"><div className="stat-label">{t("dashboard.activeDispatches")}</div><div className="stat-value">{activeDispatches}</div></div>
       <div className="card"><div className="stat-label">{t("dashboard.missionRewards")}</div><div className="stat-value">{money(earnedRewards._sum.amountCents ?? 0)}</div></div>
     </div>
+
+    <section className="card ranking-card" id="navigraph-integration"><div className="card-header"><div><h2 className="card-title">Navigraph / SimBrief</h2><p className="meta">{t("pilot.integrations.navigraphHelp")}</p></div><Badge tone={navigraphConnected ? "green" : "amber"}>{navigraphConnected ? t("pilot.integrations.navigraphConnected") : t("pilot.integrations.notConnected")}</Badge></div><div className="inline-action-form">{navigraphConnected ? <><Link className="button secondary" href="/api/auth/navigraph/start">{t("pilot.integrations.reconnectNavigraph")}</Link><form action="/api/auth/navigraph/disconnect" method="post"><button className="action-button reject" type="submit">{t("pilot.integrations.disconnectNavigraph")}</button></form></> : <Link className="button" href="/api/auth/navigraph/start">{t("pilot.integrations.connectNavigraph")}</Link>}</div></section>
 
     <section className="card ranking-card" id="simbrief-profile"><div className="card-header"><div><h2 className="card-title">{t("pilot.profile.simbriefId")}</h2><p className="meta">{t("pilot.profile.simbriefIdHelp")}</p></div></div><form action={savePilotSimbriefIdAction} className="inline-action-form"><input type="hidden" name="returnTo" value="/pilot/dashboard"/><label>{t("pilot.profile.simbriefId")}<input name="simbriefUserId" defaultValue={pilot.simbriefUserId ?? ""} maxLength={64} pattern="[A-Za-z0-9_-]*" autoComplete="off"/></label><button className="button" type="submit">{t("pilot.profile.saveSimbriefId")}</button></form></section>
 
