@@ -138,8 +138,8 @@
     "bookings":  {
                      "eyebrow":  "SELF DISPATCH",
                      "title":  "Book a flight",
-                     "copy":  "Create a standard booking directly in vAMSYS. All times are shown in UTC.",
-                     "new":  "New booking",
+                     "copy":  "Select a flight, calculate the HISPAFLY load factor and prepare the OFP before final dispatch to vAMSYS. All times are UTC.",
+                     "new":  "Prepare a flight",
                      "noReward":  "No task reward or penalty",
                      "routeAircraft":  "Route and aircraft",
                      "schedule":  "UTC schedule",

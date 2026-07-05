@@ -28,6 +28,7 @@ export function calculateDispatchPayload(input: { seats: number; loadFactorPerce
   if (!Number.isFinite(input.loadFactorPercent) || input.loadFactorPercent < 0 || input.loadFactorPercent > 100) throw new Error("Load factor must be between 0 and 100.");
   const passengers = Math.min(input.seats, Math.max(0, Math.round(input.seats * input.loadFactorPercent / 100)));
   const baggageKgPerPassenger = input.baggageKgPerPassenger ?? 23;
+  if (!Number.isFinite(baggageKgPerPassenger) || baggageKgPerPassenger < 0) throw new Error("Baggage per passenger must be zero or greater.");
   return { passengers, luggageKg: Math.round(passengers * baggageKgPerPassenger), baggageKgPerPassenger };
 }
 

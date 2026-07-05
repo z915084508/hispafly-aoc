@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePilotSession } from "@/lib/pilot/session";
-import { cancelPilotBooking, createPilotBooking } from "@/lib/pilotBookings/service";
+import { cancelPilotBooking, preparePilotBooking } from "@/lib/pilotBookings/service";
+import { prisma } from "@/lib/prisma";
 import { getOperationsRouteDetails } from "@/lib/flightOffers/options";
 
 const optionalInt = (value: FormDataEntryValue | null) => {
@@ -27,7 +28,7 @@ export async function getPilotRouteDetailsAction(routeId: string) {
 export async function createPilotBookingAction(formData: FormData) {
   const pilot = await requirePilotSession();
   try {
-    await createPilotBooking(pilot.id, {
+    const dispatch = await preparePilotBooking(pilot.id, {
       routeId: String(formData.get("routeId") ?? ""),
       fleetId: String(formData.get("fleetId") ?? "") || null,
       aircraftId: String(formData.get("aircraftId") ?? ""),
@@ -35,15 +36,19 @@ export async function createPilotBookingAction(formData: FormData) {
       network: String(formData.get("network") ?? "vatsim"),
       callsign: String(formData.get("callsign") ?? "") || null,
       altitude: optionalInt(formData.get("altitude")),
-      passengers: optionalInt(formData.get("passengers")),
-      cargoKg: optionalInt(formData.get("cargoKg")),
+      loadFactorPercent: Number(formData.get("loadFactorPercent")),
+      baggageKgPerPassenger: Number(formData.get("baggageKgPerPassenger")),
+      freightKg: optionalInt(formData.get("freightKg")),
       userRoute: String(formData.get("userRoute") ?? "") || null,
     });
-    revalidatePath("/pilot/bookings");
+    const ofp = await prisma.ofpBriefing.findUnique({ where: { flightDispatchId: dispatch.id }, select: { id: true } });
+    if (!ofp) throw new Error("OFP creation failed.");
+    revalidatePath("/pilot/bookings"); revalidatePath("/pilot/ofp");
+    redirect(`/pilot/ofp/${ofp.id}?success=${encodeURIComponent("Flight prepared. Generate and sign the OFP before Final Dispatch.")}`);
   } catch (error) {
+    if (error && typeof error === "object" && "digest" in error) throw error;
     redirect("/pilot/bookings?error=" + encodeURIComponent(error instanceof Error ? error.message : "No se pudo crear el booking."));
   }
-  redirect("/pilot/bookings?success=" + encodeURIComponent("Booking creado correctamente en vAMSYS."));
 }
 
 export async function cancelPilotBookingAction(formData: FormData) {

@@ -31,8 +31,8 @@ export default async function PilotFlightOffersPage({ searchParams }: { searchPa
   await expireOverdueFlightDispatches(10, pilot.id);
   const [messages, offers, dispatches, oauth] = await Promise.all([
     searchParams,
-    prisma.flightOffer.findMany({ where: { status: "PUBLISHED", validUntil: { gt: new Date() }, dispatches: { none: { status: { in: ["DISPATCHING", "DISPATCHED"] } } } }, orderBy: { availableFrom: "asc" } }),
-    prisma.flightDispatch.findMany({ where: { pilotId: pilot.id }, include: { flightOffer: true, matchedPirep: true, rewardWalletTransaction: true, ofpBriefing: true }, orderBy: { createdAt: "desc" } }),
+    prisma.flightOffer.findMany({ where: { createdByStaffId: { not: null }, status: "PUBLISHED", validUntil: { gt: new Date() }, dispatches: { none: { status: { in: ["DISPATCHING", "DISPATCHED"] } } } }, orderBy: { availableFrom: "asc" } }),
+    prisma.flightDispatch.findMany({ where: { pilotId: pilot.id, flightOffer: { createdByStaffId: { not: null } } }, include: { flightOffer: true, matchedPirep: true, rewardWalletTransaction: true, ofpBriefing: true }, orderBy: { createdAt: "desc" } }),
     prisma.vamsysOAuthToken.findUnique({ where: { pilotId: pilot.id }, select: { revokedAt: true, scopes: true, accessToken: true } }),
   ]);
   const storedScopes = oauth?.scopes.split(/\s+/).filter(Boolean) ?? [];
@@ -53,6 +53,8 @@ export default async function PilotFlightOffersPage({ searchParams }: { searchPa
       departureIcao: offer.departureIcao,
       arrivalIcao: offer.arrivalIcao,
       aircraftLabel: offer.aircraftRegistration ?? offer.aircraftType ?? "Aeronave asignada",
+      passengers: offer.passengers,
+      loadFactorPercent: offer.loadFactorPercent,
       availableFrom: offer.availableFrom.toISOString(),
       validUntil: offer.validUntil.toISOString(),
       durationMinutes: offer.estimatedDurationMinutes,

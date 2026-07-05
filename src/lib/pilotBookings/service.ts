@@ -4,6 +4,8 @@ import { getFlightOfferOptions, getOperationsRouteDetails } from "@/lib/flightOf
 import { cancelVamsysBooking, createVamsysBooking, VamsysApiError, type CreateVamsysBookingInput } from "@/lib/vamsys/client";
 import { getValidVamsysAccessToken } from "@/lib/vamsys/token";
 import { assertAircraftDispatchAllowed } from "@/lib/aircraft-maintenance/service";
+import { calculateDispatchPayload } from "@/lib/dispatch/loadFactor";
+import { prepareFlightOffer } from "@/lib/flightOffers/service";
 
 type Row = Record<string, unknown>;
 const record = (value: unknown): Row | null => value && typeof value === "object" && !Array.isArray(value) ? value as Row : null;
@@ -34,6 +36,70 @@ export interface CreatePilotBookingInput {
   passengers?: number | null;
   cargoKg?: number | null;
   userRoute?: string | null;
+}
+
+export interface PreparePilotBookingInput extends Omit<CreatePilotBookingInput, "passengers" | "cargoKg"> {
+  loadFactorPercent: number;
+  baggageKgPerPassenger: number;
+  freightKg?: number | null;
+}
+
+export async function preparePilotBooking(pilotId: string, input: PreparePilotBookingInput) {
+  if (Number.isNaN(input.departureAt.getTime()) || input.departureAt.getTime() < Date.now() - 60_000) throw new Error("Select a valid future UTC departure.");
+  const options = await getFlightOfferOptions();
+  const route = options.routes.find((item) => item.id === input.routeId);
+  const aircraftOption = options.aircraft.find((item) => item.vamsysAircraftId === input.aircraftId);
+  if (!route) throw new Error("The selected vAMSYS route is no longer available.");
+  if (!aircraftOption) throw new Error("The selected aircraft is no longer available.");
+  await assertAircraftDispatchAllowed({ vamsysAircraftId: aircraftOption.vamsysAircraftId, offerType: "SELF_DISPATCH", arrivalIcao: route.arrival });
+  const liveDetails = await getOperationsRouteDetails(route.id);
+  const fleetId = input.fleetId || aircraftOption.fleetId || null;
+  const authorizedFleetIds = liveDetails.fleetIds.length ? liveDetails.fleetIds : route.fleetIds;
+  if (authorizedFleetIds.length && (!fleetId || !authorizedFleetIds.includes(fleetId))) throw new Error("The selected aircraft is not in an authorized fleet for this route.");
+  const aircraft = await prisma.aircraft.findUnique({ where: { vamsysAircraftId: aircraftOption.vamsysAircraftId } });
+  const seats = aircraft?.seatCapacity;
+  if (!seats) throw new Error("Configure the fleet maximum seats in Aircraft Performance before preparing this OFP.");
+  const payload = calculateDispatchPayload({ seats, loadFactorPercent: input.loadFactorPercent, baggageKgPerPassenger: input.baggageKgPerPassenger });
+  const estimatedDurationMinutes = liveDetails.durationMinutes ?? route.durationMinutes;
+  if (!estimatedDurationMinutes) throw new Error("The route duration is unavailable.");
+  const estimatedArrivalAt = new Date(input.departureAt.getTime() + estimatedDurationMinutes * 60_000);
+  const offer = await prisma.flightOffer.create({ data: {
+    title: `Self Dispatch ${route.flightNumber ?? `${route.departure}-${route.arrival}`}`,
+    offerType: "SELF_DISPATCH",
+    flightNumber: route.flightNumber,
+    callsign: input.callsign || route.callsign,
+    departureIcao: route.departure,
+    arrivalIcao: route.arrival,
+    vamsysRouteId: route.id,
+    vamsysAircraftId: aircraftOption.vamsysAircraftId,
+    vamsysFleetId: fleetId,
+    availableFrom: new Date(Date.now() - 60_000),
+    scheduledDeparture: input.departureAt,
+    scheduledArrival: estimatedArrivalAt,
+    estimatedDurationMinutes,
+    aircraftType: aircraftOption.aircraftType,
+    aircraftRegistration: aircraftOption.registration,
+    passengers: payload.passengers,
+    cargoKg: payload.luggageKg,
+    loadFactorPercent: input.loadFactorPercent,
+    luggageKg: payload.luggageKg,
+    freightKg: input.freightKg ?? 0,
+    baggageKgPerPassenger: payload.baggageKgPerPassenger,
+    altitude: input.altitude ?? route.altitude,
+    network: input.network || "vatsim",
+    userRoute: input.userRoute || route.userRoute,
+    rewardCents: 0,
+    validUntil: new Date(estimatedArrivalAt.getTime() + 6 * 60 * 60_000),
+    status: "PUBLISHED",
+    createdByPilotId: pilotId,
+  }});
+  try {
+    const dispatch = await prepareFlightOffer(offer.id, pilotId, input.departureAt);
+    return dispatch;
+  } catch (error) {
+    await prisma.flightOffer.delete({ where: { id: offer.id } }).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function createPilotBooking(pilotId: string, input: CreatePilotBookingInput) {

@@ -175,6 +175,7 @@ model Pilot {
   operationsRawData    Json?
   notes                PilotNote[]
   flightDispatches     FlightDispatch[]
+  createdFlightOffers  FlightOffer[]         @relation("PilotCreatedFlightOffers")
   pilotBookings        PilotBooking[]
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -561,14 +562,17 @@ model FlightOffer {
   rewardType           FlightOfferRewardType @default(FIXED)
   validUntil           DateTime
   status               FlightOfferStatus     @default(DRAFT)
-  createdByStaffId     String
-  createdByStaff       StaffUser             @relation(fields: [createdByStaffId], references: [id], onDelete: Restrict)
+  createdByStaffId     String?
+  createdByStaff       StaffUser?            @relation(fields: [createdByStaffId], references: [id], onDelete: Restrict)
+  createdByPilotId     String?
+  createdByPilot       Pilot?                @relation("PilotCreatedFlightOffers", fields: [createdByPilotId], references: [id], onDelete: Restrict)
   dispatches           FlightDispatch[]
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
 
   @@index([status, validUntil])
   @@index([availableFrom, validUntil])
+  @@index([createdByPilotId, createdAt])
 }
 
 model AircraftConditionSnapshot {

@@ -177,7 +177,7 @@ async function applyDispatchPenalty(dispatchId: string, amountCents: number, des
     });
     await tx.flightOffer.update({
       where: { id: current.flightOfferId },
-      data: { status: status === "CANCELLED" && current.flightOffer.validUntil > new Date() ? "PUBLISHED" : "EXPIRED" },
+      data: { status: status === "CANCELLED" && current.flightOffer.validUntil > new Date() && !current.flightOffer.createdByPilotId ? "PUBLISHED" : status === "CANCELLED" ? "CANCELLED" : "EXPIRED" },
     });
     return dispatch;
   });
@@ -192,7 +192,7 @@ export async function cancelFlightDispatchByPilot(dispatchId: string, pilotId: s
   if (dispatch.status === "DISPATCHING" && !dispatch.vamsysBookingId) {
     const cancelled = await prisma.$transaction(async (tx) => {
       const saved = await tx.flightDispatch.update({ where: { id: dispatch.id }, data: { status: "CANCELLED", cancelledAt: new Date(), errorMessage: null } });
-      await tx.flightOffer.update({ where: { id: dispatch.flightOfferId }, data: { status: dispatch.flightOffer.validUntil > new Date() ? "PUBLISHED" : "EXPIRED" } });
+      await tx.flightOffer.update({ where: { id: dispatch.flightOfferId }, data: { status: dispatch.flightOffer.validUntil > new Date() && !dispatch.flightOffer.createdByPilotId ? "PUBLISHED" : dispatch.flightOffer.validUntil > new Date() ? "CANCELLED" : "EXPIRED" } });
       await tx.ofpBriefing.updateMany({ where: { flightDispatchId: dispatch.id }, data: { status: "VOIDED", voidedAt: new Date(), voidReason: "Pilot cancelled before Final Dispatch" } });
       return saved;
     });
@@ -207,6 +207,16 @@ export async function cancelFlightDispatchByPilot(dispatchId: string, pilotId: s
     await cancelVamsysBooking(accessToken, dispatch.vamsysBookingId);
   } catch (error) {
     if (!(error instanceof VamsysApiError && error.status === 404)) throw error;
+  }
+
+  if (dispatch.flightOffer.createdByPilotId) {
+    const cancelledSelfDispatch = await prisma.$transaction(async (tx) => {
+      const saved = await tx.flightDispatch.update({ where: { id: dispatch.id }, data: { status: "CANCELLED", cancelledAt: new Date(), errorMessage: null } });
+      await tx.flightOffer.update({ where: { id: dispatch.flightOfferId }, data: { status: "CANCELLED" } });
+      return saved;
+    });
+    await writeAuditLogSafely({ action: "SELF_DISPATCH_CANCELLED_BY_PILOT", entityType: "FlightDispatch", entityId: dispatch.id, message: `Pilot cancelled self dispatch ${dispatch.flightOffer.title}; no task penalty applied.`, metadata: { pilotId, bookingId: dispatch.vamsysBookingId } });
+    return cancelledSelfDispatch;
   }
 
   const cancelled = await applyDispatchPenalty(dispatch.id, PILOT_CANCEL_PENALTY_CENTS, `Cancelación voluntaria: ${dispatch.flightOffer.title}`, "CANCELLED");
