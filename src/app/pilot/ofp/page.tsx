@@ -3,6 +3,7 @@ import { PageHeading } from "@/components/page-heading";
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { prisma } from "@/lib/prisma";
+import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +20,9 @@ export default async function PilotOfpListPage() {
     <section className="card ranking-card">
       <div className="card-header"><h2 className="card-title">OFP workspace</h2><span className="meta">{briefings.length} flight plans</span></div>
       {briefings.length ? <DataTable headers={["Flight", "Route", "Aircraft", "Passengers / LF", "Departure UTC", "OFP status", "Dispatch status", "Action"]} rows={briefings.map((ofp) => {
-        const dispatch = ofp.flightDispatch, offer = dispatch.flightOffer;
+        const dispatch = ofp.flightDispatch, offer = dispatch.flightOffer, identity = normalizeFlightIdentity({ flightNumber: dispatch.flightOffer.flightNumber, callsign: dispatch.flightOffer.callsign });
         return [
-          offer.flightNumber ?? offer.title,
+          identity.commercialFlightNumber || offer.title,
           `${offer.departureIcao} → ${offer.arrivalIcao}`,
           offer.aircraftRegistration ?? offer.aircraftType ?? offer.vamsysAircraftId,
           `${offer.passengers ?? "—"} / ${offer.loadFactorPercent ?? "—"}%`,

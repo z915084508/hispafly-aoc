@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
 
 const jsonRecord = (value: unknown): Record<string, unknown> | null => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 
@@ -9,13 +10,16 @@ export function ofpContentHash(value: unknown) {
 }
 
 export function simbriefDispatchUrl(input: {
-  staticId: string; airline?: string | null; flightNumber?: string | null; aircraftType?: string | null;
+  staticId: string; airline?: string | null; flightNumber?: string | null; callsign?: string | null; aircraftType?: string | null;
   registration?: string | null; departure: string; arrival: string; passengers?: number | null;
   luggageKg?: number | null; altitude?: number | null; route?: string | null; costIndex?: number | null;
   fuelBiasPercent?: number | null; aircraftData?: Record<string, string | number | null> | null;
 }) {
-  const query = new URLSearchParams({ orig: input.departure, dest: input.arrival, type: input.aircraftType ?? "A320", units: "KGS", static_id: input.staticId, airline: input.airline ?? "HISPAFLY" });
-  if (input.flightNumber) query.set("fltnum", input.flightNumber.replace(/^[A-Z]+/i, ""));
+  const identity = normalizeFlightIdentity({ flightNumber: input.flightNumber, callsign: input.callsign, airlineName: input.airline ?? "HISPAFLY" });
+  const query = new URLSearchParams({ orig: input.departure, dest: input.arrival, type: input.aircraftType ?? "A320", units: "KGS", static_id: input.staticId, airline: identity.airlineName });
+  if (identity.numericFlightNumber) query.set("fltnum", identity.numericFlightNumber);
+  if (identity.atcCallsign) query.set("callsign", identity.atcCallsign);
+  if (identity.commercialFlightNumber) query.set("flight_number", identity.commercialFlightNumber);
   if (input.registration) query.set("reg", input.registration);
   if (input.passengers !== null && input.passengers !== undefined) query.set("pax", String(input.passengers));
   if (input.luggageKg !== null && input.luggageKg !== undefined) query.set("cargo", String(input.luggageKg / 1000));
@@ -32,10 +36,11 @@ export async function createDispatchOfpBriefing(dispatchId: string) {
   if (!dispatch) throw new Error("Dispatch not found.");
   const aircraft = await prisma.aircraft.findUnique({ where: { vamsysAircraftId: dispatch.flightOffer.vamsysAircraftId }, include: { performanceProfile: true } });
   const performance = aircraft?.performanceProfile;
+  const identity = normalizeFlightIdentity({ flightNumber: dispatch.flightOffer.flightNumber, callsign: dispatch.flightOffer.callsign });
   const staticId = `HISPAFLY_${dispatch.id.replace(/[^a-zA-Z0-9]/g, "_")}`;
   const snapshot = {
     dispatchId: dispatch.id, bookingId: dispatch.vamsysBookingId, route: `${dispatch.flightOffer.departureIcao}-${dispatch.flightOffer.arrivalIcao}`,
-    flightNumber: dispatch.flightOffer.flightNumber, aircraft: dispatch.flightOffer.aircraftRegistration ?? dispatch.flightOffer.aircraftType,
+    flightNumber: identity.commercialFlightNumber, callsign: identity.atcCallsign, airlineName: identity.airlineName, aircraft: dispatch.flightOffer.aircraftRegistration ?? dispatch.flightOffer.aircraftType,
     passengers: dispatch.flightOffer.passengers, loadFactorPercent: dispatch.flightOffer.loadFactorPercent,
     luggageKg: dispatch.flightOffer.luggageKg, freightKg: dispatch.flightOffer.freightKg,
     selectedDepartureAt: dispatch.selectedDepartureAt?.toISOString(), version: 1,
@@ -43,7 +48,7 @@ export async function createDispatchOfpBriefing(dispatchId: string) {
   // SimBrief acdata weights are expressed in thousands of pounds, even when
   // the OFP itself uses KGS. 1,000 lb = 453.59237 kg.
   const thousandPounds = (kg: number | null | undefined) => kg == null ? null : Math.round((kg / 453.59237) * 1000) / 1000;
-  const ofpUrl = simbriefDispatchUrl({ staticId, flightNumber: dispatch.flightOffer.flightNumber, aircraftType: dispatch.flightOffer.aircraftType, registration: dispatch.flightOffer.aircraftRegistration, departure: dispatch.flightOffer.departureIcao, arrival: dispatch.flightOffer.arrivalIcao, passengers: dispatch.flightOffer.passengers, luggageKg: dispatch.flightOffer.luggageKg, altitude: dispatch.flightOffer.altitude, route: dispatch.flightOffer.userRoute, costIndex: performance?.defaultCostIndex, fuelBiasPercent: performance?.fuelBiasPercent, aircraftData: performance ? { maxpax: aircraft?.seatCapacity ?? null, oew: thousandPounds(performance.operatingEmptyWeightKg), mzfw: thousandPounds(performance.maxZeroFuelWeightKg), mtow: thousandPounds(performance.maxTakeoffWeightKg), mlw: thousandPounds(performance.maxLandingWeightKg), maxfuel: thousandPounds(performance.maxFuelKg) } : null });
+  const ofpUrl = simbriefDispatchUrl({ staticId, airline: identity.airlineName, flightNumber: identity.commercialFlightNumber, callsign: identity.atcCallsign, aircraftType: dispatch.flightOffer.aircraftType, registration: dispatch.flightOffer.aircraftRegistration, departure: dispatch.flightOffer.departureIcao, arrival: dispatch.flightOffer.arrivalIcao, passengers: dispatch.flightOffer.passengers, luggageKg: dispatch.flightOffer.luggageKg, altitude: dispatch.flightOffer.altitude, route: dispatch.flightOffer.userRoute, costIndex: performance?.defaultCostIndex, fuelBiasPercent: performance?.fuelBiasPercent, aircraftData: performance ? { maxpax: aircraft?.seatCapacity ?? null, oew: thousandPounds(performance.operatingEmptyWeightKg), mzfw: thousandPounds(performance.maxZeroFuelWeightKg), mtow: thousandPounds(performance.maxTakeoffWeightKg), mlw: thousandPounds(performance.maxLandingWeightKg), maxfuel: thousandPounds(performance.maxFuelKg) } : null });
   return prisma.ofpBriefing.upsert({
     where: { flightDispatchId: dispatch.id },
     create: { flightDispatchId: dispatch.id, status: "GENERATED", simbriefStaticId: staticId, simbriefUserId: dispatch.pilot.simbriefUserId, ofpUrl, ofpSnapshot: snapshot, contentHash: ofpContentHash(snapshot) },

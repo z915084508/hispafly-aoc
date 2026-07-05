@@ -6,6 +6,7 @@ import { getValidVamsysAccessToken } from "@/lib/vamsys/token";
 import { updateAircraftLocationFromDispatch } from "@/lib/aircraft-location/tracker";
 import { createDispatchOfpBriefing } from "@/lib/simbrief/ofp";
 import { assertAircraftDispatchAllowed } from "@/lib/aircraft-maintenance/service";
+import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
 
 type JsonRow = Record<string, unknown>;
 
@@ -89,14 +90,15 @@ export async function finalDispatchFlightOffer(dispatchId: string, pilotId: stri
   }
   const accessToken = await getValidVamsysAccessToken(pilotId).catch(async () => { await prisma.flightDispatch.update({ where: { id: dispatch.id }, data: { errorMessage: null } }); throw new Error("Connect vAMSYS before Final Dispatch."); });
   const offer = dispatch.flightOffer;
+  const identity = normalizeFlightIdentity({ flightNumber: offer.flightNumber, callsign: offer.callsign });
 
   const body: CreateVamsysBookingInput = {
     route_id: numericId(offer.vamsysRouteId, "route_id"),
     aircraft_id: numericId(offer.vamsysAircraftId, "aircraft_id"),
     departure_time: dispatch.selectedDepartureAt.toISOString(),
     ...(offer.network ? { network: offer.network } : {}),
-    ...(offer.callsign ? { callsign: offer.callsign } : {}),
-    ...(offer.flightNumber ? { flight_number: offer.flightNumber } : {}),
+    ...(identity.atcCallsign ? { callsign: identity.atcCallsign } : {}),
+    ...(identity.commercialFlightNumber ? { flight_number: identity.commercialFlightNumber } : {}),
     ...(offer.altitude !== null ? { altitude: offer.altitude } : {}),
     ...(offer.passengers !== null ? { passengers: offer.passengers } : {}),
     ...(offer.luggageKg !== null ? { cargo: offer.luggageKg } : {}),

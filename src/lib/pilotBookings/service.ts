@@ -6,6 +6,7 @@ import { getValidVamsysAccessToken } from "@/lib/vamsys/token";
 import { assertAircraftDispatchAllowed } from "@/lib/aircraft-maintenance/service";
 import { calculateDispatchPayload } from "@/lib/dispatch/loadFactor";
 import { prepareFlightOffer } from "@/lib/flightOffers/service";
+import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
 
 type Row = Record<string, unknown>;
 const record = (value: unknown): Row | null => value && typeof value === "object" && !Array.isArray(value) ? value as Row : null;
@@ -63,11 +64,12 @@ export async function preparePilotBooking(pilotId: string, input: PreparePilotBo
   const estimatedDurationMinutes = liveDetails.durationMinutes ?? route.durationMinutes;
   if (!estimatedDurationMinutes) throw new Error("The route duration is unavailable.");
   const estimatedArrivalAt = new Date(input.departureAt.getTime() + estimatedDurationMinutes * 60_000);
+  const identity = normalizeFlightIdentity({ flightNumber: route.flightNumber, callsign: input.callsign || route.callsign });
   const offer = await prisma.flightOffer.create({ data: {
     title: `Self Dispatch ${route.flightNumber ?? `${route.departure}-${route.arrival}`}`,
     offerType: "SELF_DISPATCH",
-    flightNumber: route.flightNumber,
-    callsign: input.callsign || route.callsign,
+    flightNumber: identity.commercialFlightNumber || null,
+    callsign: identity.atcCallsign || null,
     departureIcao: route.departure,
     arrivalIcao: route.arrival,
     vamsysRouteId: route.id,
@@ -125,13 +127,14 @@ export async function createPilotBooking(pilotId: string, input: CreatePilotBook
   const estimatedArrivalAt = estimatedDurationMinutes
     ? new Date(input.departureAt.getTime() + estimatedDurationMinutes * 60_000)
     : null;
+  const identity = normalizeFlightIdentity({ flightNumber: route.flightNumber, callsign: input.callsign || route.callsign });
   const body: CreateVamsysBookingInput = {
     route_id: positiveInteger(route.id, "route_id"),
     aircraft_id: positiveInteger(aircraft.vamsysAircraftId, "aircraft_id"),
     departure_time: input.departureAt.toISOString(),
     network: input.network || "vatsim",
-    ...(input.callsign ? { callsign: input.callsign } : route.callsign ? { callsign: route.callsign } : {}),
-    ...(route.flightNumber ? { flight_number: route.flightNumber } : {}),
+    ...(identity.atcCallsign ? { callsign: identity.atcCallsign } : {}),
+    ...(identity.commercialFlightNumber ? { flight_number: identity.commercialFlightNumber } : {}),
     ...(input.altitude ? { altitude: input.altitude } : route.altitude ? { altitude: route.altitude } : {}),
     ...(input.passengers !== null && input.passengers !== undefined ? { passengers: input.passengers } : {}),
     ...(input.cargoKg !== null && input.cargoKg !== undefined ? { cargo: input.cargoKg } : {}),
@@ -150,8 +153,8 @@ export async function createPilotBooking(pilotId: string, input: CreatePilotBook
       vamsysFleetId: fleetId,
       departureIcao: route.departure,
       arrivalIcao: route.arrival,
-      flightNumber: route.flightNumber,
-      callsign: input.callsign || route.callsign,
+      flightNumber: identity.commercialFlightNumber || null,
+      callsign: identity.atcCallsign || null,
       aircraftType: aircraft.aircraftType,
       aircraftRegistration: aircraft.registration,
       selectedDepartureAt: input.departureAt,

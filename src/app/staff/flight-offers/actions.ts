@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireStaffPermission } from "@/lib/staff/authorization";
 import { operationsRequest } from "@/lib/vamsys/operations";
+import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
 
 type JsonRow = Record<string, unknown>;
 const record = (value: unknown): JsonRow | null => value && typeof value === "object" && !Array.isArray(value) ? value as JsonRow : null;
@@ -84,9 +85,10 @@ export async function createFlightOfferAction(formData: FormData) {
     const estimatedDurationMinutes = integer(formData, "estimatedDurationMinutes");
     if (availableFrom >= validUntil) throw new Error("La fecha límite debe ser posterior al inicio de la tarea.");
     if (!estimatedDurationMinutes || estimatedDurationMinutes <= 0) throw new Error("vAMSYS no devolvió una duración válida para esta ruta.");
+    const identity = normalizeFlightIdentity({ flightNumber: optional(formData, "flightNumber"), callsign: optional(formData, "callsign") });
     const offer = await prisma.flightOffer.create({ data: {
       title, offerType: optional(formData, "offerType") || "STANDARD",
-      flightNumber: optional(formData, "flightNumber"), callsign: optional(formData, "callsign"),
+      flightNumber: identity.commercialFlightNumber || null, callsign: identity.atcCallsign || null,
       departureIcao, arrivalIcao, vamsysRouteId, vamsysAircraftId,
       vamsysFleetId: optional(formData, "vamsysFleetId"),
       availableFrom, scheduledDeparture: null, scheduledArrival: null, estimatedDurationMinutes,
