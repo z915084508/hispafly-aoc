@@ -8,15 +8,41 @@ import { getVamsysPilotConfig } from "@/lib/vamsys/config";
 import { mapVamsysPilot } from "@/lib/vamsys/pilotMapper";
 import { secureStateEquals } from "@/lib/vamsys/pkce";
 
-function finish(request: NextRequest, target: "/pilot" | "/pilot/dashboard", type?: "success" | "error", message?: string) {
-  const url = new URL(target, request.url);
-  if (type && message) url.searchParams.set(type, message);
-  const response = NextResponse.redirect(url);
+function clearOAuthCookies(response: NextResponse) {
   response.cookies.set("hispafly_vamsys_oauth_state", "", { httpOnly: true, path: "/", maxAge: 0 });
   response.cookies.set("hispafly_vamsys_code_verifier", "", { httpOnly: true, path: "/", maxAge: 0 });
   response.cookies.set("hispafly_vamsys_oauth_state", "", { httpOnly: true, path: "/api/vamsys/oauth", maxAge: 0 });
   response.cookies.set("hispafly_vamsys_code_verifier", "", { httpOnly: true, path: "/api/vamsys/oauth", maxAge: 0 });
+  response.cookies.set("hispafly_vamsys_oauth_state", "", { httpOnly: true, path: "/api/auth/vamsys", maxAge: 0 });
+  response.cookies.set("hispafly_vamsys_code_verifier", "", { httpOnly: true, path: "/api/auth/vamsys", maxAge: 0 });
+}
+
+function finish(request: NextRequest, target: "/pilot" | "/pilot/dashboard", type?: "success" | "error", message?: string) {
+  const url = new URL(target, request.url);
+  if (type && message) url.searchParams.set(type, message);
+  const response = NextResponse.redirect(url);
+  clearOAuthCookies(response);
   return response;
+}
+
+function validateOAuthCallbackSession(input: {
+  code: string | null;
+  state: string | null;
+  expectedState: string | undefined;
+  codeVerifier: string | undefined;
+}) {
+  if (!input.code) throw new Error("Missing vAMSYS authorization code. Please start the vAMSYS login again.");
+  if (!input.codeVerifier) throw new Error("OAuth session expired. Please start the vAMSYS login again.");
+
+  // vAMSYS Passport may not always return the state parameter to the callback.
+  // When it does, validate it strictly. When it is absent but the PKCE verifier cookie exists,
+  // continue with the authorization code exchange because PKCE still binds the callback to this browser session.
+  if (input.state && input.expectedState && !secureStateEquals(input.expectedState, input.state)) {
+    throw new Error("OAuth state mismatch. Please start the vAMSYS login again.");
+  }
+  if (input.state && !input.expectedState) {
+    throw new Error("OAuth session expired. Please start the vAMSYS login again.");
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -28,12 +54,10 @@ export async function GET(request: NextRequest) {
 
   try {
     if (providerError) throw new Error(`vAMSYS rejected authorization: ${providerError}`);
-    if (!code || !state || !expectedState || !codeVerifier || !secureStateEquals(expectedState, state)) {
-      throw new Error("OAuth security validation failed. Please start the vAMSYS login again.");
-    }
+    validateOAuthCallbackSession({ code, state, expectedState, codeVerifier });
 
     const config = getVamsysPilotConfig();
-    const token = await exchangeVamsysAuthorizationCode(code, codeVerifier);
+    const token = await exchangeVamsysAuthorizationCode(code!, codeVerifier!);
     if (!token.refresh_token) throw new Error("vAMSYS did not return a refresh token.");
     const refreshToken = token.refresh_token;
     const [user, profile] = await Promise.all([fetchVamsysUser(token.access_token), fetchVamsysProfile(token.access_token)]);
@@ -88,7 +112,7 @@ export async function GET(request: NextRequest) {
         entityType: "Pilot",
         entityId: saved.id,
         message: `Pilot ${saved.callsign ?? saved.displayName} connected vAMSYS OAuth.`,
-        metadata: { vamsysPilotId: imported.vamsysPilotId, scopes: token.scope ?? config.scopes },
+        metadata: { vamsysPilotId: imported.vamsysPilotId, scopes: token.scope ?? config.scopes, stateReturned: Boolean(state) },
       } });
       return saved;
     });
@@ -101,7 +125,14 @@ export async function GET(request: NextRequest) {
       action: "VAMSYS_OAUTH_FAILED",
       entityType: "VamsysOAuth",
       message: "A vAMSYS OAuth connection attempt failed.",
-      metadata: { phase: "callback", reason: message.slice(0, 180) },
+      metadata: {
+        phase: "callback",
+        reason: message.slice(0, 180),
+        hasCode: Boolean(code),
+        hasState: Boolean(state),
+        hasExpectedState: Boolean(expectedState),
+        hasCodeVerifier: Boolean(codeVerifier),
+      },
     });
     return finish(request, "/pilot", "error", message);
   }
