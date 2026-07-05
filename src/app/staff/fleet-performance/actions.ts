@@ -15,13 +15,11 @@ export async function saveAircraftPerformanceAction(formData: FormData) {
     const aircraftData = { seatCapacity: number(formData, "seatCapacity"), cargoCapacityKg: number(formData, "cargoCapacityKg") };
     const aircraft = (await prisma.aircraft.findMany()).filter((item) => fleetKeyForAircraft(item) === fleetKey);
     if (!aircraft.length) throw new Error("Fleet was not found.");
-    await prisma.$transaction(async (tx) => {
-      for (const item of aircraft) {
-        await tx.aircraft.update({ where: { id: item.id }, data: aircraftData });
-        await tx.aircraftPerformanceProfile.upsert({ where: { aircraftId: item.id }, create: { aircraftId: item.id, ...data }, update: data });
-      }
-      await tx.aocAuditLog.create({ data: { staffUserId: staff.id, action: "FLEET_PERFORMANCE_UPDATED", entityType: "AircraftFleet", entityId: fleetKey, message: `${staff.name} updated performance for ${aircraft.length} aircraft.`, metadata: { aircraftCount: aircraft.length, fuelBiasPercent: data.fuelBiasPercent } } });
-    });
+    await prisma.$transaction([
+      prisma.aircraft.updateMany({ where: { id: { in: aircraft.map((item) => item.id) } }, data: aircraftData }),
+      ...aircraft.map((item) => prisma.aircraftPerformanceProfile.upsert({ where: { aircraftId: item.id }, create: { aircraftId: item.id, ...data }, update: data })),
+      prisma.aocAuditLog.create({ data: { staffUserId: staff.id, action: "FLEET_PERFORMANCE_UPDATED", entityType: "AircraftFleet", entityId: fleetKey, message: `${staff.name} updated performance for ${aircraft.length} aircraft.`, metadata: { aircraftCount: aircraft.length, fuelBiasPercent: data.fuelBiasPercent } } }),
+    ]);
     updated = aircraft.length;
     revalidatePath("/staff/fleet-performance");
   } catch (caught) { error = caught instanceof Error ? caught.message : "Save failed"; }
@@ -70,16 +68,14 @@ export async function importAircraftPerformanceAction(formData: FormData) {
         notes: row.notes || null,
       }};
     });
-    await prisma.$transaction(async (tx) => {
-      for (const update of updates) {
-        for (const aircraft of update.members) {
-          await tx.aircraft.update({ where: { id: aircraft.id }, data: update.aircraftData });
-          await tx.aircraftPerformanceProfile.upsert({ where: { aircraftId: aircraft.id }, create: { aircraftId: aircraft.id, ...update.data }, update: update.data });
-        }
-      }
-      const aircraftCount = updates.reduce((total, update) => total + update.members.length, 0);
-      await tx.aocAuditLog.create({ data: { staffUserId: staff.id, action: "FLEET_PERFORMANCE_BULK_IMPORTED", entityType: "AircraftFleet", message: `${staff.name} imported ${updates.length} fleet profiles for ${aircraftCount} aircraft.`, metadata: { fleetCount: updates.length, aircraftCount, fileName: file.name } } });
-    });
+    const aircraftCount = updates.reduce((total, update) => total + update.members.length, 0);
+    await prisma.$transaction([
+      ...updates.flatMap((update) => [
+        prisma.aircraft.updateMany({ where: { id: { in: update.members.map((item) => item.id) } }, data: update.aircraftData }),
+        ...update.members.map((item) => prisma.aircraftPerformanceProfile.upsert({ where: { aircraftId: item.id }, create: { aircraftId: item.id, ...update.data }, update: update.data })),
+      ]),
+      prisma.aocAuditLog.create({ data: { staffUserId: staff.id, action: "FLEET_PERFORMANCE_BULK_IMPORTED", entityType: "AircraftFleet", message: `${staff.name} imported ${updates.length} fleet profiles for ${aircraftCount} aircraft.`, metadata: { fleetCount: updates.length, aircraftCount, fileName: file.name } } }),
+    ]);
     updatedFleets = updates.length;
     updatedAircraft = updates.reduce((total, update) => total + update.members.length, 0);
     revalidatePath("/staff/fleet-performance");
