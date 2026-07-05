@@ -16,6 +16,7 @@
     "test:economy": "node --experimental-strip-types src/lib/economy/handling.test.ts",
     "test:dispatch": "node --experimental-strip-types src/lib/dispatch/loadFactor.test.ts",
     "test:maintenance": "node --experimental-strip-types src/lib/aircraft-maintenance/condition.test.ts",
+    "maintenance:initialize": "node --experimental-strip-types scripts/initialize-aircraft-conditions.ts",
     "test:vamsys": "node --experimental-strip-types src/lib/vamsys/pkce.test.ts && node --experimental-strip-types src/lib/vamsys/pilotMapper.test.ts && node --experimental-strip-types src/lib/vamsys/pireps.test.ts"
   },
   "dependencies": {

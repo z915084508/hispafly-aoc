@@ -5,7 +5,8 @@ import type { AircraftLocationStatus } from "@prisma/client";
 import { requireStaffPermission } from "@/lib/staff/authorization";
 import { setAircraftLocationManually, syncAircraftLocationsFromPireps } from "@/lib/aircraft-location/tracker";
 import { prisma } from "@/lib/prisma";
-import { completeMaintenance } from "@/lib/aircraft-maintenance/service";
+import { completeMaintenance, initializeAircraftConditions } from "@/lib/aircraft-maintenance/service";
+import { redirect } from "next/navigation";
 
 const allowed = new Set<AircraftLocationStatus>(["AVAILABLE", "RESERVED", "IN_FLIGHT", "MAINTENANCE", "UNKNOWN"]);
 
@@ -33,4 +34,11 @@ export async function maintenanceAction(formData: FormData) {
   else {const condition=Math.max(0,Math.min(100,Number(formData.get("condition"))));const status=action==="aog"?"AOG":condition>=80?"NORMAL":condition>=60?"WATCH":condition>=40?"CAUTION":condition>=30?"MAINT_REQUIRED":condition>=20?"FERRY_ONLY":"AOG";await prisma.aircraftConditionSnapshot.upsert({where:{vamsysAircraftId:aircraftId},create:{vamsysAircraftId:aircraftId,conditionPercent:condition,operationalStatus:status,maintenanceStatus:status==="AOG"?"REQUIRED":"NONE"},update:{conditionPercent:condition,operationalStatus:status,maintenanceStatus:status==="AOG"?"REQUIRED":undefined}});}
   await prisma.aocAuditLog.create({data:{staffUserId:staff.id,action:action==="complete"?"AIRCRAFT_MAINTENANCE_COMPLETED":action==="start"?"AIRCRAFT_MAINTENANCE_STARTED":action==="aog"?"AIRCRAFT_AOG_DECLARED":"AIRCRAFT_CONDITION_MANUAL_UPDATE",entityType:"AircraftConditionSnapshot",entityId:aircraftId,message:`Aircraft maintenance action: ${action}`}});
   revalidatePath("/staff/fleet");revalidatePath("/pilot/fleet");
+}
+
+export async function initializeAircraftConditionsAction() {
+  const staff=await requireStaffPermission("FLIGHT_OFFER_MANAGE",{entityType:"AircraftConditionSnapshot",attemptedAction:"initialize fleet conditions"});
+  const result=await initializeAircraftConditions(staff.id);revalidatePath("/staff/fleet");revalidatePath("/pilot/fleet");
+  const query=new URLSearchParams({created:String(result.created),existing:String(result.existing),skipped:String(result.skipped),errors:String(result.errors.length)});
+  redirect(`/staff/fleet?${query}`);
 }

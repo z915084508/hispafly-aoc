@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 export interface AuditEvent {
   action: string;
@@ -6,7 +7,7 @@ export interface AuditEvent {
   entityId?: string | null;
   staffUserId?: string | null;
   message: string;
-  metadata?: Record<string, string | number | boolean | null>;
+  metadata?: Prisma.InputJsonValue;
 }
 
 export async function writeAuditLog(event: AuditEvent) {
