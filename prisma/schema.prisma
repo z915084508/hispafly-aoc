@@ -98,6 +98,13 @@ enum AircraftLocationSource {
   IMPORTED
 }
 
+enum OfpStatus {
+  GENERATED
+  AWAITING_SIGNATURE
+  SIGNED
+  VOIDED
+}
+
 model StaffUser {
   id        String        @id @default(cuid())
   name      String        @map("displayName")
@@ -123,6 +130,7 @@ model Pilot {
   vatsimId             String?
   ivaoId               String?
   discordId            String?
+  simbriefUserId       String?
   rankName             String?
   rankAbbreviation     String?
   hubId                String?
@@ -198,7 +206,10 @@ model Aircraft {
   seatCapacity     Int?
   cargoCapacityKg  Int?
   mtowKg           Int?
+  fuelOnBoardKg    Int?
+  fuelReportedAt   DateTime?
   rawData          Json?
+  performanceProfile AircraftPerformanceProfile?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -310,14 +321,23 @@ model Pirep {
   departure             String?
   arrival               String?
   aircraftType          String?
+  vamsysAircraftId      String?
+  aircraftRegistration  String?
   network               String?
   flightTimeMinutes     Int?
   blockTimeMinutes      Int?
   landingRate           Int?
   score                 Int?
   fuelUsed              Int?
+  rampFuelKg            Int?
+  takeoffFuelKg         Int?
+  landingFuelKg         Int?
+  fuelUpliftKg          Int?
+  inheritedFuelKg       Int?
   passengers            Int?
   cargoKg               Int?
+  luggageKg             Int?
+  freightKg             Int?
   flightDistanceNm      Int?
   passengerRevenueCents Int?
   fuelCostCents         Int?
@@ -348,6 +368,7 @@ model Pirep {
   @@index([vamsysBookingId])
   @@index([flownAt, passengerRevenueCents])
   @@index([flownAt, fuelCostCents])
+  @@index([vamsysAircraftId, flownAt])
 }
 
 model FuelPrice {
@@ -427,6 +448,26 @@ model WalletTransaction {
   @@index([type])
 }
 
+model AircraftPerformanceProfile {
+  id                     String   @id @default(cuid())
+  aircraftId             String   @unique
+  aircraft               Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
+  operatingEmptyWeightKg Int?
+  maxZeroFuelWeightKg    Int?
+  maxTakeoffWeightKg     Int?
+  maxLandingWeightKg     Int?
+  maxFuelKg              Int?
+  maxPayloadKg           Int?
+  defaultCostIndex       Int?
+  fuelBiasPercent        Float    @default(0)
+  taxiFuelKg             Int?
+  sampleSize             Int      @default(0)
+  locked                 Boolean  @default(false)
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
 model AircraftLocationSnapshot {
   id                     String                 @id @default(cuid())
   vamsysAircraftId       String                 @unique
@@ -479,6 +520,10 @@ model FlightOffer {
   aircraftRegistration String?
   passengers           Int?
   cargoKg              Int?
+  loadFactorPercent    Float?
+  luggageKg            Int?
+  freightKg            Int?                  @default(0)
+  baggageKgPerPassenger Float?
   altitude             Int?
   network              String?
   userRoute            String?
@@ -515,11 +560,38 @@ model FlightDispatch {
   rewardedAt                DateTime?
   cancelledAt               DateTime?
   errorMessage              String?
+  ofpBriefing               OfpBriefing?
   createdAt                 DateTime             @default(now())
   updatedAt                 DateTime             @updatedAt
 
   @@index([pilotId, status])
   @@index([flightOfferId, status])
+}
+
+model OfpBriefing {
+  id                 String         @id @default(cuid())
+  flightDispatchId   String         @unique
+  flightDispatch     FlightDispatch @relation(fields: [flightDispatchId], references: [id], onDelete: Cascade)
+  status             OfpStatus      @default(GENERATED)
+  version            Int            @default(1)
+  simbriefStaticId   String         @unique
+  simbriefUserId     String?
+  ofpUrl             String?
+  pdfUrl             String?
+  ofpSnapshot        Json?
+  contentHash        String
+  signedByPilotId    String?
+  signedByName       String?
+  signedByCallsign   String?
+  signatureData      String?
+  acceptanceText     String?
+  signedAt           DateTime?
+  voidedAt           DateTime?
+  voidReason         String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([status, signedAt])
 }
 
 model PilotBooking {

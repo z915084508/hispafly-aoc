@@ -32,7 +32,7 @@ export default async function PilotFlightOffersPage({ searchParams }: { searchPa
   const [messages, offers, dispatches, oauth] = await Promise.all([
     searchParams,
     prisma.flightOffer.findMany({ where: { status: "PUBLISHED", validUntil: { gt: new Date() }, dispatches: { none: { status: { in: ["DISPATCHING", "DISPATCHED"] } } } }, orderBy: { availableFrom: "asc" } }),
-    prisma.flightDispatch.findMany({ where: { pilotId: pilot.id }, include: { flightOffer: true, matchedPirep: true, rewardWalletTransaction: true }, orderBy: { createdAt: "desc" } }),
+    prisma.flightDispatch.findMany({ where: { pilotId: pilot.id }, include: { flightOffer: true, matchedPirep: true, rewardWalletTransaction: true, ofpBriefing: true }, orderBy: { createdAt: "desc" } }),
     prisma.vamsysOAuthToken.findUnique({ where: { pilotId: pilot.id }, select: { revokedAt: true, scopes: true, accessToken: true } }),
   ]);
   const storedScopes = oauth?.scopes.split(/\s+/).filter(Boolean) ?? [];
@@ -70,7 +70,9 @@ export default async function PilotFlightOffersPage({ searchParams }: { searchPa
         dispatch.rewardWalletTransaction ? formatCurrency(dispatch.rewardWalletTransaction.amountCents, locale) : reward(dispatch.flightOffer.rewardCents, dispatch.flightOffer.rewardType),
         when(dispatch.selectedDepartureAt ?? dispatch.dispatchedAt ?? dispatch.createdAt),
         when(dispatch.flightOffer.validUntil),
-        dispatch.status === "DISPATCHED" && dispatch.flightOffer.validUntil > new Date()
+        dispatch.ofpBriefing
+          ? <a className="action-button approve" href={`/pilot/ofp/${dispatch.ofpBriefing.id}`}>{dispatch.ofpBriefing.status === "SIGNED" ? "SIGNED OFP" : "OPEN & SIGN OFP"}</a>
+          : dispatch.status === "DISPATCHED" && dispatch.flightOffer.validUntil > new Date()
           ? <form action={cancelFlightDispatchAction} key="cancel"><input type="hidden" name="dispatchId" value={dispatch.id}/><button className="action-button reject" type="submit">{t("common.cancel")} (-50 €)</button></form>
           : dispatch.status === "EXPIRED" ? "Expirada (-100 €)" : dispatch.status === "CANCELLED" ? "Cancelada" : "—",
       ])} /> : <div className="empty-state">{t("flightOffers.noDispatches")}</div>}

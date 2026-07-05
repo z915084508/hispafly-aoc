@@ -46,6 +46,13 @@ const integer = (data: FormData, name: string) => {
   if (!Number.isInteger(parsed)) throw new Error(`${name} debe ser un número entero.`);
   return parsed;
 };
+const decimal = (data: FormData, name: string) => {
+  const value = text(data, name);
+  if (!value) return null;
+  const parsed = Number(value.replace(",", "."));
+  if (!Number.isFinite(parsed)) throw new Error(`${name} debe ser un número.`);
+  return parsed;
+};
 const date = (data: FormData, name: string, required = false) => {
   const value = text(data, name);
   if (!value && !required) return null;
@@ -85,7 +92,11 @@ export async function createFlightOfferAction(formData: FormData) {
       availableFrom, scheduledDeparture: null, scheduledArrival: null, estimatedDurationMinutes,
       aircraftType: optional(formData, "aircraftType")?.toUpperCase() ?? null,
       aircraftRegistration: optional(formData, "aircraftRegistration")?.toUpperCase() ?? null,
-      passengers: integer(formData, "passengers"), cargoKg: integer(formData, "cargoKg"), altitude: integer(formData, "altitude"),
+      passengers: integer(formData, "passengers"),
+      loadFactorPercent: decimal(formData, "loadFactorPercent"),
+      baggageKgPerPassenger: decimal(formData, "baggageKgPerPassenger"),
+      luggageKg: integer(formData, "luggageKg"), freightKg: integer(formData, "freightKg") ?? 0,
+      cargoKg: null, altitude: integer(formData, "altitude"),
       network: optional(formData, "network"), userRoute: optional(formData, "userRoute"),
       rewardType,
       rewardCents: rewardType === "FIXED" ? Math.round(rewardEuros * 100) : Math.round(rewardEuros * 100),

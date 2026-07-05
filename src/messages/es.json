@@ -53,6 +53,7 @@
                      "pilots":  "Pilotos",
                      "pireps":  "PIREPs",
                      "offers":  "Ofertas de vuelo",
+                     "ofp":  "Control OFP",
                      "payroll":  "Nóminas",
                      "economy":  "Economía de la compañía",
                      "expenses":  "Gastos de compañía",
@@ -64,7 +65,8 @@
                      "environment":  "Portal AOC · Entorno de desarrollo",
                      "sourceNote":  "PEGASUS ACARS y vAMSYS siguen siendo la fuente oficial de los PIREPs aceptados.",
                      "privacy":  "Política de privacidad",
-                     "fleet":  "Ubicación de flota"
+                     "fleet":  "Ubicación de flota",
+                     "performance":  "Performance de flota"
                  },
     "pilotNav":  {
                      "portal":  "Pilot Portal",
@@ -72,6 +74,7 @@
                      "dashboard":  "Panel de control",
                      "pireps":  "PIREPs",
                      "offers":  "Ofertas de vuelo",
+                     "ofp":  "Mi OFP",
                      "bookings":  "Reservar vuelo",
                      "roster":  "Roster de pilotos",
                      "economy":  "Estado económico",
@@ -127,7 +130,7 @@
                          "taskCount":  "{count} tareas",
                          "selectedDepartureUtc":  "Salida elegida (UTC)",
                          "estimatedArrival":  "Llegada estimada",
-                         "confirmDispatch":  "Confirmar dispatch",
+                         "confirmDispatch":  "Preparar OFP",
                          "authorizeVamsys":  "Autorizar vAMSYS",
                          "noTasksForDay":  "No hay tareas disponibles para este día.",
                          "bookingDetail":  "Detalle del booking creado"

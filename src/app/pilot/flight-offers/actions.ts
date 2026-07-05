@@ -3,7 +3,8 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requirePilotSession } from "@/lib/pilot/session";
-import { cancelFlightDispatchByPilot, dispatchFlightOffer } from "@/lib/flightOffers/service";
+import { prisma } from "@/lib/prisma";
+import { cancelFlightDispatchByPilot, prepareFlightOffer } from "@/lib/flightOffers/service";
 
 export async function dispatchFlightOfferAction(formData: FormData) {
   const pilot = await requirePilotSession();
@@ -11,12 +12,13 @@ export async function dispatchFlightOfferAction(formData: FormData) {
   const selectedDepartureAt = new Date(String(formData.get("selectedDepartureAt") ?? ""));
   let dispatchId: string;
   try {
-    const dispatch = await dispatchFlightOffer(offerId, pilot.id, selectedDepartureAt); dispatchId = dispatch.id;
+    const dispatch = await prepareFlightOffer(offerId, pilot.id, selectedDepartureAt); dispatchId = dispatch.id;
     revalidatePath("/pilot/flight-offers"); revalidatePath("/staff/flight-offers");
   } catch (error) {
     redirect("/pilot/flight-offers?error=" + encodeURIComponent(error instanceof Error ? error.message : "No se pudo realizar el dispatch."));
   }
-  redirect(`/pilot/flight-offers?success=${encodeURIComponent("Booking creado correctamente en vAMSYS.")}&dispatchId=${encodeURIComponent(dispatchId)}`);
+  const briefing = await prisma.ofpBriefing.findUnique({ where: { flightDispatchId: dispatchId }, select: { id: true } });
+  redirect(briefing ? `/pilot/ofp/${briefing.id}?success=${encodeURIComponent("Flight claimed. Generate and sign the OFP before Final Dispatch.")}` : "/pilot/flight-offers?error=OFP+creation+failed");
 }
 
 export async function cancelFlightDispatchAction(formData: FormData) {
@@ -28,5 +30,5 @@ export async function cancelFlightDispatchAction(formData: FormData) {
   } catch (error) {
     redirect("/pilot/flight-offers?error=" + encodeURIComponent(error instanceof Error ? error.message : "No se pudo cancelar el dispatch."));
   }
-  redirect("/pilot/flight-offers?success=" + encodeURIComponent("Booking cancelado. Se descontaron 50 € y la oferta volvió a estar disponible."));
+  redirect("/pilot/flight-offers?success=" + encodeURIComponent("Flight cancelled. Pre-dispatch cancellations have no penalty; a penalty only applies after a vAMSYS booking exists."));
 }

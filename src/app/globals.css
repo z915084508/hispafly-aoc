@@ -96,6 +96,9 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .workflow-summary div { display: grid; gap: 5px; padding: 14px; border-radius: 10px; background: #f7f8fb; }
 .workflow-summary strong { font-size: 24px; }
 .workflow-summary span { color: var(--muted); font-size: 11px; }
+.signature-form { display:grid; gap:14px; }
+.signature-canvas { width:100%; max-width:760px; height:180px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; touch-action:none; }
+.signature-accept { display:flex; gap:10px; align-items:flex-start; color:var(--muted); }
 .audit-filters { display: flex; align-items: end; gap: 12px; margin-bottom: 18px; padding: 14px; background: white; border: 1px solid var(--line); border-radius: 12px; }
 .audit-filters label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
 .audit-filters select { min-width: 190px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: white; color: var(--ink); }

@@ -167,7 +167,7 @@ export async function generateCompanyExpensesForPirep(pirepId: string) {
   const enrouteProfile = await airspaceProfile(departureRegion);
 
   const passengers = pirep.passengers ?? 0;
-  const cargoKg = pirep.cargoKg ?? 0;
+  const cargoKg = pirep.freightKg ?? 0;
   const distanceNm = pirep.flightDistanceNm ?? 0;
   const distanceKm = distanceNm * 1.852;
   const flightMinutes = pirep.flightTimeMinutes ?? 0;
@@ -221,7 +221,7 @@ export async function generateCompanyExpensesForPirep(pirepId: string) {
       pirepId,
       type: "cargo_handling",
       amountCents: Math.round((cargoKg / 1000) * DEFAULT_CARGO_HANDLING_PER_TONNE_CENTS),
-      calculationDetails: { ...commonAirportDetails, cargoKg, cargoTonnes: cargoKg / 1000, ratePerTonneCents: DEFAULT_CARGO_HANDLING_PER_TONNE_CENTS, configured: false },
+      calculationDetails: { ...commonAirportDetails, freightKg: cargoKg, cargoTonnes: cargoKg / 1000, ratePerTonneCents: DEFAULT_CARGO_HANDLING_PER_TONNE_CENTS, configured: false, luggageExcluded: true },
     }),
     expense({
       pirepId,

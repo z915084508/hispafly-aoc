@@ -82,7 +82,7 @@ export async function getFlightOfferOptions() {
   const [airports, fleets, aircraft, storedRoutes, pireps, liveRoutes] = await Promise.all([
     prisma.airport.findMany({ select: { icao: true, iata: true, name: true, rawData: true }, orderBy: { icao: "asc" } }),
     prisma.fleet.findMany({ select: { vamsysFleetId: true, name: true, rawData: true }, orderBy: { name: "asc" } }),
-    prisma.aircraft.findMany({ select: { vamsysAircraftId: true, registration: true, aircraftType: true, fleetId: true, status: true }, orderBy: [{ aircraftType: "asc" }, { registration: "asc" }] }),
+    prisma.aircraft.findMany({ select: { vamsysAircraftId: true, registration: true, aircraftType: true, fleetId: true, status: true, seatCapacity: true }, orderBy: [{ aircraftType: "asc" }, { registration: "asc" }] }),
     prisma.route.findMany({ orderBy: [{ departure: "asc" }, { arrival: "asc" }, { flightNumber: "asc" }] }),
     prisma.pirep.findMany({ where: { source: "vamsys_operations" }, select: { rawData: true, departure: true, arrival: true, flightNumber: true, callsign: true }, orderBy: { flownAt: "desc" }, take: 2000 }),
     currentOperationsRoutes().catch((error) => { console.warn("[Flight offers] current Operations routes unavailable; using local cache.", error); return [] as Row[]; }),

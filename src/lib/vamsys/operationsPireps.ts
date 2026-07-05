@@ -5,6 +5,7 @@ import { generateCompanyExpensesForPirep } from "@/lib/economy/companyExpenses";
 import { calculatePayroll, creditsToCents } from "@/lib/payroll/calculatePayroll";
 import { payrollRulesFromStoredRule } from "@/lib/payroll/rules";
 import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
+import { calculateAircraftFuelUplift } from "@/lib/economy/aircraftFuelLedger";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
 import { completeFlightDispatchFromPirep } from "@/lib/flightOffers/service";
 import { completePilotBookingFromPirep } from "@/lib/pilotBookings/service";
@@ -29,6 +30,22 @@ const num = (r: Row, ...keys: string[]) => { const value = str(r, ...keys); if (
 const date = (r: Row, ...keys: string[]) => { const value = str(r, ...keys); if (!value) return null; const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? null : parsed; };
 const nested = (r: Row, key: string) => rec(r[key]);
 const minutes = (seconds: number | null) => seconds === null ? null : Math.round(seconds / 60);
+const deepNum = (root: unknown, keys: string[], maxDepth = 7): number | null => {
+  const wanted = new Set(keys.map((key) => key.toLowerCase().replace(/[^a-z0-9]/g, "")));
+  const queue: Array<{ value: unknown; depth: number }> = [{ value: root, depth: 0 }];
+  while (queue.length) {
+    const item = queue.shift()!;
+    if (item.depth > maxDepth || !item.value || typeof item.value !== "object") continue;
+    for (const [key, value] of Object.entries(item.value as Row)) {
+      if (wanted.has(key.toLowerCase().replace(/[^a-z0-9]/g, ""))) {
+        const parsed = Number(typeof value === "string" ? value.replace(",", ".").match(/-?\d+(?:\.\d+)?/)?.[0] : value);
+        if (Number.isFinite(parsed) && parsed >= 0) return Math.round(parsed);
+      }
+      if (value && typeof value === "object") queue.push({ value, depth: item.depth + 1 });
+    }
+  }
+  return null;
+};
 
 function emptyResult(): OperationsPirepSyncResult {
   return {
@@ -77,10 +94,14 @@ export function mapOperationsPirep(raw: Row) {
   const passengers = passengersValue === null ? null : Math.round(passengersValue);
   const flightDistanceNm = distanceValue === null ? null : Math.round(distanceValue);
   const passengerRevenueCents = passengers !== null && flightDistanceNm !== null ? calculatePassengerRevenue(passengers, flightDistanceNm).revenueCents : null;
-  const cargoValue = num(source, "cargo", "cargo_kg", "cargoKg", "cargo_weight", "cargoWeight", "freight", "freight_kg", "freight_weight", "freightWeight", "payload", "payload_kg")
-    ?? (booking ? num(booking, "cargo", "cargo_kg", "cargoKg", "cargo_weight", "cargoWeight", "freight", "freight_kg", "freight_weight", "freightWeight", "payload", "payload_kg") : null);
+  const luggageKg = deepNum(raw, ["luggage", "luggage_kg", "baggage", "baggage_kg", "cargo", "cargo_kg"]);
+  const freightKg = deepNum(raw, ["freight", "freight_kg", "freight_weight"]);
   const fuelUsed = num(source, "fuel_used") === null ? null : Math.round(num(source, "fuel_used")!);
-  const cargoKg = cargoValue === null ? null : Math.round(cargoValue);
+  const rampFuelKg = deepNum(raw, ["ramp_fuel", "ramp_fuel_kg", "block_fuel", "block_fuel_kg"]);
+  const takeoffFuelKg = deepNum(raw, ["takeoff_fuel", "takeoff_fuel_kg"]);
+  const landingFuelKg = deepNum(raw, ["landing_fuel", "landing_fuel_kg", "fuel_remaining", "remaining_fuel"]);
+  const vamsysAircraftId = str(source, "aircraft_id", "aircraftId") ?? (aircraft ? str(aircraft, "id", "aircraft_id") : null);
+  const aircraftRegistration = str(source, "aircraft_registration", "registration") ?? (aircraft ? str(aircraft, "registration", "reg") : null);
   return {
     pilotExternalId: str(source, "pilot_id", "pilotId"),
     data: {
@@ -92,18 +113,20 @@ export function mapOperationsPirep(raw: Row) {
       departure: departure ? str(departure, "icao", "ident", "code", "id") : str(source, "departure_airport_id"),
       arrival: arrival ? str(arrival, "icao", "ident", "code", "id") : str(source, "arrival_airport_id"),
       aircraftType: fleet ? str(fleet, "code", "icao", "name") : aircraft ? str(aircraft, "type", "icao") : null,
+      vamsysAircraftId, aircraftRegistration,
       network: str(source, "network"), flightTimeMinutes: minutes(num(source, "flight_length")), blockTimeMinutes: minutes(num(source, "block_length")),
       landingRate: num(source, "landing_rate") === null ? null : Math.round(num(source, "landing_rate")!), score: num(source, "points") === null ? null : Math.round(num(source, "points")!),
       fuelUsed, points: num(source, "points"), credits: num(source, "bonus_sum"),
-      passengers, cargoKg, flightDistanceNm, passengerRevenueCents,
+      passengers, cargoKg: luggageKg, luggageKg, freightKg, rampFuelKg, takeoffFuelKg, landingFuelKg, flightDistanceNm, passengerRevenueCents,
       status: "accepted" as const, acarsSoftware: str(source, "acars_version"), source: "vamsys_operations",
       flownAt: date(source, "landing_time", "on_blocks_time", "created_at"), acceptedAt: date(source, "updated_at"), vamsysCreatedAt: date(source, "created_at"), vamsysUpdatedAt: date(source, "updated_at"), rawData: raw as Prisma.InputJsonValue, synchronizedAt: new Date(),
     },
   };
 }
 
-async function withFuelEconomics<T extends { departure: string | null; fuelUsed: number | null; flownAt: Date | null; vamsysUpdatedAt: Date | null }>(data: T) {
-  const economics = await calculateFuelCostSnapshot({ departure: data.departure, fuelUsedKg: data.fuelUsed, at: data.flownAt ?? data.vamsysUpdatedAt });
+async function withFuelEconomics<T extends { departure: string | null; fuelUsed: number | null; flownAt: Date | null; vamsysUpdatedAt: Date | null; vamsysAircraftId: string | null; rampFuelKg: number | null; landingFuelKg: number | null }>(data: T) {
+  const ledger = await calculateAircraftFuelUplift(data);
+  const economics = ledger ?? await calculateFuelCostSnapshot({ departure: data.departure, fuelUsedKg: data.fuelUsed, at: data.flownAt ?? data.vamsysUpdatedAt });
   return { ...data, ...economics };
 }
 

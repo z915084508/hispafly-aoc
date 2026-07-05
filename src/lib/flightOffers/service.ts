@@ -4,6 +4,7 @@ import { writeAuditLogSafely } from "@/lib/audit/log";
 import { cancelVamsysBooking, createVamsysBooking, VamsysApiError, type CreateVamsysBookingInput } from "@/lib/vamsys/client";
 import { getValidVamsysAccessToken } from "@/lib/vamsys/token";
 import { updateAircraftLocationFromDispatch } from "@/lib/aircraft-location/tracker";
+import { createDispatchOfpBriefing } from "@/lib/simbrief/ofp";
 
 type JsonRow = Record<string, unknown>;
 
@@ -26,7 +27,7 @@ function numericId(value: string, label: string): number {
   return parsed;
 }
 
-export async function dispatchFlightOffer(offerId: string, pilotId: string, selectedDepartureAt: Date) {
+export async function prepareFlightOffer(offerId: string, pilotId: string, selectedDepartureAt: Date) {
   const offer = await prisma.flightOffer.findUnique({ where: { id: offerId } });
   if (!offer) throw new Error("La oferta de vuelo no existe.");
   if (offer.status !== "PUBLISHED") throw new Error("Esta oferta ya no está publicada.");
@@ -39,15 +40,6 @@ export async function dispatchFlightOffer(offerId: string, pilotId: string, sele
   if (selectedDepartureAt.getTime() < Date.now() - 2 * 60_000) throw new Error("La salida seleccionada ya ha pasado.");
   const estimatedArrivalAt = new Date(selectedDepartureAt.getTime() + offer.estimatedDurationMinutes * 60_000);
   if (estimatedArrivalAt > offer.validUntil) throw new Error("El vuelo terminaría después de la fecha límite de la tarea.");
-
-  const oauth = await prisma.vamsysOAuthToken.findUnique({ where: { pilotId }, select: { scopes: true, revokedAt: true } });
-  const grantedScopes = new Set(oauth?.scopes.split(/\s+/).filter(Boolean) ?? []);
-  if (!oauth || oauth.revokedAt || !grantedScopes.has("flights:write")) {
-    throw new Error("Reconecta vAMSYS para autorizar flights:write antes de hacer Dispatch.");
-  }
-  const accessToken = await getValidVamsysAccessToken(pilotId).catch(() => {
-    throw new Error("Conecta vAMSYS para dispatch.");
-  });
 
   let dispatch;
   try {
@@ -63,16 +55,49 @@ export async function dispatchFlightOffer(offerId: string, pilotId: string, sele
     throw error;
   }
 
+  await createDispatchOfpBriefing(dispatch.id);
+  await writeAuditLogSafely({
+    action: "FLIGHT_PRE_DISPATCH_CREATED", entityType: "FlightDispatch", entityId: dispatch.id,
+    message: `Pilot claimed ${offer.title}; OFP generation and signature are required before vAMSYS dispatch.`,
+    metadata: { pilotId, offerId: offer.id, selectedDepartureAt: selectedDepartureAt.toISOString() },
+  });
+  return dispatch;
+}
+
+export async function finalDispatchFlightOffer(dispatchId: string, pilotId: string) {
+  const dispatch = await prisma.flightDispatch.findFirst({
+    where: { id: dispatchId, pilotId },
+    include: { flightOffer: true, ofpBriefing: true },
+  });
+  if (!dispatch) throw new Error("The AOC dispatch does not exist or is not assigned to you.");
+  if (dispatch.status !== "DISPATCHING") throw new Error("This flight is no longer awaiting final dispatch.");
+  if (!dispatch.ofpBriefing || dispatch.ofpBriefing.status !== "SIGNED" || dispatch.ofpBriefing.signedByPilotId !== pilotId) {
+    throw new Error("Review and sign the current OFP before Final Dispatch.");
+  }
+  if (!dispatch.selectedDepartureAt) throw new Error("The selected departure time is missing.");
+  if (dispatch.flightOffer.validUntil <= new Date()) throw new Error("This flight offer has expired.");
+  const claimed = await prisma.flightDispatch.updateMany({ where: { id: dispatch.id, status: "DISPATCHING", NOT: { errorMessage: "FINAL_DISPATCH_IN_PROGRESS" } }, data: { errorMessage: "FINAL_DISPATCH_IN_PROGRESS" } });
+  if (claimed.count !== 1) throw new Error("Final Dispatch is already in progress.");
+
+  const oauth = await prisma.vamsysOAuthToken.findUnique({ where: { pilotId }, select: { scopes: true, revokedAt: true } });
+  const grantedScopes = new Set(oauth?.scopes.split(/\s+/).filter(Boolean) ?? []);
+  if (!oauth || oauth.revokedAt || !grantedScopes.has("flights:write")) {
+    await prisma.flightDispatch.update({ where: { id: dispatch.id }, data: { errorMessage: null } });
+    throw new Error("Reconnect vAMSYS and authorize flights:write before Final Dispatch.");
+  }
+  const accessToken = await getValidVamsysAccessToken(pilotId).catch(async () => { await prisma.flightDispatch.update({ where: { id: dispatch.id }, data: { errorMessage: null } }); throw new Error("Connect vAMSYS before Final Dispatch."); });
+  const offer = dispatch.flightOffer;
+
   const body: CreateVamsysBookingInput = {
     route_id: numericId(offer.vamsysRouteId, "route_id"),
     aircraft_id: numericId(offer.vamsysAircraftId, "aircraft_id"),
-    departure_time: selectedDepartureAt.toISOString(),
+    departure_time: dispatch.selectedDepartureAt.toISOString(),
     ...(offer.network ? { network: offer.network } : {}),
     ...(offer.callsign ? { callsign: offer.callsign } : {}),
     ...(offer.flightNumber ? { flight_number: offer.flightNumber } : {}),
     ...(offer.altitude !== null ? { altitude: offer.altitude } : {}),
     ...(offer.passengers !== null ? { passengers: offer.passengers } : {}),
-    ...(offer.cargoKg !== null ? { cargo: offer.cargoKg } : {}),
+    ...(offer.luggageKg !== null ? { cargo: offer.luggageKg } : {}),
     ...(offer.userRoute ? { user_route: offer.userRoute } : {}),
   };
 
@@ -89,9 +114,9 @@ export async function dispatchFlightOffer(offerId: string, pilotId: string, sele
       return saved;
     });
     await writeAuditLogSafely({
-      action: "VAMSYS_BOOKING_CREATED", entityType: "FlightDispatch", entityId: dispatch.id,
+      action: "VAMSYS_BOOKING_CREATED_AFTER_OFP_SIGNATURE", entityType: "FlightDispatch", entityId: dispatch.id,
       message: `Booking ${vamsysBookingId} creado desde la oferta ${offer.title}.`,
-      metadata: { pilotId, offerId: offer.id, vamsysBookingId, selectedDepartureAt: selectedDepartureAt.toISOString(), estimatedArrivalAt: estimatedArrivalAt.toISOString() },
+      metadata: { pilotId, offerId: offer.id, vamsysBookingId, selectedDepartureAt: dispatch.selectedDepartureAt.toISOString(), ofpId: dispatch.ofpBriefing.id, ofpHash: dispatch.ofpBriefing.contentHash },
     });
     try {
       await updateAircraftLocationFromDispatch({
@@ -112,11 +137,10 @@ export async function dispatchFlightOffer(offerId: string, pilotId: string, sele
       ? `vAMSYS respondió ${error.status}: ${error.message}`
       : error instanceof Error ? error.message : "Error desconocido al crear el booking.";
     await prisma.$transaction([
-      prisma.flightDispatch.update({ where: { id: dispatch.id }, data: { status: "FAILED", errorMessage: message } }),
-      prisma.flightOffer.update({ where: { id: offer.id }, data: { status: offer.validUntil > new Date() ? "PUBLISHED" : "EXPIRED" } }),
+      prisma.flightDispatch.update({ where: { id: dispatch.id }, data: { status: "DISPATCHING", errorMessage: message } }),
     ]);
     await writeAuditLogSafely({
-      action: "VAMSYS_BOOKING_FAILED", entityType: "FlightDispatch", entityId: dispatch.id,
+      action: "VAMSYS_FINAL_DISPATCH_FAILED", entityType: "FlightDispatch", entityId: dispatch.id,
       message: `No se pudo crear el booking de la oferta ${offer.title}: ${message}`,
       metadata: { pilotId, offerId: offer.id, status: error instanceof VamsysApiError ? error.status : null },
     });
@@ -163,6 +187,16 @@ export async function cancelFlightDispatchByPilot(dispatchId: string, pilotId: s
     include: { flightOffer: true },
   });
   if (!dispatch) throw new Error("No tienes acceso a este dispatch.");
+  if (dispatch.status === "DISPATCHING" && !dispatch.vamsysBookingId) {
+    const cancelled = await prisma.$transaction(async (tx) => {
+      const saved = await tx.flightDispatch.update({ where: { id: dispatch.id }, data: { status: "CANCELLED", cancelledAt: new Date(), errorMessage: null } });
+      await tx.flightOffer.update({ where: { id: dispatch.flightOfferId }, data: { status: dispatch.flightOffer.validUntil > new Date() ? "PUBLISHED" : "EXPIRED" } });
+      await tx.ofpBriefing.updateMany({ where: { flightDispatchId: dispatch.id }, data: { status: "VOIDED", voidedAt: new Date(), voidReason: "Pilot cancelled before Final Dispatch" } });
+      return saved;
+    });
+    await writeAuditLogSafely({ action: "FLIGHT_PRE_DISPATCH_CANCELLED", entityType: "FlightDispatch", entityId: dispatch.id, message: `Pilot cancelled ${dispatch.flightOffer.title} before vAMSYS booking; no penalty applied.`, metadata: { pilotId } });
+    return cancelled;
+  }
   if (dispatch.status !== "DISPATCHED" || !dispatch.vamsysBookingId) throw new Error("Este dispatch ya no se puede cancelar.");
   if (dispatch.flightOffer.validUntil <= new Date()) throw new Error("La oferta ya ha caducado; se aplicará la penalización por expiración.");
 
@@ -183,13 +217,21 @@ export async function cancelFlightDispatchByPilot(dispatchId: string, pilotId: s
 }
 
 export async function expireOverdueFlightDispatches(limit = 10, pilotId?: string) {
+  const pending = await prisma.flightDispatch.findMany({ where: { status: "DISPATCHING", vamsysBookingId: null, ...(pilotId ? { pilotId } : {}), flightOffer: { validUntil: { lte: new Date() } } }, include: { flightOffer: true }, take: Math.max(1, Math.min(limit, 50)) });
+  for (const dispatch of pending) {
+    await prisma.$transaction([
+      prisma.flightDispatch.update({ where: { id: dispatch.id }, data: { status: "EXPIRED", completedAt: new Date(), errorMessage: "OFP workflow expired before Final Dispatch." } }),
+      prisma.flightOffer.update({ where: { id: dispatch.flightOfferId }, data: { status: "EXPIRED" } }),
+      prisma.ofpBriefing.updateMany({ where: { flightDispatchId: dispatch.id }, data: { status: "VOIDED", voidedAt: new Date(), voidReason: "Flight offer expired before Final Dispatch" } }),
+    ]);
+  }
   const overdue = await prisma.flightDispatch.findMany({
     where: { status: "DISPATCHED", matchedPirepId: null, ...(pilotId ? { pilotId } : {}), flightOffer: { validUntil: { lte: new Date() } } },
     include: { flightOffer: true },
     orderBy: { flightOffer: { validUntil: "asc" } },
     take: Math.max(1, Math.min(limit, 50)),
   });
-  let expired = 0; const errors: string[] = [];
+  let expired = pending.length; const errors: string[] = [];
   for (const dispatch of overdue) {
     try {
       if (dispatch.vamsysBookingId) {

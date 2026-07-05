@@ -4,10 +4,11 @@ import { useMemo, useState } from "react";
 import { createFlightOfferAction, getRouteFleetIdsAction } from "@/app/staff/flight-offers/actions";
 import type { FlightOfferRouteOption } from "@/lib/flightOffers/options";
 import { useTranslations } from "@/lib/i18n/client";
+import { suggestedLoadFactor } from "@/lib/dispatch/loadFactor";
 
 interface AirportOption { icao: string; iata: string | null; name: string | null }
 interface FleetOption { id: string; name: string | null; code: string | null; passengers: number | null; cargoKg: number | null }
-interface AircraftOption { vamsysAircraftId: string; registration: string | null; aircraftType: string | null; fleetId: string | null; status: string | null }
+interface AircraftOption { vamsysAircraftId: string; registration: string | null; aircraftType: string | null; fleetId: string | null; status: string | null; seatCapacity: number | null }
 
 export function FlightOfferForm({ airports, routes, fleets, aircraft, initialValues }: {
   airports: AirportOption[];
@@ -27,7 +28,9 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft, initialVal
   const [aircraftType, setAircraftType] = useState(initialValues?.aircraftType ?? "");
   const [registration, setRegistration] = useState(initialValues?.aircraftRegistration ?? "");
   const [passengers, setPassengers] = useState("");
-  const [cargoKg, setCargoKg] = useState("");
+  const [luggageKg, setLuggageKg] = useState("");
+  const [loadFactor, setLoadFactor] = useState("80");
+  const [baggagePerPassenger, setBaggagePerPassenger] = useState("23");
   const [altitude, setAltitude] = useState("");
   const [userRoute, setUserRoute] = useState("");
   const [routeFleetIds, setRouteFleetIds] = useState<string[] | null>(null);
@@ -73,7 +76,15 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft, initialVal
     if (!fleet) return;
     setAircraftType(fleet.code ?? "");
     if (fleet.passengers !== null) setPassengers(String(fleet.passengers));
-    if (fleet.cargoKg !== null) setCargoKg(String(fleet.cargoKg));
+  }
+
+  function recalculatePayload(nextLoadFactor = loadFactor, nextBaggage = baggagePerPassenger, nextAircraftId = aircraftId) {
+    const selected = aircraft.find((row) => row.vamsysAircraftId === nextAircraftId);
+    const seats = selected?.seatCapacity ?? fleets.find((row) => row.id === (selected?.fleetId ?? fleetId))?.passengers ?? null;
+    const factor = Number(nextLoadFactor); const baggage = Number(nextBaggage);
+    if (!seats || !Number.isFinite(factor) || !Number.isFinite(baggage)) return;
+    const pax = Math.min(seats, Math.max(0, Math.round(seats * factor / 100)));
+    setPassengers(String(pax)); setLuggageKg(String(Math.round(pax * baggage)));
   }
 
   function selectAircraft(value: string) {
@@ -81,6 +92,7 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft, initialVal
     const item = aircraft.find((row) => row.vamsysAircraftId === value);
     if (!item) return;
     setFleetId(item.fleetId ?? fleetId); setAircraftType(item.aircraftType ?? aircraftType); setRegistration(item.registration ?? "");
+    recalculatePayload(loadFactor, baggagePerPassenger, value);
   }
 
   return <form className="offer-form" action={createFlightOfferAction}>
@@ -101,11 +113,14 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft, initialVal
     <label>Matrícula<input name="aircraftRegistration" value={registration} onChange={(event) => setRegistration(event.target.value.toUpperCase())} /></label>
     <input name="availableFrom" type="hidden" value={availableFrom ? new Date(`${availableFrom}:00Z`).toISOString() : ""} />
     <input name="validUntil" type="hidden" value={validUntil ? new Date(`${validUntil}:00Z`).toISOString() : ""} />
-    <label>Disponible desde (UTC)<input type="datetime-local" value={availableFrom} onChange={(event) => setAvailableFrom(event.target.value)} required /></label>
+    <label>Disponible desde (UTC)<input type="datetime-local" value={availableFrom} onChange={(event) => { setAvailableFrom(event.target.value); const parsed = new Date(`${event.target.value}:00Z`); if (!Number.isNaN(parsed.getTime()) && departure && arrival) { const suggested = String(suggestedLoadFactor({ departure, arrival, departureAt: parsed })); setLoadFactor(suggested); recalculatePayload(suggested); } }} required /></label>
     <label>Fecha límite (UTC)<input type="datetime-local" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} required /></label>
     <label>Duración estimada<input value={estimatedDurationMinutes ? `${estimatedDurationMinutes} min` : "Selecciona una ruta"} readOnly /><input name="estimatedDurationMinutes" value={estimatedDurationMinutes} type="hidden" /></label>
-    <label>Pasajeros<input name="passengers" value={passengers} onChange={(event) => setPassengers(event.target.value)} type="number" min="0" /></label>
-    <label>Carga kg<input name="cargoKg" value={cargoKg} onChange={(event) => setCargoKg(event.target.value)} type="number" min="0" /></label>
+    <label>HISPAFLY Load Factor %<input name="loadFactorPercent" value={loadFactor} onChange={(event) => { setLoadFactor(event.target.value); recalculatePayload(event.target.value); }} type="number" min="0" max="100" step="0.1" /></label>
+    <label>Equipaje por pasajero (kg)<input name="baggageKgPerPassenger" value={baggagePerPassenger} onChange={(event) => { setBaggagePerPassenger(event.target.value); recalculatePayload(loadFactor, event.target.value); }} type="number" min="0" step="0.1" /></label>
+    <label>Pasajeros calculados<input name="passengers" value={passengers} onChange={(event) => setPassengers(event.target.value)} type="number" min="0" /></label>
+    <label>Equipaje / Luggage kg<input name="luggageKg" value={luggageKg} onChange={(event) => setLuggageKg(event.target.value)} type="number" min="0" /></label>
+    <label>Freight kg<input name="freightKg" type="number" min="0" defaultValue="0" /><span className="field-note">Solo carga comercial; no incluye equipaje.</span></label>
     <label>Altitud<input name="altitude" value={altitude} onChange={(event) => setAltitude(event.target.value)} type="number" min="0" /></label>
     <label>Red<input name="network" placeholder="VATSIM" /></label>
     <label>Tipo recompensa<select name="rewardType"><option value="FIXED">Importe fijo</option><option value="PERCENTAGE">% de nómina</option></select></label>

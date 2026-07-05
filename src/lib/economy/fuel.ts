@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { baseFuelDiscountPercent } from "@/lib/dispatch/loadFactor";
 
 export const IATA_JET_FUEL_PRICE_SOURCE = "IATA Jet Fuel Price Monitor";
 export const IATA_JET_FUEL_PRICE_URL = "https://www.iata.org/en/publications/economics/fuel-monitor/";
@@ -64,10 +65,12 @@ export async function calculateFuelCostSnapshot(input: {
     return { fuelCostCents: null, fuelPricePerKgCents: null, fuelPriceRegion: region, fuelPriceSource: IATA_JET_FUEL_PRICE_SOURCE };
   }
 
+  const discountPercent = baseFuelDiscountPercent(input.departure);
+  const effectivePricePerKgCents = price.pricePerKgCents * (1 - discountPercent / 100);
   return {
-    fuelCostCents: Math.round(fuelUsedKg * price.pricePerKgCents),
+    fuelCostCents: Math.round(fuelUsedKg * effectivePricePerKgCents),
     fuelPricePerKgCents: price.pricePerKgCents,
     fuelPriceRegion: price.region,
-    fuelPriceSource: price.source,
+    fuelPriceSource: discountPercent ? `${price.source} · HISPAFLY BASE -${discountPercent}%` : price.source,
   };
 }
