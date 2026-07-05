@@ -3,13 +3,14 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
 import { extractSimbriefPdfUrl } from "@/lib/simbrief/pdf";
+import { normalizeSimbriefUserId } from "@/lib/simbrief/userId";
 
 export function ofpContentHash(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
 export function simbriefDispatchUrl(input: {
-  staticId: string; airline?: string | null; flightNumber?: string | null; callsign?: string | null; aircraftType?: string | null;
+  staticId: string; airline?: string | null; flightNumber?: string | null; callsign?: string | null; simbriefUserId?: string | null; aircraftType?: string | null;
   registration?: string | null; departure: string; arrival: string; passengers?: number | null;
   luggageKg?: number | null; altitude?: number | null; route?: string | null; costIndex?: number | null;
   fuelBiasPercent?: number | null; aircraftData?: Record<string, string | number | null> | null;
@@ -19,6 +20,7 @@ export function simbriefDispatchUrl(input: {
   if (identity.numericFlightNumber) query.set("fltnum", identity.numericFlightNumber);
   if (identity.atcCallsign) query.set("callsign", identity.atcCallsign);
   if (identity.commercialFlightNumber) query.set("flight_number", identity.commercialFlightNumber);
+  if (input.simbriefUserId) query.set("userid", input.simbriefUserId);
   if (input.registration) query.set("reg", input.registration);
   if (input.passengers !== null && input.passengers !== undefined) query.set("pax", String(input.passengers));
   if (input.luggageKg !== null && input.luggageKg !== undefined) query.set("cargo", String(input.luggageKg / 1000));
@@ -47,7 +49,7 @@ export async function createDispatchOfpBriefing(dispatchId: string) {
   // SimBrief acdata weights are expressed in thousands of pounds, even when
   // the OFP itself uses KGS. 1,000 lb = 453.59237 kg.
   const thousandPounds = (kg: number | null | undefined) => kg == null ? null : Math.round((kg / 453.59237) * 1000) / 1000;
-  const ofpUrl = simbriefDispatchUrl({ staticId, airline: identity.airlineName, flightNumber: identity.commercialFlightNumber, callsign: identity.atcCallsign, aircraftType: dispatch.flightOffer.aircraftType, registration: dispatch.flightOffer.aircraftRegistration, departure: dispatch.flightOffer.departureIcao, arrival: dispatch.flightOffer.arrivalIcao, passengers: dispatch.flightOffer.passengers, luggageKg: dispatch.flightOffer.luggageKg, altitude: dispatch.flightOffer.altitude, route: dispatch.flightOffer.userRoute, costIndex: performance?.defaultCostIndex, fuelBiasPercent: performance?.fuelBiasPercent, aircraftData: performance ? { maxpax: aircraft?.seatCapacity ?? null, oew: thousandPounds(performance.operatingEmptyWeightKg), mzfw: thousandPounds(performance.maxZeroFuelWeightKg), mtow: thousandPounds(performance.maxTakeoffWeightKg), mlw: thousandPounds(performance.maxLandingWeightKg), maxfuel: thousandPounds(performance.maxFuelKg) } : null });
+  const ofpUrl = simbriefDispatchUrl({ staticId, airline: identity.airlineName, flightNumber: identity.commercialFlightNumber, callsign: identity.atcCallsign, simbriefUserId: dispatch.pilot.simbriefUserId, aircraftType: dispatch.flightOffer.aircraftType, registration: dispatch.flightOffer.aircraftRegistration, departure: dispatch.flightOffer.departureIcao, arrival: dispatch.flightOffer.arrivalIcao, passengers: dispatch.flightOffer.passengers, luggageKg: dispatch.flightOffer.luggageKg, altitude: dispatch.flightOffer.altitude, route: dispatch.flightOffer.userRoute, costIndex: performance?.defaultCostIndex, fuelBiasPercent: performance?.fuelBiasPercent, aircraftData: performance ? { maxpax: aircraft?.seatCapacity ?? null, oew: thousandPounds(performance.operatingEmptyWeightKg), mzfw: thousandPounds(performance.maxZeroFuelWeightKg), mtow: thousandPounds(performance.maxTakeoffWeightKg), mlw: thousandPounds(performance.maxLandingWeightKg), maxfuel: thousandPounds(performance.maxFuelKg) } : null });
   return prisma.ofpBriefing.upsert({
     where: { flightDispatchId: dispatch.id },
     create: { flightDispatchId: dispatch.id, status: "GENERATED", simbriefStaticId: staticId, simbriefUserId: dispatch.pilot.simbriefUserId, ofpUrl, ofpSnapshot: snapshot, contentHash: ofpContentHash(snapshot) },
@@ -56,12 +58,13 @@ export async function createDispatchOfpBriefing(dispatchId: string) {
 }
 
 export async function importSimbriefOfp(ofpId: string, pilotId: string, simbriefUserId: string) {
+  const normalizedUserId = normalizeSimbriefUserId(simbriefUserId);
+  if (!normalizedUserId) throw new Error("SimBrief Pilot ID is required.");
   const ofp = await prisma.ofpBriefing.findFirst({ where: { id: ofpId, flightDispatch: { pilotId } } });
   if (!ofp) throw new Error("You do not have access to this OFP.");
-  const response = await fetch(`https://www.simbrief.com/api/xml.fetcher.php?userid=${encodeURIComponent(simbriefUserId)}&static_id=${encodeURIComponent(ofp.simbriefStaticId)}&json=1`, { cache: "no-store" });
+  const response = await fetch(`https://www.simbrief.com/api/xml.fetcher.php?userid=${encodeURIComponent(normalizedUserId)}&static_id=${encodeURIComponent(ofp.simbriefStaticId)}&json=1`, { cache: "no-store" });
   if (!response.ok) throw new Error(`SimBrief returned ${response.status}. Generate the OFP first.`);
   const snapshot = await response.json() as Prisma.InputJsonValue;
   const pdfUrl = extractSimbriefPdfUrl(snapshot);
-  await prisma.pilot.update({ where: { id: pilotId }, data: { simbriefUserId } });
-  return prisma.ofpBriefing.update({ where: { id: ofp.id }, data: { status: "AWAITING_SIGNATURE", simbriefUserId, ofpSnapshot: snapshot, contentHash: ofpContentHash(snapshot), pdfUrl, signatureData: null, signedAt: null, signedByPilotId: null } });
+  return prisma.ofpBriefing.update({ where: { id: ofp.id }, data: { status: "AWAITING_SIGNATURE", simbriefUserId: normalizedUserId, ofpSnapshot: snapshot, contentHash: ofpContentHash(snapshot), pdfUrl, signatureData: null, signedAt: null, signedByPilotId: null } });
 }

@@ -7,11 +7,21 @@ import { requirePilotSession } from "@/lib/pilot/session";
 import { importSimbriefOfp } from "@/lib/simbrief/ofp";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { finalDispatchFlightOffer } from "@/lib/flightOffers/service";
+import { normalizeSimbriefUserId } from "@/lib/simbrief/userId";
+import { getTranslations } from "@/lib/i18n/server";
 
 export async function importSimbriefOFPAction(formData: FormData) {
-  const pilot = await requirePilotSession(); const ofpId = String(formData.get("ofpId") ?? ""); const userId = String(formData.get("simbriefUserId") ?? "").trim();
+  const pilot = await requirePilotSession(); const ofpId = String(formData.get("ofpId") ?? ""); const { t } = await getTranslations();
   let error: string | null = null;
-  try { if (!/^\d+$/.test(userId)) throw new Error("Enter your numeric SimBrief Pilot ID."); await importSimbriefOfp(ofpId, pilot.id, userId); revalidatePath(`/pilot/ofp/${ofpId}`); }
+  try {
+    let temporaryId: string | null;
+    try { temporaryId = normalizeSimbriefUserId(formData.get("simbriefUserId")); }
+    catch { throw new Error(t("pilot.profile.simbriefIdInvalid")); }
+    const userId = temporaryId ?? normalizeSimbriefUserId(pilot.simbriefUserId);
+    if (!userId) throw new Error(t("pilot.profile.simbriefIdRequired"));
+    if (temporaryId && formData.get("saveSimbriefUserId") === "yes" && temporaryId !== pilot.simbriefUserId) await prisma.pilot.update({ where: { id: pilot.id }, data: { simbriefUserId: temporaryId } });
+    await importSimbriefOfp(ofpId, pilot.id, userId); revalidatePath(`/pilot/ofp/${ofpId}`); revalidatePath("/pilot/dashboard");
+  }
   catch (caught) { error = caught instanceof Error ? caught.message : "Import failed."; }
   redirect(`/pilot/ofp/${ofpId}?${error ? `error=${encodeURIComponent(error)}` : `success=${encodeURIComponent("SimBrief OFP uploaded to AOC.")}`}`);
 }

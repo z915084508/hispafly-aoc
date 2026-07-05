@@ -34,6 +34,21 @@
                     "noPermission": "You do not have permission to view this OFP",
                     "notFound": "OFP not found"
                 },
+    "pilot": {
+                 "profile": {
+                                "simbriefId": "SimBrief Pilot ID",
+                                "saveSimbriefId": "Save SimBrief ID",
+                                "simbriefIdHelp": "Your SimBrief ID is used to generate OFP automatically.",
+                                "simbriefIdSaved": "SimBrief ID saved.",
+                                "simbriefIdRequired": "Save your SimBrief Pilot ID before preparing the OFP.",
+                                "simbriefIdInvalid": "Use only letters, numbers, underscores or hyphens, up to 64 characters."
+                              }
+               },
+    "ofp": {
+               "simbriefId": "SimBrief ID",
+               "changeSimbriefId": "Change SimBrief ID",
+               "prepareRequiresSimbriefId": "A SimBrief Pilot ID is required to prepare this OFP."
+             },
     "status":  {
                    "pending":  "Pending",
                    "approved":  "Approved",
