@@ -11,6 +11,17 @@ const COOKIE_OPTIONS = {
   maxAge: 10 * 60,
 };
 
+function setOAuthCookies(response: NextResponse, state: string, codeVerifier: string) {
+  response.cookies.set("hispafly_vamsys_oauth_state", state, COOKIE_OPTIONS);
+  response.cookies.set("hispafly_vamsys_code_verifier", codeVerifier, COOKIE_OPTIONS);
+
+  // Keep route-scoped cookies for both the legacy callback path and the new custom-domain callback path.
+  response.cookies.set("hispafly_vamsys_oauth_state", state, { ...COOKIE_OPTIONS, path: "/api/vamsys/oauth" });
+  response.cookies.set("hispafly_vamsys_code_verifier", codeVerifier, { ...COOKIE_OPTIONS, path: "/api/vamsys/oauth" });
+  response.cookies.set("hispafly_vamsys_oauth_state", state, { ...COOKIE_OPTIONS, path: "/api/auth/vamsys" });
+  response.cookies.set("hispafly_vamsys_code_verifier", codeVerifier, { ...COOKIE_OPTIONS, path: "/api/auth/vamsys" });
+}
+
 export async function GET(request: Request) {
   try {
     const config = getVamsysPilotConfig();
@@ -28,10 +39,7 @@ export async function GET(request: Request) {
     }).toString();
 
     const response = NextResponse.redirect(authorizationUrl);
-    response.cookies.set("hispafly_vamsys_oauth_state", state, COOKIE_OPTIONS);
-    response.cookies.set("hispafly_vamsys_code_verifier", codeVerifier, COOKIE_OPTIONS);
-    response.cookies.set("hispafly_vamsys_oauth_state", state, { ...COOKIE_OPTIONS, path: "/api/vamsys/oauth" });
-    response.cookies.set("hispafly_vamsys_code_verifier", codeVerifier, { ...COOKIE_OPTIONS, path: "/api/vamsys/oauth" });
+    setOAuthCookies(response, state, codeVerifier);
     await writeAuditLogSafely({ action: "VAMSYS_OAUTH_STARTED", entityType: "VamsysOAuth", message: "Un piloto inició la conexión OAuth con vAMSYS." });
     return response;
   } catch (error) {
