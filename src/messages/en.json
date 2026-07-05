@@ -267,6 +267,7 @@
                                                  "IMPORTED":  "Imported"
                                              }
                          },
+    "maintenance": {"condition":"Condition","aircraftCondition":"Aircraft condition","needing":"Needing maintenance","ferryOnly":"Ferry only","aog":"AOG","inMaintenance":"In maintenance","monthlyCost":"Maintenance cost this month","cycles":"Cycles since maintenance","blockHours":"Block hours since maintenance","start":"Start maintenance","complete":"Complete maintenance","requires":"Aircraft requires maintenance","restored":"Condition restored"},
     "fleet":  {
                   "map":  {
                               "title":  "Aircraft location map",

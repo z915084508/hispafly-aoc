@@ -10,6 +10,7 @@ import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
 import { completeFlightDispatchFromPirep } from "@/lib/flightOffers/service";
 import { completePilotBookingFromPirep } from "@/lib/pilotBookings/service";
 import { extractAircraftLocationData, updateAircraftLocationFromAcceptedPirep } from "@/lib/aircraft-location/tracker";
+import { applyAircraftWearFromAcceptedPirep } from "@/lib/aircraft-maintenance/service";
 import { operationsRequest } from "./operations";
 import { nextVamsysCursor, nextVamsysPageUrl } from "./pagination";
 import { isCompletedOperationsPirep, mergeOperationsPirepRecords, operationsPirepStatus } from "./operationsPirepPayload";
@@ -258,6 +259,7 @@ export async function processAcceptedOperationsPirep(pirepSummaryOrId: Row | str
   await generateExpensesSafely(stored.id, result);
   if (existing) result.updatedCount++; else result.importedCount++;
   await generatePayrollAndWallet({ stored, pilotId: pilot.id, rule: options.rule ?? await loadActivePayrollRule(), pirepData, result });
+  await applyAircraftWearFromAcceptedPirep(stored).catch((error) => console.error(`[Aircraft maintenance] wear failed pirep=${stored.id}`, error));
   const dispatchResult = await completeFlightDispatchFromPirep({
     pirepId: stored.id,
     vamsysPirepId: stored.vamsysPirepId,

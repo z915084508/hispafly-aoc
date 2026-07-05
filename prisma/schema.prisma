@@ -48,6 +48,34 @@ enum CompanyExpenseType {
   cargo_handling
   atc_enroute
   atc_terminal
+  MAINTENANCE
+  AOG_RECOVERY
+  MAINTENANCE_FERRY_SUPPORT
+}
+
+enum AircraftOperationalStatus {
+  NORMAL
+  WATCH
+  CAUTION
+  MAINT_REQUIRED
+  FERRY_ONLY
+  IN_MAINTENANCE
+  AOG
+}
+enum AircraftMaintenanceStatus {
+  NONE
+  REQUIRED
+  FERRY_TO_BASE
+  WAITING_MAINTENANCE
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+enum AircraftMaintenanceType {
+  LINE_CHECK
+  SCHEDULED_CHECK
+  HEAVY_CHECK
+  AOG_RECOVERY
 }
 
 enum FlightOfferStatus {
@@ -388,8 +416,9 @@ model FuelPrice {
 
 model CompanyExpense {
   id                 String             @id @default(cuid())
-  pirepId            String
-  pirep              Pirep              @relation(fields: [pirepId], references: [id], onDelete: Cascade)
+  pirepId            String?
+  pirep              Pirep?             @relation(fields: [pirepId], references: [id], onDelete: Cascade)
+  maintenanceOrderId String?             @unique
   type               CompanyExpenseType
   amountCents        Int
   currency           String             @default("EUR")
@@ -501,6 +530,7 @@ model AircraftLocationSnapshot {
 model FlightOffer {
   id                   String                @id @default(cuid())
   title                String
+  offerType            String                @default("STANDARD")
   titleEs              String?
   titleEn              String?
   descriptionEs        String?
@@ -539,6 +569,81 @@ model FlightOffer {
 
   @@index([status, validUntil])
   @@index([availableFrom, validUntil])
+}
+
+model AircraftConditionSnapshot {
+  id String @id @default(cuid())
+  vamsysAircraftId String @unique
+  registration String?
+  aircraftType String?
+  conditionPercent Decimal @default(100) @db.Decimal(5,2)
+  operationalStatus AircraftOperationalStatus @default(NORMAL)
+  maintenanceStatus AircraftMaintenanceStatus @default(NONE)
+  maintenanceBaseIcao String @default("LEVC")
+  cyclesSinceMaintenance Int @default(0)
+  blockMinutesSinceMaintenance Int @default(0)
+  lastWearPirepId String?
+  lastVamsysPirepId String?
+  lastMaintenanceAt DateTime?
+  notes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AircraftWearEvent {
+  id String @id @default(cuid())
+  vamsysAircraftId String
+  localPirepId String @unique
+  vamsysPirepId String?
+  previousCondition Decimal @db.Decimal(5,2)
+  wearPercent Decimal @db.Decimal(5,2)
+  newCondition Decimal @db.Decimal(5,2)
+  blockMinutes Int?
+  landingRate Int?
+  landingG Decimal? @db.Decimal(4,2)
+  aircraftType String?
+  factors Json
+  createdAt DateTime @default(now())
+  @@index([vamsysAircraftId, createdAt])
+}
+
+model AircraftMaintenanceOrder {
+  id String @id @default(cuid())
+  vamsysAircraftId String
+  registration String?
+  aircraftType String?
+  type AircraftMaintenanceType
+  status AircraftMaintenanceStatus
+  currentCondition Decimal @db.Decimal(5,2)
+  targetCondition Decimal @db.Decimal(5,2)
+  estimatedCostCents Int
+  actualCostCents Int?
+  maintenanceBaseIcao String @default("LEVC")
+  currentAirportIcao String?
+  ferryOfferId String?
+  ferryDispatchId String?
+  startedAt DateTime?
+  completedAt DateTime?
+  notes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([vamsysAircraftId, status])
+}
+
+model AircraftMaintenanceRule {
+  id String @id @default(cuid())
+  aircraftCategory String @unique
+  cycleWearPercent Decimal @db.Decimal(5,2)
+  hourlyWearPercent Decimal @db.Decimal(5,2)
+  baseInspectionCostCents Int
+  costPerConditionPointCents Int
+  hangarDailyCostCents Int
+  targetConditionPercent Decimal @default(90) @db.Decimal(5,2)
+  heavyTargetConditionPercent Decimal @default(95) @db.Decimal(5,2)
+  mandatoryThresholdPercent Decimal @default(30) @db.Decimal(5,2)
+  aogThresholdPercent Decimal @default(20) @db.Decimal(5,2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model FlightDispatch {

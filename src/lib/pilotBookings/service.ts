@@ -3,6 +3,7 @@ import { writeAuditLogSafely } from "@/lib/audit/log";
 import { getFlightOfferOptions, getOperationsRouteDetails } from "@/lib/flightOffers/options";
 import { cancelVamsysBooking, createVamsysBooking, VamsysApiError, type CreateVamsysBookingInput } from "@/lib/vamsys/client";
 import { getValidVamsysAccessToken } from "@/lib/vamsys/token";
+import { assertAircraftDispatchAllowed } from "@/lib/aircraft-maintenance/service";
 
 type Row = Record<string, unknown>;
 const record = (value: unknown): Row | null => value && typeof value === "object" && !Array.isArray(value) ? value as Row : null;
@@ -44,6 +45,7 @@ export async function createPilotBooking(pilotId: string, input: CreatePilotBook
   const aircraft = options.aircraft.find((item) => item.vamsysAircraftId === input.aircraftId);
   if (!route) throw new Error("La ruta seleccionada ya no está disponible en vAMSYS.");
   if (!aircraft) throw new Error("La aeronave seleccionada ya no está disponible.");
+  await assertAircraftDispatchAllowed({ vamsysAircraftId: aircraft.vamsysAircraftId, offerType: "STANDARD", arrivalIcao: route.arrival });
   const liveDetails = await getOperationsRouteDetails(route.id);
   const authorizedFleetIds = liveDetails.fleetIds.length ? liveDetails.fleetIds : route.fleetIds;
   const fleetId = input.fleetId || aircraft.fleetId || null;

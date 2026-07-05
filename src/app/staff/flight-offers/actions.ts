@@ -85,7 +85,7 @@ export async function createFlightOfferAction(formData: FormData) {
     if (availableFrom >= validUntil) throw new Error("La fecha límite debe ser posterior al inicio de la tarea.");
     if (!estimatedDurationMinutes || estimatedDurationMinutes <= 0) throw new Error("vAMSYS no devolvió una duración válida para esta ruta.");
     const offer = await prisma.flightOffer.create({ data: {
-      title,
+      title, offerType: optional(formData, "offerType") || "STANDARD",
       flightNumber: optional(formData, "flightNumber"), callsign: optional(formData, "callsign"),
       departureIcao, arrivalIcao, vamsysRouteId, vamsysAircraftId,
       vamsysFleetId: optional(formData, "vamsysFleetId"),

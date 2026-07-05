@@ -15,7 +15,7 @@ const expenseTypes = {
   airport_service: "Servicio aeropuerto",
   airport_parking: "Estacionamiento",
   handling: "Handling",
-  cargo_handling: "Handling carga",
+  cargo_handling: "Handling carga", MAINTENANCE: "Maintenance", AOG_RECOVERY: "AOG recovery", MAINTENANCE_FERRY_SUPPORT: "Maintenance ferry support",
   atc_enroute: "ATC en ruta",
   atc_terminal: "ATC terminal",
 } as const;

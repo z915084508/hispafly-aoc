@@ -4,13 +4,18 @@ import { getTranslations } from "@/lib/i18n/server";
 import { getAircraftLocationList, getAircraftLocationSummary } from "@/lib/aircraft-location/tracker";
 import { prisma } from "@/lib/prisma";
 import { setAircraftLocationAction, syncAircraftLocationsAction } from "./actions";
+import { maintenanceAction } from "./actions";
+import { DataTable, Badge } from "@/components/data-table";
 
 export const dynamic = "force-dynamic";
 
 export default async function StaffFleetPage() {
-  const [{ t, locale }, summary, locations, aircraft] = await Promise.all([
+  const [{ t, locale }, summary, locations, aircraft, conditions, orders, monthlyCost] = await Promise.all([
     getTranslations(), getAircraftLocationSummary(), getAircraftLocationList(),
     prisma.aircraft.findMany({ orderBy: { registration: "asc" }, select: { vamsysAircraftId: true, registration: true, aircraftType: true } }),
+    prisma.aircraftConditionSnapshot.findMany({orderBy:{conditionPercent:"asc"}}),
+    prisma.aircraftMaintenanceOrder.findMany({where:{status:{notIn:["COMPLETED","CANCELLED"]}},orderBy:{createdAt:"desc"}}),
+    prisma.companyExpense.aggregate({where:{type:{in:["MAINTENANCE","AOG_RECOVERY"]},createdAt:{gte:new Date(new Date().getFullYear(),new Date().getMonth(),1)}},_sum:{amountCents:true}}),
   ]);
   const mapItems = locations.map((item) => ({ ...item, updatedAt: item.updatedAt.toISOString(), latitude: item.lastLatitude, longitude: item.lastLongitude }));
   const noCoordinates = mapItems.filter((item) => item.latitude === null || item.longitude === null).length;
@@ -27,6 +32,8 @@ export default async function StaffFleetPage() {
       {[["totalAircraft", summary.total], ["available", summary.available], ["reserved", summary.reserved], ["inFlight", summary.inFlight], ["maintenance", summary.maintenance], ["unknown", summary.unknown], ["airportsWithAircraft", summary.airportsWithAircraft], ["externalMovedAircraft", summary.externalMovedAircraft], ["noCoordinates", noCoordinates]].map(([key, value]) => <div className="card" key={key}><div className="stat-label">{t(`fleet.kpi.${key}`)}</div><div className="stat-value">{value}</div></div>)}
     </section>
     <StaffFleetExplorer aircraft={mapItems} labels={explorerLabels} locale={locale} />
+    <section className="grid stats fleet-kpis">{[["maintenance.needing",conditions.filter(x=>Number(x.conditionPercent)<40).length],["maintenance.ferryOnly",conditions.filter(x=>x.operationalStatus==="FERRY_ONLY").length],["maintenance.aog",conditions.filter(x=>x.operationalStatus==="AOG").length],["maintenance.inMaintenance",conditions.filter(x=>x.operationalStatus==="IN_MAINTENANCE").length],["maintenance.monthlyCost",`${((monthlyCost._sum.amountCents??0)/100).toLocaleString()} €`]].map(([key,value])=><div className="card" key={key}><div className="stat-label">{t(String(key))}</div><div className="stat-value">{value}</div></div>)}</section>
+    <section className="card"><div className="card-header"><h2>{t("maintenance.aircraftCondition")}</h2></div><DataTable headers={[t("aircraftLocation.registration"),t("maintenance.condition"),t("common.status"),t("maintenance.cycles"),t("maintenance.blockHours"),t("common.actions")]} rows={conditions.map(c=>{const order=orders.find(o=>o.vamsysAircraftId===c.vamsysAircraftId);const pct=Number(c.conditionPercent);return [c.registration??c.vamsysAircraftId,<div key="condition"><strong>{pct}%</strong><div style={{height:8,background:"#e5e7eb",borderRadius:8}}><div style={{height:8,width:`${pct}%`,background:pct>=80?"#16a34a":pct>=60?"#84cc16":pct>=40?"#f59e0b":pct>=20?"#dc2626":"#7f1d1d",borderRadius:8}}/></div></div>,<Badge key="status" tone={pct>=60?"green":pct>=30?"amber":"red"}>{c.operationalStatus}</Badge>,c.cyclesSinceMaintenance,(c.blockMinutesSinceMaintenance/60).toFixed(1),<div key="actions" className="offer-actions">{order&&order.status!=="IN_PROGRESS"&&<form action={maintenanceAction}><input type="hidden" name="action" value="start"/><input type="hidden" name="aircraftId" value={c.vamsysAircraftId}/><input type="hidden" name="orderId" value={order.id}/><button className="action-button">{t("maintenance.start")}</button></form>}{order?.status==="IN_PROGRESS"&&<form action={maintenanceAction}><input type="hidden" name="action" value="complete"/><input type="hidden" name="aircraftId" value={c.vamsysAircraftId}/><input type="hidden" name="orderId" value={order.id}/><button className="action-button approve">{t("maintenance.complete")}</button></form>}<form action={maintenanceAction}><input type="hidden" name="action" value="aog"/><input type="hidden" name="aircraftId" value={c.vamsysAircraftId}/><button className="action-button reject">AOG</button></form></div>];})}/></section>
     <div className="card settings-link">
       <div className="card-header"><h2>{t("aircraftLocation.manualTitle")}</h2><form action={syncAircraftLocationsAction}><button className="action-button approve" type="submit">{t("aircraftLocation.sync")}</button></form></div>
       <form action={setAircraftLocationAction} className="settings-grid">

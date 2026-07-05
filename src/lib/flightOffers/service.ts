@@ -5,6 +5,7 @@ import { cancelVamsysBooking, createVamsysBooking, VamsysApiError, type CreateVa
 import { getValidVamsysAccessToken } from "@/lib/vamsys/token";
 import { updateAircraftLocationFromDispatch } from "@/lib/aircraft-location/tracker";
 import { createDispatchOfpBriefing } from "@/lib/simbrief/ofp";
+import { assertAircraftDispatchAllowed } from "@/lib/aircraft-maintenance/service";
 
 type JsonRow = Record<string, unknown>;
 
@@ -39,6 +40,7 @@ export async function prepareFlightOffer(offerId: string, pilotId: string, selec
   if (selectedDepartureAt < offer.availableFrom) throw new Error("La salida seleccionada es anterior al inicio de la tarea.");
   if (selectedDepartureAt.getTime() < Date.now() - 2 * 60_000) throw new Error("La salida seleccionada ya ha pasado.");
   const estimatedArrivalAt = new Date(selectedDepartureAt.getTime() + offer.estimatedDurationMinutes * 60_000);
+  await assertAircraftDispatchAllowed({ vamsysAircraftId: offer.vamsysAircraftId, offerType: offer.offerType, arrivalIcao: offer.arrivalIcao });
   if (estimatedArrivalAt > offer.validUntil) throw new Error("El vuelo terminaría después de la fecha límite de la tarea.");
 
   let dispatch;

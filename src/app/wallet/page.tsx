@@ -72,10 +72,10 @@ async function getCompanyMovements(): Promise<CompanyMovement[]> {
       })),
       ...companyExpenses.map((row) => ({
         id: row.id,
-        concept: `${expenseLabels[row.type] ?? row.type} · ${row.pirep.flightNumber ?? "Vuelo"}`,
+        concept: `${expenseLabels[row.type] ?? row.type} · ${row.pirep?.flightNumber ?? "Maintenance"}`,
         type: "expense" as const,
         amountCents: -row.amountCents,
-        date: row.pirep.flownAt ?? row.pirep.createdAt,
+        date: row.pirep?.flownAt ?? row.pirep?.createdAt ?? row.createdAt,
         status: "AOC economy rules",
       })),
       ...payroll.map((row) => ({

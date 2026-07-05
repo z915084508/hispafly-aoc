@@ -15,6 +15,7 @@ const expenseLabels: Record<string, string> = {
   cargo_handling: "Cargo handling",
   atc_enroute: "ATC enroute",
   atc_terminal: "ATC terminal",
+  MAINTENANCE: "Maintenance", AOG_RECOVERY: "AOG recovery", MAINTENANCE_FERRY_SUPPORT: "Maintenance ferry support",
 };
 
 function route(departure: string | null, arrival: string | null) {
@@ -65,13 +66,13 @@ export default async function StaffExpensesPage() {
       {expenses.length === 0
         ? <div className="empty-state">Todavía no hay gastos calculados. Se generarán al sincronizar PIREPs aceptados.</div>
         : <DataTable headers={["Vuelo", "Ruta", "Aeronave", "Tipo", "Importe", "Detalle", "Fecha"]} rows={expenses.map((row) => [
-          row.pirep.flightNumber ?? row.pirepId,
-          route(row.pirep.departure, row.pirep.arrival),
-          row.pirep.aircraftType ?? "—",
+          row.pirep?.flightNumber ?? row.pirepId ?? "Maintenance",
+          route(row.pirep?.departure ?? null, row.pirep?.arrival ?? null),
+          row.pirep?.aircraftType ?? "Maintenance",
           <Badge key="type" tone={row.type.startsWith("atc") ? "blue" : "amber"}>{expenseLabels[row.type] ?? row.type}</Badge>,
           <strong key="amount">{money(row.amountCents)}</strong>,
           <span key="details" className="audit-message">{detailSummary(row.calculationDetails)}</span>,
-          new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(row.pirep.flownAt ?? row.pirep.createdAt),
+          new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(row.pirep?.flownAt ?? row.pirep?.createdAt ?? row.createdAt),
         ])} />}
     </div>
   </>;

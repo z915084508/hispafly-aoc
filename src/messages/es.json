@@ -267,6 +267,7 @@
                                                  "IMPORTED":  "Importada"
                                              }
                          },
+    "maintenance": {"condition":"Condición","aircraftCondition":"Estado de aeronaves","needing":"Requieren mantenimiento","ferryOnly":"Solo ferry","aog":"AOG","inMaintenance":"En mantenimiento","monthlyCost":"Coste de mantenimiento del mes","cycles":"Ciclos desde mantenimiento","blockHours":"Horas bloque desde mantenimiento","start":"Iniciar mantenimiento","complete":"Completar mantenimiento","requires":"La aeronave requiere mantenimiento","restored":"Condición restaurada"},
     "fleet":  {
                   "map":  {
                               "title":  "Mapa de ubicación de aeronaves",

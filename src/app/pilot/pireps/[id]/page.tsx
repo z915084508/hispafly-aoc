@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 const expenseLabels = {
   airport_landing: "Aterrizaje", airport_passenger: "Tasa pasajeros",
   airport_service: "Servicio aeropuerto", airport_parking: "Estacionamiento",
-  handling: "Handling", cargo_handling: "Handling carga",
+  handling: "Handling", cargo_handling: "Handling carga", MAINTENANCE: "Maintenance", AOG_RECOVERY: "AOG recovery", MAINTENANCE_FERRY_SUPPORT: "Maintenance ferry support",
   atc_enroute: "ATC en ruta", atc_terminal: "ATC terminal",
 } as const;
 
