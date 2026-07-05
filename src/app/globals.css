@@ -101,6 +101,9 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .signature-accept { display:flex; gap:10px; align-items:flex-start; color:var(--muted); }
 .fleet-search-bar { display:flex; gap:10px; margin:0 0 16px; }
 .fleet-search-bar input { flex:1; border:1px solid #d9dee8; border-radius:9px; padding:11px 13px; }
+.pilot-fleet-list { margin-bottom: 20px; }
+.pilot-fleet-list .table-wrap { max-height: 440px; overflow: auto; }
+.pilot-fleet-list table { margin: 0; }
 .condition-track { height:7px; background:#e5e7eb; border-radius:7px; min-width:80px; overflow:hidden; }
 .condition-track div { height:100%; border-radius:7px; }
 .condition-input { width:64px; }
