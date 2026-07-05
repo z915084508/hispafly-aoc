@@ -269,6 +269,7 @@
                          },
     "maintenance": {"condition":"Condition","aircraftCondition":"Aircraft condition","needing":"Needing maintenance","ferryOnly":"Ferry only","aog":"AOG","inMaintenance":"In maintenance","monthlyCost":"Maintenance cost this month","cycles":"Cycles since maintenance","blockHours":"Block hours since maintenance","start":"Start maintenance","complete":"Complete maintenance","requires":"Aircraft requires maintenance","restored":"Condition restored","initializeConditions":"Initialize aircraft conditions","initializeConditionsDescription":"Create 100% condition records for uninitialized fleet aircraft without recalculating historical PIREPs.","noConditionRecords":"No aircraft condition records yet. Initialize aircraft conditions to start tracking fleet health.","conditionNotInitialized":"Not initialized","operationalStatus":"Operational status","maintenanceStatus":"Maintenance status","setAog":"Set AOG","manualConditionUpdate":"Manual condition update","createMaintenanceFerryOffer":"Create maintenance ferry offer","requiresMaintenance":"Aircraft requires maintenance","dispatchBlocked":"Dispatch blocked","ferryOnlyToLevc":"Ferry only to LEVC"},
     "fleet":  {
+                  "search": "Search registration, aircraft type, airport or status",
                   "map":  {
                               "title":  "Aircraft location map",
                               "empty":  "No aircraft with coordinates available.",
