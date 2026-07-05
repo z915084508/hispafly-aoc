@@ -2,8 +2,7 @@ import { createHash } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
-
-const jsonRecord = (value: unknown): Record<string, unknown> | null => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+import { extractSimbriefPdfUrl } from "@/lib/simbrief/pdf";
 
 export function ofpContentHash(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -62,9 +61,7 @@ export async function importSimbriefOfp(ofpId: string, pilotId: string, simbrief
   const response = await fetch(`https://www.simbrief.com/api/xml.fetcher.php?userid=${encodeURIComponent(simbriefUserId)}&static_id=${encodeURIComponent(ofp.simbriefStaticId)}&json=1`, { cache: "no-store" });
   if (!response.ok) throw new Error(`SimBrief returned ${response.status}. Generate the OFP first.`);
   const snapshot = await response.json() as Prisma.InputJsonValue;
-  const root = jsonRecord(snapshot); const files = jsonRecord(root?.files);
-  const pdf = jsonRecord(files?.pdf);
-  const pdfUrl = typeof pdf?.link === "string" ? pdf.link : null;
+  const pdfUrl = extractSimbriefPdfUrl(snapshot);
   await prisma.pilot.update({ where: { id: pilotId }, data: { simbriefUserId } });
   return prisma.ofpBriefing.update({ where: { id: ofp.id }, data: { status: "AWAITING_SIGNATURE", simbriefUserId, ofpSnapshot: snapshot, contentHash: ofpContentHash(snapshot), pdfUrl, signatureData: null, signedAt: null, signedByPilotId: null } });
 }

@@ -27,6 +27,13 @@
                    "yes":  "Sí",
                    "no":  "No"
                },
+    "ofpPdf": {
+                    "openPdf": "Abrir PDF del OFP",
+                    "notAvailable": "PDF del OFP no disponible",
+                    "openDetail": "Abrir detalle del OFP",
+                    "noPermission": "No tienes permiso para ver este OFP",
+                    "notFound": "OFP no encontrado"
+                },
     "status":  {
                    "pending":  "Pendiente",
                    "approved":  "Aprobado",
