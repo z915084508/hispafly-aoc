@@ -23,6 +23,7 @@ export function buildSimBriefGeneratePayload(input: {
   cargoKg: number | null;
   userRoute: string | null;
   altitude: number | null;
+  alternateIcao?: string | null;
 }) {
   const identity = normalizeFlightIdentity({ flightNumber: input.flightNumber, callsign: input.callsign });
   if (!identity.numericFlightNumber || !identity.atcCallsign) throw new Error("A valid flight number and callsign are required for SimBrief.");
@@ -40,6 +41,8 @@ export function buildSimBriefGeneratePayload(input: {
     cargo: input.freightKg ?? input.cargoKg ?? 0,
     route: input.userRoute || undefined,
     fl: input.altitude ?? undefined,
+    altn: input.alternateIcao || undefined,
+    alternate_icao: input.alternateIcao || undefined,
     planformat: "lido",
     units: "kgs",
     maps: 0,
