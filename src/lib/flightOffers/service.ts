@@ -12,6 +12,7 @@ import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
 type JsonRow = Record<string, unknown>;
 const FINAL_DISPATCH_LOCK = "FINAL_DISPATCH_IN_PROGRESS";
 const FINAL_DISPATCH_LOCK_TTL_MS = 2 * 60_000;
+const VAMSYS_FINAL_DISPATCH_MIN_LEAD_MS = 5 * 60_000;
 
 function record(value: unknown): JsonRow | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonRow : null;
@@ -30,6 +31,12 @@ function numericId(value: string, label: string): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) throw new Error(`${label} de vAMSYS no es válido.`);
   return parsed;
+}
+
+function vamsysSafeDepartureAt(selectedDepartureAt: Date) {
+  const minimumDepartureAt = new Date(Date.now() + VAMSYS_FINAL_DISPATCH_MIN_LEAD_MS);
+  if (selectedDepartureAt > minimumDepartureAt) return { departureAt: selectedDepartureAt, adjusted: false };
+  return { departureAt: minimumDepartureAt, adjusted: true };
 }
 
 export async function prepareFlightOffer(offerId: string, pilotId: string, selectedDepartureAt: Date) {
@@ -107,11 +114,18 @@ export async function finalDispatchFlightOffer(dispatchId: string, pilotId: stri
   const accessToken = await getValidVamsysAccessToken(pilotId).catch(async () => { await prisma.flightDispatch.updateMany({ where: { id: dispatch.id, errorMessage: FINAL_DISPATCH_LOCK }, data: { errorMessage: null } }); throw new Error("Connect vAMSYS before Final Dispatch."); });
   const offer = dispatch.flightOffer;
   const identity = normalizeFlightIdentity({ flightNumber: offer.flightNumber, callsign: offer.callsign });
+  const { departureAt: vamsysDepartureAt, adjusted: departureTimeAdjusted } = vamsysSafeDepartureAt(dispatch.selectedDepartureAt);
+  const vamsysEstimatedArrivalAt = new Date(vamsysDepartureAt.getTime() + offer.estimatedDurationMinutes * 60_000);
+  if (vamsysEstimatedArrivalAt > offer.validUntil) {
+    const message = "The selected departure time is too close or already past, and it cannot be moved forward without exceeding the offer validity window. Cancel this dispatch and claim a new departure slot.";
+    await prisma.flightDispatch.updateMany({ where: { id: dispatch.id, errorMessage: FINAL_DISPATCH_LOCK }, data: { errorMessage: message } });
+    throw new Error(message);
+  }
 
   const body: CreateVamsysBookingInput = {
     route_id: numericId(offer.vamsysRouteId, "route_id"),
     aircraft_id: numericId(offer.vamsysAircraftId, "aircraft_id"),
-    departure_time: dispatch.selectedDepartureAt.toISOString(),
+    departure_time: vamsysDepartureAt.toISOString(),
     ...(offer.network ? { network: offer.network } : {}),
     ...(identity.atcCallsign ? { callsign: identity.atcCallsign } : {}),
     ...(identity.commercialFlightNumber ? { flight_number: identity.commercialFlightNumber } : {}),
@@ -128,15 +142,15 @@ export async function finalDispatchFlightOffer(dispatchId: string, pilotId: stri
     const completed = await prisma.$transaction(async (tx) => {
       const saved = await tx.flightDispatch.update({
         where: { id: dispatch.id },
-        data: { status: "DISPATCHED", vamsysBookingId, dispatchedAt: new Date(), errorMessage: null },
+        data: { status: "DISPATCHED", vamsysBookingId, selectedDepartureAt: vamsysDepartureAt, estimatedArrivalAt: vamsysEstimatedArrivalAt, dispatchedAt: new Date(), errorMessage: null },
       });
       await tx.flightOffer.update({ where: { id: offer.id }, data: { status: "DISPATCHED" } });
       return saved;
     });
     await writeAuditLogSafely({
-      action: "VAMSYS_BOOKING_CREATED_AFTER_OFP_SIGNATURE", entityType: "FlightDispatch", entityId: dispatch.id,
+      action: departureTimeAdjusted ? "VAMSYS_BOOKING_CREATED_WITH_ADJUSTED_DEPARTURE" : "VAMSYS_BOOKING_CREATED_AFTER_OFP_SIGNATURE", entityType: "FlightDispatch", entityId: dispatch.id,
       message: `Booking ${vamsysBookingId} creado desde la oferta ${offer.title}.`,
-      metadata: { pilotId, offerId: offer.id, vamsysBookingId, selectedDepartureAt: dispatch.selectedDepartureAt.toISOString(), ofpId: dispatch.ofpBriefing.id, ofpHash: dispatch.ofpBriefing.contentHash },
+      metadata: { pilotId, offerId: offer.id, vamsysBookingId, selectedDepartureAt: vamsysDepartureAt.toISOString(), originalSelectedDepartureAt: dispatch.selectedDepartureAt.toISOString(), departureTimeAdjusted, ofpId: dispatch.ofpBriefing.id, ofpHash: dispatch.ofpBriefing.contentHash },
     });
     try {
       await updateAircraftLocationFromDispatch({
@@ -162,7 +176,7 @@ export async function finalDispatchFlightOffer(dispatchId: string, pilotId: stri
     await writeAuditLogSafely({
       action: "VAMSYS_FINAL_DISPATCH_FAILED", entityType: "FlightDispatch", entityId: dispatch.id,
       message: `No se pudo crear el booking de la oferta ${offer.title}: ${message}`,
-      metadata: { pilotId, offerId: offer.id, status: error instanceof VamsysApiError ? error.status : null },
+      metadata: { pilotId, offerId: offer.id, status: error instanceof VamsysApiError ? error.status : null, selectedDepartureAt: dispatch.selectedDepartureAt.toISOString(), attemptedDepartureAt: vamsysDepartureAt.toISOString(), departureTimeAdjusted },
     });
     throw new Error(message);
   }
