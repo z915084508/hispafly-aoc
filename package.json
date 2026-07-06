@@ -18,6 +18,7 @@
     "test:flight-identity": "node --experimental-strip-types src/lib/dispatch/flightIdentity.test.ts",
     "test:simbrief-pdf": "node --experimental-strip-types src/lib/simbrief/pdf.test.ts",
     "test:simbrief-user-id": "node --experimental-strip-types src/lib/simbrief/userId.test.ts",
+    "test:simbrief-client": "node --experimental-strip-types src/lib/simbrief/client.test.ts",
     "test:maintenance": "node --experimental-strip-types src/lib/aircraft-maintenance/condition.test.ts",
     "test:performance-csv": "node --experimental-strip-types src/lib/fleet-performance/csv.test.ts",
     "maintenance:initialize": "node --experimental-strip-types scripts/initialize-aircraft-conditions.ts",
