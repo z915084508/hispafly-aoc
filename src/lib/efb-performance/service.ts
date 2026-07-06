@@ -11,14 +11,47 @@ type JsonRow = Record<string, unknown>;
 type PerformanceType = "TAKEOFF" | "LANDING";
 type PerformanceMode = "OFFICIAL" | "MANUAL";
 const record = (value: unknown): JsonRow | null => value && typeof value === "object" && !Array.isArray(value) ? value as JsonRow : null;
+const keyName = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 
 function deepValues(root: unknown, keys: string[]) {
-  const found: unknown[] = [], queue: unknown[] = [root];
-  while (queue.length) { const value = queue.shift(); if (!value || typeof value !== "object") continue; for (const [key, child] of Object.entries(value as JsonRow)) { if (keys.includes(key.toLowerCase())) found.push(child); if (child && typeof child === "object") queue.push(child); } }
+  const found: unknown[] = [], queue: unknown[] = [root], wanted = new Set(keys.map(keyName));
+  while (queue.length) {
+    const value = queue.shift();
+    if (!value || typeof value !== "object") continue;
+    for (const [key, child] of Object.entries(value as JsonRow)) {
+      if (wanted.has(keyName(key))) found.push(child);
+      if (child && typeof child === "object") queue.push(child);
+    }
+  }
+  return found;
+}
+function allText(root: unknown) {
+  const found: string[] = [], queue: unknown[] = [root];
+  while (queue.length) {
+    const value = queue.shift();
+    if (typeof value === "string" && value.trim()) found.push(value.trim());
+    else if (typeof value === "number") found.push(String(value));
+    else if (value && typeof value === "object") Object.values(value as JsonRow).forEach((child) => queue.push(child));
+  }
   return found;
 }
 function firstText(root: unknown, keys: string[]) { for (const value of deepValues(root, keys)) if ((typeof value === "string" || typeof value === "number") && String(value).trim()) return String(value).trim(); return null; }
-function firstNumber(root: unknown, keys: string[]) { for (const value of deepValues(root, keys)) { const number = numericValue(value); if (number !== null) return number; } return null; }
+function firstNumberFromText(root: unknown, labels: string[]) {
+  for (const text of allText(root)) {
+    for (const label of labels) {
+      const match = text.match(new RegExp(`\\b${label}\\b[^0-9]{0,20}(\\d{2,6}(?:[.,]\\d+)?)`, "i"));
+      if (match) {
+        const number = numericValue(match[1]);
+        if (number !== null) return number;
+      }
+    }
+  }
+  return null;
+}
+function firstNumber(root: unknown, keys: string[], labels = keys) {
+  for (const value of deepValues(root, keys)) { const number = numericValue(value); if (number !== null) return number; }
+  return firstNumberFromText(root, labels);
+}
 function stringArray(value: unknown) { if (Array.isArray(value)) return value.flatMap((item) => typeof item === "string" ? [item] : []); return typeof value === "string" && value.trim() ? [value.trim()] : []; }
 function cleanText(value: unknown, max = 32) { const text = typeof value === "string" ? value.trim() : ""; return text ? text.slice(0, max) : null; }
 function requiredText(value: unknown, name: string, pattern?: RegExp) { const text = cleanText(value, 32)?.toUpperCase(); if (!text || (pattern && !pattern.test(text))) throw new EfbApiError(400, "INVALID_INPUT", `${name} is invalid.`); return text; }
@@ -35,13 +68,38 @@ function calculationStatus(result: unknown) {
   return { status: warnings.length ? "WARNING" : "OK", warnings: [...new Set(warnings)], message };
 }
 
-function performanceSummary(type: PerformanceType, result: unknown) {
-  return type === "TAKEOFF" ? {
-    flaps: firstText(result, ["flaps", "flap_setting"]), thrust: firstText(result, ["thrust", "thrust_setting"]), flexTemp: firstText(result, ["flex_temp", "flex_temperature"]),
-    v1: firstNumber(result, ["v1"]), vr: firstNumber(result, ["vr"]), v2: firstNumber(result, ["v2"]), maxWeightKg: firstNumber(result, ["max_weight", "max_takeoff_weight", "mtow"]), marginKg: firstNumber(result, ["margin_kg", "weight_margin"]),
-  } : {
-    flaps: firstText(result, ["flaps", "flap_setting"]), brake: firstText(result, ["brake", "brake_setting"]), requiredDistanceM: firstNumber(result, ["required_distance", "landing_distance_required", "ldr"]), availableDistanceM: firstNumber(result, ["available_distance", "lda"]), marginM: firstNumber(result, ["margin", "distance_margin"]), maxLandingWeightKg: firstNumber(result, ["max_landing_weight", "mlw"]),
+function performanceSummary(type: PerformanceType, result: unknown, weightKg: number | null) {
+  if (type === "TAKEOFF") {
+    const maxWeightKg = firstNumber(result, ["max_weight", "max_takeoff_weight", "mtow", "maxtow", "max_tow"], ["max tow", "mtow", "max takeoff weight"]);
+    const marginKg = firstNumber(result, ["margin_kg", "weight_margin", "tow_margin", "margin"], ["margin", "weight margin"]) ?? (maxWeightKg !== null && weightKg !== null ? Math.round(maxWeightKg - weightKg) : null);
+    return {
+      flaps: firstText(result, ["flaps", "flap_setting", "flapsetting"]),
+      thrust: firstText(result, ["thrust", "thrust_setting", "thrustsetting"]),
+      flexTemp: firstText(result, ["flex_temp", "flex_temperature", "flextemp", "flex"]),
+      v1: firstNumber(result, ["v1", "v_1", "takeoff_v1", "v1_speed"], ["v1"]),
+      vr: firstNumber(result, ["vr", "v_r", "takeoff_vr", "vr_speed"], ["vr"]),
+      v2: firstNumber(result, ["v2", "v_2", "takeoff_v2", "v2_speed"], ["v2"]),
+      maxWeightKg,
+      marginKg,
+    };
+  }
+  const availableDistanceM = firstNumber(result, ["available_distance", "lda", "landing_distance_available"], ["available distance", "lda"]);
+  const requiredDistanceM = firstNumber(result, ["required_distance", "landing_distance_required", "ldr"], ["required distance", "ldr"]);
+  return {
+    flaps: firstText(result, ["flaps", "flap_setting", "flapsetting"]),
+    brake: firstText(result, ["brake", "brake_setting", "brakesetting"]),
+    requiredDistanceM,
+    availableDistanceM,
+    marginM: firstNumber(result, ["margin", "distance_margin", "margin_m"], ["margin", "distance margin"]) ?? (availableDistanceM !== null && requiredDistanceM !== null ? Math.round(availableDistanceM - requiredDistanceM) : null),
+    maxLandingWeightKg: firstNumber(result, ["max_landing_weight", "mlw", "maxldw"], ["max landing weight", "mlw"]),
   };
+}
+
+function enrichStatus(type: PerformanceType, normalized: { status: string; warnings: string[]; message: string | null }, summary: Record<string, unknown>) {
+  const warnings = [...normalized.warnings];
+  if (type === "TAKEOFF" && (!summary.v1 || !summary.vr || !summary.v2)) warnings.push("SimBrief did not return complete V-speeds for this takeoff calculation. Check runway, aircraft support, and inputs before using it operationally.");
+  if (type === "LANDING" && (!summary.requiredDistanceM || !summary.availableDistanceM)) warnings.push("SimBrief did not return a complete landing distance summary. Check runway and aircraft support before using it operationally.");
+  return { ...normalized, status: normalized.status === "OK" && warnings.length ? "WARNING" : normalized.status, warnings: [...new Set(warnings)] };
 }
 
 async function officialFlight(pilotId: string, flightDispatchId: string | null, ofpBriefingId: string | null) {
@@ -62,7 +120,7 @@ export async function getActivePerformanceFlight(pilotId: string) {
 
 export async function runPerformanceCalculation(pilotId: string, type: PerformanceType, body: JsonRow) {
   const mode = String(body.mode ?? "MANUAL").toUpperCase() as PerformanceMode;
-  if (!(["OFFICIAL", "MANUAL"] as string[]).includes(mode)) throw new EfbApiError(400, "INVALID_MODE", "Performance mode must be OFFICIAL or MANUAL.");
+  if (!( ["OFFICIAL", "MANUAL"] as string[]).includes(mode)) throw new EfbApiError(400, "INVALID_MODE", "Performance mode must be OFFICIAL or MANUAL.");
   const airportIcao = requiredText(body.airport, "airport", /^[A-Z0-9]{4}$/), runway = cleanText(body.runway), aircraftType = requiredText(body.aircraft, "aircraft", /^[A-Z0-9-]{2,12}$/), aircraftRegistration = cleanText(body.aircraftRegistration), weightKg = optionalNumber(body.weightKg, 1000, 700000);
   const officialDispatchId = cleanText(body.flightDispatchId, 64), officialOfpId = cleanText(body.ofpBriefingId, 64);
   if (mode === "OFFICIAL" && (!officialDispatchId || !officialOfpId)) throw new EfbApiError(400, "OFFICIAL_FLIGHT_REQUIRED", "Official mode requires flightDispatchId and ofpBriefingId.");
@@ -79,7 +137,8 @@ export async function runPerformanceCalculation(pilotId: string, type: Performan
   await writeAuditLogSafely({ action: `${actionPrefix}_REQUESTED`, entityType: "FlightDispatch", entityId: dispatch?.id, message: `${type} performance requested from EFB.`, metadata: { pilotId, mode, airportIcao, runway } });
   try {
     const raw = type === "TAKEOFF" ? await calculateTakeoffPerformance(pilotId, params) : await calculateLandingPerformance(pilotId, params);
-    const normalized = calculationStatus(raw), summary = performanceSummary(type, raw);
+    const summary = performanceSummary(type, raw, weightKg);
+    const normalized = enrichStatus(type, calculationStatus(raw), summary);
     const calculation = await prisma.efbPerformanceCalculation.create({ data: { pilotId, ofpBriefingId: dispatch?.ofpBriefing?.id, flightDispatchId: dispatch?.id, vamsysBookingId: dispatch?.vamsysBookingId, type, mode, airportIcao, runway, aircraftType, aircraftRegistration, weightKg: weightKg === null ? null : Math.round(weightKg), input: body as unknown as Prisma.InputJsonValue, result: raw as unknown as Prisma.InputJsonValue, status: normalized.status, warningLevel: normalized.warnings.length ? "WARNING" : null, errorMessage: normalized.message, officialForDeparture: type === "TAKEOFF" && mode === "OFFICIAL" } });
     await writeAuditLogSafely({ action: `${actionPrefix}_COMPLETED`, entityType: "EfbPerformanceCalculation", entityId: calculation.id, message: `${type} performance completed with status ${normalized.status}.`, metadata: { pilotId, mode, flightDispatchId: dispatch?.id ?? null, warnings: normalized.warnings.length } });
     return { id: calculation.id, type, mode, status: normalized.status, airportIcao, runway, aircraftType, aircraftRegistration, weightKg: calculation.weightKg, summary, warnings: normalized.warnings, createdAt: calculation.createdAt };
