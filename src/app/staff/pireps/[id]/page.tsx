@@ -5,6 +5,7 @@ import { PageHeading } from "@/components/page-heading";
 import { formatDateTime, formatMinutes, formatMoney, formatNumber, PirepHero, PirepMetric, PirepReportStyles, PirepSection } from "@/components/pirep-report";
 import { getStaffPirepDetail } from "@/lib/pirep/detail";
 import { refreshVamsysPirepDetail, reprocessPirepEconomy } from "./actions";
+import { OperationalAnalysis } from "@/components/operational-analysis";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,7 @@ export default async function StaffPirepDetailPage({ params, searchParams }: { p
       <PirepMetric label="Points" value={formatNumber(pirep.points)} />
     </PirepSection>
 
+    <OperationalAnalysis analysis={pirep.flightAnalysisReport} staff/>
     <PirepSection title="Economía de compañía" className="pirep-economy-total">
       <PirepMetric label="Ingresos pasajeros" value={formatMoney(pirep.passengerRevenueCents)} />
       <PirepMetric label="Coste combustible" value={formatMoney(pirep.fuelCostCents)} note={pirep.fuelPriceSource ?? "Sin precio guardado"} />

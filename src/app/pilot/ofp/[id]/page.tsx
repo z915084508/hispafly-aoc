@@ -3,36 +3,75 @@ import { notFound } from "next/navigation";
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
 import { PageHeading } from "@/components/page-heading";
 import { OfpSignaturePad } from "@/components/ofp-signature-pad";
+import { OfpGenerateButton } from "@/components/ofp-generate-button";
+import { DispatchReleasePanel } from "@/components/dispatch-release-panel";
+import { FuelPolicyPanel } from "@/components/fuel-policy-panel";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { prisma } from "@/lib/prisma";
-import { finalDispatchOFPAction, importSimbriefOFPAction } from "../actions";
+import { finalDispatchOFPAction, generateSimbriefOFPAction } from "../actions";
 import { cancelFlightDispatchAction } from "../../flight-offers/actions";
 import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
 import { safeSimbriefPdfUrl } from "@/lib/simbrief/pdf";
+import { summarizeSimbriefOfp } from "@/lib/simbrief/response";
 import { getTranslations } from "@/lib/i18n/server";
-import { normalizeSimbriefUserId, simbriefUrlWithUserId } from "@/lib/simbrief/userId";
-import { savePilotSimbriefIdAction } from "@/app/pilot/profile/actions";
 
 export const dynamic = "force-dynamic";
-export default async function PilotOfpPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ success?: string; error?: string; simbrief?: string }> }) {
-  const pilot = await requirePilotSession(); const { id } = await params; const messages = await searchParams; const { t } = await getTranslations();
-  const ofp = await prisma.ofpBriefing.findFirst({ where: { id, flightDispatch: { pilotId: pilot.id } }, include: { flightDispatch: { include: { flightOffer: true } } } });
-  if (!ofp) notFound(); const offer = ofp.flightDispatch.flightOffer;
+
+const show = (value: string | number | null | undefined, suffix = "") => value === null || value === undefined || value === "" ? "—" : `${value}${suffix}`;
+
+export default async function PilotOfpPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ success?: string; error?: string }> }) {
+  const pilot = await requirePilotSession();
+  const { id } = await params;
+  const messages = await searchParams;
+  const { t } = await getTranslations();
+  const ofp = await prisma.ofpBriefing.findFirst({ where: { id, flightDispatch: { pilotId: pilot.id } }, include: { flightDispatch: { include: { flightOffer: true } }, dispatchRelease: true } });
+  if (!ofp) notFound();
+  const dispatch = ofp.flightDispatch, offer = dispatch.flightOffer;
   const identity = normalizeFlightIdentity({ flightNumber: offer.flightNumber, callsign: offer.callsign });
+  const summary = summarizeSimbriefOfp(ofp.ofpSnapshot);
   const hasPdf = Boolean(safeSimbriefPdfUrl(ofp.pdfUrl));
-  const navigraphToken = await prisma.navigraphOAuthToken.findUnique({ where: { pilotId: pilot.id }, select: { revokedAt: true } });
-  const navigraphConnected = Boolean(navigraphToken && !navigraphToken.revokedAt);
-  let simbriefId: string | null = null; try { simbriefId = normalizeSimbriefUserId(pilot.simbriefUserId); } catch { simbriefId = null; }
-  const simbriefGenerateUrl = navigraphConnected && simbriefId ? simbriefUrlWithUserId(ofp.ofpUrl, simbriefId) : null;
-  return <PilotPortalShell><PageHeading eyebrow="FLIGHT OPERATIONS" title={`OFP ${identity.commercialFlightNumber || offer.title}`} copy={`${offer.departureIcao} → ${offer.arrivalIcao} · Version ${ofp.version}`} />
-    {messages.success && <div className="feedback success">{messages.success}</div>}{messages.error && <div className="feedback error">{messages.error}</div>}{messages.simbrief === "saved" && <div className="feedback success">{t("pilot.profile.simbriefIdSaved")}</div>}{messages.simbrief === "invalid" && <div className="feedback error">{t("pilot.profile.simbriefIdInvalid")}</div>}
-    <section className="card"><div className="card-header"><h2 className="card-title">Dispatch package</h2><strong>{ofp.status}</strong></div>
-      <div className="workflow-summary"><div><span>Flight Number</span><strong>{identity.commercialFlightNumber || "—"}</strong></div><div><span>Callsign</span><strong>{identity.atcCallsign || "—"}</strong></div><div><span>Airline / radiotelephony</span><strong>{identity.airlineName}</strong></div><div><span>Aircraft</span><strong>{offer.aircraftRegistration ?? offer.aircraftType}</strong></div><div><span>Passengers / LF</span><strong>{offer.passengers ?? "—"} / {offer.loadFactorPercent ?? "—"}%</strong></div><div><span>Luggage / Freight</span><strong>{offer.luggageKg ?? 0} / {offer.freightKg ?? 0} kg</strong></div></div>
-      <p className="ofp-document-actions">{simbriefGenerateUrl ? <Link className="button" href={simbriefGenerateUrl} target="_blank">Generate / open in SimBrief</Link> : <button className="button disabled-button" type="button" disabled>{t("ofp.prepareRequiresSimbriefId")}</button>}{hasPdf ? <Link className="button secondary" href={`/api/ofp/${ofp.id}/pdf`} target="_blank">{t("ofpPdf.openPdf")}</Link> : <><button className="button secondary disabled-button" type="button" disabled>{t("ofpPdf.notAvailable")}</button><Link className="action-button" href={`/pilot/ofp/${ofp.id}`}>{t("ofpPdf.openDetail")}</Link></>}</p>
-      {!navigraphConnected ? <div className="notice"><p>{t("ofp.prepareRequiresNavigraph")}</p><Link className="button" href="/api/auth/navigraph/start">{t("pilot.integrations.connectNavigraph")}</Link></div> : simbriefId ? <><div className="notice">{t("ofp.simbriefId")}: <strong>{simbriefId}</strong> · <Link href="/pilot/dashboard#simbrief-profile">{t("ofp.changeSimbriefId")}</Link></div><form action={importSimbriefOFPAction} className="inline-action-form"><input type="hidden" name="ofpId" value={ofp.id}/><button className="action-button approve" type="submit">UPLOAD LATEST OFP TO AOC</button></form><details className="card"><summary>{t("ofp.changeSimbriefId")}</summary><form action={importSimbriefOFPAction} className="inline-action-form"><input type="hidden" name="ofpId" value={ofp.id}/><label>{t("ofp.simbriefId")}<input name="simbriefUserId" defaultValue={simbriefId} maxLength={64} pattern="[A-Za-z0-9_-]+" required/></label><label><input type="checkbox" name="saveSimbriefUserId" value="yes"/> {t("pilot.profile.saveSimbriefId")}</label><button className="action-button approve" type="submit">UPLOAD LATEST OFP TO AOC</button></form></details></> : <div className="notice"><p>{t("ofp.prepareRequiresSimbriefId")}</p><form action={savePilotSimbriefIdAction} className="inline-action-form"><input type="hidden" name="returnTo" value={`/pilot/ofp/${ofp.id}`}/><label>{t("pilot.profile.simbriefId")}<input name="simbriefUserId" maxLength={64} pattern="[A-Za-z0-9_-]+" required/></label><button className="button" type="submit">{t("pilot.profile.saveSimbriefId")}</button></form></div>}
+  const token = await prisma.navigraphOAuthToken.findUnique({ where: { pilotId: pilot.id }, select: { revokedAt: true } });
+  const navigraphConnected = Boolean(token && !token.revokedAt);
+  const canGenerate = ofp.status !== "SIGNED" && ofp.status !== "VOIDED";
+
+  return <PilotPortalShell>
+    <PageHeading eyebrow="FLIGHT OPERATIONS" title={`OFP ${identity.commercialFlightNumber || offer.title}`} copy={`${offer.departureIcao} → ${offer.arrivalIcao} · Version ${ofp.version}`} />
+    {messages.success && <div className="feedback success">{messages.success}</div>}
+    {messages.error && <div className="feedback error">{messages.error}</div>}
+    <DispatchReleasePanel release={ofp.dispatchRelease}/>
+    <section className="card">
+      <div className="card-header"><h2 className="card-title">Dispatch package</h2><strong>{ofp.status}</strong></div>
+      <div className="workflow-summary">
+        <div><span>Flight Number</span><strong>{show(identity.commercialFlightNumber)}</strong></div>
+        <div><span>Callsign</span><strong>{show(identity.atcCallsign)}</strong></div>
+        <div><span>Aircraft</span><strong>{show(offer.aircraftRegistration ?? offer.aircraftType)}</strong></div>
+        <div><span>Route</span><strong>{show(summary.route ?? offer.userRoute ?? `${offer.departureIcao} ${offer.arrivalIcao}`)}</strong></div>
+        <div><span>Departure / Arrival</span><strong>{offer.departureIcao} → {offer.arrivalIcao}</strong></div>
+        <div><span>Alternate</span><strong>{show(summary.alternate)}</strong></div>
+        <div><span>Block time</span><strong>{show(summary.blockTime)}</strong></div>
+        <div><span>Air time</span><strong>{show(summary.airTime)}</strong></div>
+        <div><span>Pax</span><strong>{show(offer.passengers)}</strong></div>
+        <div><span>Cargo</span><strong>{show(offer.freightKg ?? offer.cargoKg ?? 0, " kg")}</strong></div>
+        <div><span>ZFW</span><strong>{show(summary.zfw, " kg")}</strong></div>
+        <div><span>TOW</span><strong>{show(summary.tow, " kg")}</strong></div>
+        <div><span>Landing weight</span><strong>{show(summary.landingWeight, " kg")}</strong></div>
+        <div><span>Fuel summary</span><strong>Block {show(summary.blockFuel)} · Trip {show(summary.tripFuel)} · Reserve {show(summary.reserveFuel)}</strong></div>
+      </div>
+      <div className="ofp-document-actions">
+        {canGenerate && navigraphConnected && <form action={generateSimbriefOFPAction}><input type="hidden" name="ofpId" value={ofp.id}/><OfpGenerateButton idleLabel={t("ofp.generate")} pendingLabel={t("ofp.preparing")}/></form>}
+        {hasPdf ? <Link className="button secondary" href={`/api/ofp/${ofp.id}/pdf`} target="_blank">{t("ofpPdf.openPdf")}</Link> : <button className="button secondary disabled-button" type="button" disabled>{t("ofp.pdfNotAvailable")}</button>}
+      </div>
+      {!navigraphConnected && canGenerate && <div className="notice"><p>{t("ofp.connectNavigraph")}</p><Link className="button" href="/api/auth/navigraph/start">{t("pilot.integrations.connectNavigraph")}</Link></div>}
     </section>
-    <section className="card"><div className="card-header"><h2 className="card-title">Pilot acceptance</h2><span className="meta">Hash {ofp.contentHash.slice(0, 12)}</span></div>
-      {ofp.status === "SIGNED" ? <><div className="feedback success">Signed by {ofp.signedByName} ({ofp.signedByCallsign ?? "Pilot"}) at {ofp.signedAt?.toISOString()}.</div>{ofp.flightDispatch.status === "DISPATCHING" && <form action={finalDispatchOFPAction}><input type="hidden" name="ofpId" value={ofp.id}/><input type="hidden" name="dispatchId" value={ofp.flightDispatchId}/><button className="button" type="submit">FINAL DISPATCH TO vAMSYS</button></form>}{ofp.flightDispatch.vamsysBookingId && <p><strong>vAMSYS Booking:</strong> {ofp.flightDispatch.vamsysBookingId}</p>}</> : ofp.status === "AWAITING_SIGNATURE" ? <OfpSignaturePad ofpId={ofp.id}/> : <div className="notice">Generate the flight in SimBrief and upload the OFP to AOC before signing.</div>}
-      {ofp.flightDispatch.status === "DISPATCHING" && <form action={cancelFlightDispatchAction}><input type="hidden" name="dispatchId" value={ofp.flightDispatchId}/><button className="action-button reject" type="submit">Cancel pre-dispatch</button></form>}</section>
+    <FuelPolicyPanel snapshot={ofp.fuelPolicySnapshot}/>
+    <section className="card">
+      <div className="card-header"><h2 className="card-title">Pilot acceptance</h2><span className="meta">Hash {ofp.contentHash.slice(0, 12)}</span></div>
+      {ofp.status === "SIGNED" ? <>
+        <div className="feedback success">Signed by {ofp.signedByName} ({ofp.signedByCallsign ?? "Pilot"}) at {ofp.signedAt?.toISOString()}.</div>
+        {dispatch.status === "DISPATCHING" && (ofp.dispatchRelease?.status === "SIGNED" ? <form action={finalDispatchOFPAction}><input type="hidden" name="ofpId" value={ofp.id}/><input type="hidden" name="dispatchId" value={ofp.flightDispatchId}/><button className="button" type="submit">FINAL DISPATCH TO vAMSYS</button></form> : <button className="button disabled-button" type="button" disabled>FINAL DISPATCH BLOCKED BY RELEASE</button>)}
+        {dispatch.vamsysBookingId && <p><strong>vAMSYS Booking:</strong> {dispatch.vamsysBookingId}</p>}
+      </> : ofp.status === "AWAITING_SIGNATURE" ? <OfpSignaturePad ofpId={ofp.id}/> : <div className="notice">{t("ofp.generateBeforeSigning")}</div>}
+      {dispatch.status === "DISPATCHING" && <form action={cancelFlightDispatchAction}><input type="hidden" name="dispatchId" value={ofp.flightDispatchId}/><button className="action-button reject" type="submit">Cancel pre-dispatch</button></form>}
+    </section>
   </PilotPortalShell>;
 }

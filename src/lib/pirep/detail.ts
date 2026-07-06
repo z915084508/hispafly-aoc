@@ -7,6 +7,7 @@ export async function getStaffPirepDetail(id: string) {
       pilot: { select: { displayName: true, callsign: true, vamsysPilotId: true } },
       companyExpenses: { orderBy: { type: "asc" } },
       payrollRecord: { include: { walletTransaction: true } },
+      flightAnalysisReport: true,
     },
   });
 }

@@ -86,6 +86,7 @@ export async function getPilotPirepDetail(pilotId: string, pirepId: string) {
     include: {
       companyExpenses: { orderBy: { type: "asc" } },
       payrollRecord: { include: { walletTransaction: true } },
+      flightAnalysisReport: true,
     },
   });
 }

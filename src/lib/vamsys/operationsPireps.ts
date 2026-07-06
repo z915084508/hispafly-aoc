@@ -5,6 +5,7 @@ import { generateCompanyExpensesForPirep } from "@/lib/economy/companyExpenses";
 import { calculatePayroll, creditsToCents } from "@/lib/payroll/calculatePayroll";
 import { payrollRulesFromStoredRule } from "@/lib/payroll/rules";
 import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
+import { createOrUpdateFlightAnalysis } from "@/lib/flight-analysis/service";
 import { calculateAircraftFuelUplift } from "@/lib/economy/aircraftFuelLedger";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
 import { completeFlightDispatchFromPirep } from "@/lib/flightOffers/service";
@@ -249,11 +250,20 @@ export async function processAcceptedOperationsPirep(pirepSummaryOrId: Row | str
     create: { vamsysPilotId: mapped.pilotExternalId, displayName: `Piloto ${mapped.pilotExternalId}`, lastOperationsSyncAt: new Date() },
   });
   const pirepData = await withFuelEconomics(mapped.data);
+  const dispatchFuelDecision = pirepData.vamsysBookingId ? await prisma.flightDispatch.findUnique({
+    where: { vamsysBookingId: pirepData.vamsysBookingId },
+    select: { ofpBriefing: { select: { fuelPolicySnapshot: true, tankeringRecommendation: true, tankeringApplied: true } } },
+  }) : null;
+  const fuelCalculationDetails = dispatchFuelDecision?.ofpBriefing ? {
+    fuelPolicy: dispatchFuelDecision.ofpBriefing.fuelPolicySnapshot,
+    tankeringRecommendation: dispatchFuelDecision.ofpBriefing.tankeringRecommendation,
+    tankeringApplied: dispatchFuelDecision.ofpBriefing.tankeringApplied,
+  } as Prisma.InputJsonValue : undefined;
   const existing = await prisma.pirep.findUnique({ where: { vamsysPirepId: mapped.data.vamsysPirepId }, select: { id: true } });
   const stored = await prisma.pirep.upsert({
     where: { vamsysPirepId: mapped.data.vamsysPirepId },
-    update: { ...pirepData, pilotId: pilot.id },
-    create: { ...pirepData, pilotId: pilot.id },
+    update: { ...pirepData, pilotId: pilot.id, ...(fuelCalculationDetails ? { fuelCalculationDetails } : {}) },
+    create: { ...pirepData, pilotId: pilot.id, fuelCalculationDetails },
     include: { payrollRecord: true },
   });
   await generateExpensesSafely(stored.id, result);
@@ -265,6 +275,7 @@ export async function processAcceptedOperationsPirep(pirepSummaryOrId: Row | str
     vamsysPirepId: stored.vamsysPirepId,
     vamsysBookingId: stored.vamsysBookingId,
   });
+  await createOrUpdateFlightAnalysis(stored.id).catch((error) => console.error(`[Flight analysis] failed pirep=${stored.id}`, error));
   await completePilotBookingFromPirep({ pirepId: stored.id, vamsysBookingId: stored.vamsysBookingId });
   try {
     const location = extractAircraftLocationData(stored.rawData, { arrival: stored.arrival, aircraftType: stored.aircraftType });

@@ -383,6 +383,7 @@ model Pirep {
   fuelPricePerKgCents   Int?
   fuelPriceRegion       String?
   fuelPriceSource       String?
+  fuelCalculationDetails Json?
   points                Float?
   credits               Float?
   status                PirepStatus
@@ -398,6 +399,7 @@ model Pirep {
   companyExpenses       CompanyExpense[]
   flightDispatch        FlightDispatch?
   pilotBooking          PilotBooking?
+  flightAnalysisReport  FlightAnalysisReport?
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
@@ -716,6 +718,11 @@ model OfpBriefing {
   ofpUrl             String?
   pdfUrl             String?
   ofpSnapshot        Json?
+  fuelPolicyProfileId String?
+  fuelPolicyProfile  FuelPolicyProfile? @relation(fields: [fuelPolicyProfileId], references: [id], onDelete: SetNull)
+  fuelPolicySnapshot Json?
+  tankeringRecommendation Json?
+  tankeringApplied  Boolean        @default(false)
   contentHash        String
   signedByPilotId    String?
   signedByName       String?
@@ -727,8 +734,91 @@ model OfpBriefing {
   voidReason         String?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
+  dispatchRelease    DispatchRelease?
+  flightAnalysisReports FlightAnalysisReport[]
 
   @@index([status, signedAt])
+}
+
+model FlightAnalysisReport {
+  id                       String       @id @default(cuid())
+  pirepId                  String       @unique
+  pirep                    Pirep        @relation(fields: [pirepId], references: [id], onDelete: Cascade)
+  ofpBriefingId            String?
+  ofpBriefing              OfpBriefing? @relation(fields: [ofpBriefingId], references: [id], onDelete: SetNull)
+  plannedBlockMinutes      Int?
+  actualBlockMinutes       Int?
+  blockTimeDiffMinutes     Int?
+  plannedFlightMinutes     Int?
+  actualFlightMinutes      Int?
+  flightTimeDiffMinutes    Int?
+  plannedTripFuelKg        Int?
+  actualFuelUsedKg         Int?
+  fuelDiffKg               Int?
+  fuelDiffPercent          Float?
+  plannedRoute             String?
+  actualDistanceNm         Int?
+  landingRate              Int?
+  landingG                 Float?
+  summary                  Json
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
+
+  @@index([ofpBriefingId])
+  @@index([fuelDiffPercent])
+}
+
+model FuelPolicyProfile {
+  id                    String        @id @default(cuid())
+  name                  String
+  scope                 String
+  aircraftCategory      String?
+  routeType             String?
+  region                String?
+  contingencyRule       String
+  finalReserveRule      String
+  taxiFuelKg            Int?
+  minFobKg              Int?
+  minArrivalFuelKg      Int?
+  atcFuelMinutes        Int?
+  weatherFuelMinutes    Int?
+  melFuelKg             Int?
+  extraFuelKg           Int?
+  tankeringAllowed      Boolean       @default(false)
+  active                Boolean       @default(true)
+  ofpBriefings          OfpBriefing[]
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@index([active, routeType, region])
+  @@index([aircraftCategory])
+}
+
+model DispatchRelease {
+  id                           String       @id @default(cuid())
+  ofpBriefingId                String       @unique
+  ofpBriefing                  OfpBriefing  @relation(fields: [ofpBriefingId], references: [id], onDelete: Cascade)
+  status                       String       @default("PENDING")
+  riskLevel                    String       @default("UNKNOWN")
+  ofpCheckStatus               String       @default("PENDING")
+  fuelCheckStatus              String       @default("PENDING")
+  aircraftConditionStatus      String       @default("PENDING")
+  takeoffPerformanceStatus     String       @default("NOT_REQUIRED")
+  landingPerformanceStatus     String       @default("NOT_REQUIRED")
+  weatherStatus                String       @default("UNKNOWN")
+  alternateStatus              String       @default("UNKNOWN")
+  etopsStatus                  String       @default("NOT_REQUIRED")
+  checks                       Json
+  warnings                     Json?
+  blockingItems                Json?
+  releasedAt                   DateTime?
+  releasedByPilotId            String?
+  releasedByStaffId            String?
+  createdAt                    DateTime     @default(now())
+  updatedAt                    DateTime     @updatedAt
+
+  @@index([status, riskLevel])
+  @@index([releasedAt])
 }
 
 model PilotBooking {

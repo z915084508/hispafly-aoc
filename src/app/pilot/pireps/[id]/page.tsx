@@ -6,6 +6,7 @@ import { formatDateTime, formatMinutes, formatMoney, formatNumber, PirepHero, Pi
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
 import { getPilotPirepDetail } from "@/lib/pilot/portalData";
 import { requirePilotSession } from "@/lib/pilot/session";
+import { OperationalAnalysis } from "@/components/operational-analysis";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,7 @@ export default async function PilotPirepDetailPage({ params }: { params: Promise
       <PirepMetric label="Score" value={formatNumber(pirep.score)} />
       <PirepMetric label="Points" value={formatNumber(pirep.points)} />
     </PirepSection>
+    <OperationalAnalysis analysis={pirep.flightAnalysisReport}/>
     <PirepSection title="Tu nómina y cartera">
       <PirepMetric label="Nómina" value={pirep.payrollRecord ? formatMoney(pirep.payrollRecord.amountCents, pirep.payrollRecord.currency) : "Sin nómina"} note={pirep.payrollRecord?.status ?? "No se ha generado un registro"} />
       <PirepMetric label="Pago base" value={pirep.payrollRecord ? formatMoney(pirep.payrollRecord.basePayCents, pirep.payrollRecord.currency) : "—"} />

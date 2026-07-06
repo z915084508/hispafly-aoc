@@ -54,12 +54,19 @@
                                       "navigraphHelp": "SimBrief API V2 se utiliza para generar OFP con tu propia cuenta de Navigraph."
                                     }
                },
-    "ofp": {
-               "simbriefId": "ID de SimBrief",
-               "changeSimbriefId": "Cambiar ID de SimBrief",
-               "prepareRequiresSimbriefId": "Se necesita un ID de piloto SimBrief para preparar este OFP.",
-               "prepareRequiresNavigraph": "Debes conectar Navigraph / SimBrief antes de preparar un OFP."
-             },
+      "ofp": {
+                 "simbriefId": "ID de SimBrief",
+                 "changeSimbriefId": "Cambiar ID de SimBrief",
+                 "prepareRequiresSimbriefId": "Se necesita un ID de piloto SimBrief para preparar este OFP.",
+                 "prepareRequiresNavigraph": "Debes conectar Navigraph / SimBrief antes de preparar un OFP.",
+                 "generate": "Generar OFP",
+                 "preparing": "Preparando OFP",
+                 "generated": "OFP generado",
+                 "generationFailed": "Error al generar el OFP",
+                 "pdfNotAvailable": "PDF de SimBrief no disponible",
+                 "connectNavigraph": "Conecta Navigraph antes de preparar el OFP",
+                 "generateBeforeSigning": "Genera el OFP de SimBrief antes de firmar."
+               },
     "status":  {
                    "pending":  "Pendiente",
                    "approved":  "Aprobado",
@@ -86,7 +93,8 @@
                      "pilots":  "Pilotos",
                      "pireps":  "PIREPs",
                      "offers":  "Ofertas de vuelo",
-                     "ofp":  "Control OFP",
+                      "ofp":  "Control OFP",
+                      "fuelPolicy": "Política de combustible",
                      "payroll":  "Nóminas",
                      "economy":  "Economía de la compañía",
                      "expenses":  "Gastos de compañía",

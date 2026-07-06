@@ -4,6 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
 import { extractSimbriefPdfUrl } from "@/lib/simbrief/pdf";
 import { normalizeSimbriefUserId } from "@/lib/simbrief/userId";
+import { generateSimBriefFlightplan } from "@/lib/simbrief/client";
+import { assertAircraftDispatchAllowed } from "@/lib/aircraft-maintenance/service";
+import { writeAuditLogSafely } from "@/lib/audit/log";
+import { extractSimbriefOfpUrl, simbriefResponseUserId } from "@/lib/simbrief/response";
+import { buildSimBriefGeneratePayload } from "@/lib/simbrief/payload";
+import { evaluateDispatchRelease } from "@/lib/dispatch-release/service";
+import { buildAppliedFuelPolicy, fuelPolicyJson, fuelPolicyPayload } from "@/lib/fuel-policy/service";
 
 export function ofpContentHash(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -67,4 +74,77 @@ export async function importSimbriefOfp(ofpId: string, pilotId: string, simbrief
   const snapshot = await response.json() as Prisma.InputJsonValue;
   const pdfUrl = extractSimbriefPdfUrl(snapshot);
   return prisma.ofpBriefing.update({ where: { id: ofp.id }, data: { status: "AWAITING_SIGNATURE", simbriefUserId: normalizedUserId, ofpSnapshot: snapshot, contentHash: ofpContentHash(snapshot), pdfUrl, signatureData: null, signedAt: null, signedByPilotId: null } });
+}
+
+export async function generateDispatchSimBriefOfp(input: { ofpId: string; pilotId: string; staffUserId?: string | null }) {
+  const ofp = await prisma.ofpBriefing.findFirst({
+    where: { id: input.ofpId, flightDispatch: { pilotId: input.pilotId } },
+    include: { flightDispatch: { include: { flightOffer: true, pilot: true } } },
+  });
+  if (!ofp) throw new Error("OFP not found or is not assigned to this pilot.");
+  if (ofp.status === "SIGNED" || ofp.status === "VOIDED") throw new Error("This OFP can no longer be regenerated.");
+  const dispatch = ofp.flightDispatch, offer = dispatch.flightOffer;
+  if (!dispatch.selectedDepartureAt) throw new Error("The selected departure time is missing.");
+  await assertAircraftDispatchAllowed({ vamsysAircraftId: offer.vamsysAircraftId, offerType: offer.offerType, arrivalIcao: offer.arrivalIcao });
+  const staticId = `HFAOC-${dispatch.id.replace(/[^A-Za-z0-9-]/g, "-")}`;
+  const basePayload = buildSimBriefGeneratePayload({
+    staticId,
+    departureIcao: offer.departureIcao,
+    arrivalIcao: offer.arrivalIcao,
+    aircraftType: offer.aircraftType,
+    flightNumber: offer.flightNumber,
+    callsign: offer.callsign,
+    aircraftRegistration: offer.aircraftRegistration,
+    selectedDepartureAt: dispatch.selectedDepartureAt,
+    passengers: offer.passengers,
+    freightKg: offer.freightKg,
+    cargoKg: offer.cargoKg,
+    userRoute: offer.userRoute,
+    altitude: offer.altitude,
+  });
+  await writeAuditLogSafely({ staffUserId: input.staffUserId, action: "OFP_GENERATION_REQUESTED_BY_USER", entityType: "OfpBriefing", entityId: ofp.id, message: "A user requested SimBrief OFP generation.", metadata: { pilotId: input.pilotId, dispatchId: dispatch.id, requestedBy: input.staffUserId ? "STAFF" : "PILOT" } });
+  try {
+    const fuelPolicy = await buildAppliedFuelPolicy({
+      pilotId: input.pilotId,
+      ofpBriefingId: ofp.id,
+      vamsysAircraftId: offer.vamsysAircraftId,
+      aircraftType: offer.aircraftType,
+      departureIcao: offer.departureIcao,
+      arrivalIcao: offer.arrivalIcao,
+      estimatedDurationMinutes: offer.estimatedDurationMinutes,
+      passengers: offer.passengers,
+      freightKg: offer.freightKg,
+    });
+    const payload = { ...basePayload, ...fuelPolicyPayload(fuelPolicy) };
+    const response = await generateSimBriefFlightplan(input.pilotId, payload);
+    const snapshot = response as Prisma.InputJsonValue;
+    const pdfUrl = extractSimbriefPdfUrl(response);
+    const ofpUrl = extractSimbriefOfpUrl(response);
+    const saved = await prisma.ofpBriefing.update({ where: { id: ofp.id }, data: {
+      status: "AWAITING_SIGNATURE",
+      simbriefStaticId: staticId,
+      simbriefUserId: simbriefResponseUserId(response) ?? dispatch.pilot.simbriefUserId,
+      ofpUrl,
+      pdfUrl,
+      ofpSnapshot: snapshot,
+      fuelPolicyProfileId: fuelPolicy.profileId,
+      fuelPolicySnapshot: fuelPolicyJson(fuelPolicy),
+      tankeringRecommendation: fuelPolicy.tankering ? fuelPolicy.tankering as unknown as Prisma.InputJsonValue : Prisma.DbNull,
+      tankeringApplied: Boolean(fuelPolicy.tankering),
+      contentHash: ofpContentHash({ response, fuelPolicy }),
+      signatureData: null,
+      signedAt: null,
+      signedByPilotId: null,
+      signedByName: null,
+      signedByCallsign: null,
+    } });
+    if (fuelPolicy.tankering) await writeAuditLogSafely({ staffUserId: input.staffUserId, action: "TANKERING_APPLIED", entityType: "OfpBriefing", entityId: ofp.id, message: "Tankering recommendation applied to the generated SimBrief OFP.", metadata: { pilotId: input.pilotId, recommendedKg: fuelPolicy.tankering.recommendedKg, estimatedSavingCents: fuelPolicy.tankering.estimatedSavingCents } });
+    await writeAuditLogSafely({ staffUserId: input.staffUserId, action: "SIMBRIEF_OFP_GENERATED", entityType: "OfpBriefing", entityId: ofp.id, message: "SimBrief OFP generated and saved to AOC.", metadata: { pilotId: input.pilotId, dispatchId: dispatch.id, staticId, hasPdf: Boolean(pdfUrl), hasOfpUrl: Boolean(ofpUrl) } });
+    await evaluateDispatchRelease({ ofpBriefingId: ofp.id });
+    return saved;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "SimBrief OFP generation failed.";
+    await writeAuditLogSafely({ staffUserId: input.staffUserId, action: "SIMBRIEF_OFP_GENERATION_FAILED", entityType: "OfpBriefing", entityId: ofp.id, message, metadata: { pilotId: input.pilotId, dispatchId: dispatch.id, staticId } });
+    throw error;
+  }
 }

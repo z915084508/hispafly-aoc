@@ -6,8 +6,8 @@ import { getValidVamsysAccessToken } from "@/lib/vamsys/token";
 import { updateAircraftLocationFromDispatch } from "@/lib/aircraft-location/tracker";
 import { createDispatchOfpBriefing } from "@/lib/simbrief/ofp";
 import { assertAircraftDispatchAllowed } from "@/lib/aircraft-maintenance/service";
+import { assertDispatchReleaseAllowsFinalDispatch } from "@/lib/dispatch-release/service";
 import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
-import { assertNavigraphConnected } from "@/lib/navigraph/token";
 
 type JsonRow = Record<string, unknown>;
 
@@ -31,7 +31,6 @@ function numericId(value: string, label: string): number {
 }
 
 export async function prepareFlightOffer(offerId: string, pilotId: string, selectedDepartureAt: Date) {
-  await assertNavigraphConnected(pilotId);
   const offer = await prisma.flightOffer.findUnique({ where: { id: offerId } });
   if (!offer) throw new Error("La oferta de vuelo no existe.");
   if (offer.status !== "PUBLISHED") throw new Error("Esta oferta ya no está publicada.");
@@ -79,6 +78,7 @@ export async function finalDispatchFlightOffer(dispatchId: string, pilotId: stri
   if (!dispatch.ofpBriefing || dispatch.ofpBriefing.status !== "SIGNED" || dispatch.ofpBriefing.signedByPilotId !== pilotId) {
     throw new Error("Review and sign the current OFP before Final Dispatch.");
   }
+  await assertDispatchReleaseAllowsFinalDispatch(dispatch.ofpBriefing.id, pilotId);
   if (!dispatch.selectedDepartureAt) throw new Error("The selected departure time is missing.");
   if (dispatch.flightOffer.validUntil <= new Date()) throw new Error("This flight offer has expired.");
   const claimed = await prisma.flightDispatch.updateMany({ where: { id: dispatch.id, status: "DISPATCHING", NOT: { errorMessage: "FINAL_DISPATCH_IN_PROGRESS" } }, data: { errorMessage: "FINAL_DISPATCH_IN_PROGRESS" } });
