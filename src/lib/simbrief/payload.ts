@@ -1,5 +1,14 @@
 import { normalizeFlightIdentity } from "../dispatch/flightIdentity.ts";
 
+function simBriefDate(value: Date) {
+  const day = value.getUTCDate();
+  const month = value.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  const year = value.getUTCFullYear();
+  const hour = String(value.getUTCHours()).padStart(2, "0");
+  const minute = String(value.getUTCMinutes()).padStart(2, "0");
+  return `${day} ${month} ${year} - ${hour}:${minute}`;
+}
+
 export function buildSimBriefGeneratePayload(input: {
   staticId: string;
   departureIcao: string;
@@ -26,7 +35,7 @@ export function buildSimBriefGeneratePayload(input: {
     fltnum: identity.numericFlightNumber,
     callsign: identity.atcCallsign,
     reg: input.aircraftRegistration || undefined,
-    date: input.selectedDepartureAt.toISOString(),
+    date: simBriefDate(input.selectedDepartureAt),
     pax: input.passengers ?? 0,
     cargo: input.freightKg ?? input.cargoKg ?? 0,
     route: input.userRoute || undefined,
@@ -42,8 +51,7 @@ export function buildSimBriefGeneratePayload(input: {
     etops: 0,
     taxiout: 20,
     taxiin: 8,
-    contpct: "0.05/15",
+    contpct: 5,
     resvrule: 30,
   };
 }
-

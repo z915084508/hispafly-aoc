@@ -103,19 +103,33 @@ export async function buildAppliedFuelPolicy(input: {
   return applied;
 }
 
+function simBriefContingencyPercent(value: string) {
+  const first = value.trim().split("/")[0]?.trim();
+  const numeric = Number(first);
+  if (!Number.isFinite(numeric) || numeric <= 0) return value;
+  return numeric < 1 ? Math.round(numeric * 100) : numeric;
+}
+
 export function fuelPolicyPayload(policy: AppliedFuelPolicy): Record<string, string | number | undefined> {
   return {
-    contpct: policy.contingencyRule,
+    contpct: simBriefContingencyPercent(policy.contingencyRule),
     resvrule: policy.finalReserveRule,
     taxifuel: policy.taxiFuelKg ?? undefined,
     minfob: policy.minFobKg ?? undefined,
+    minfob_units: policy.minFobKg ? "wgt" : undefined,
     minfod: policy.minArrivalFuelKg ?? undefined,
+    minfod_units: policy.minArrivalFuelKg ? "wgt" : undefined,
     melfuel: policy.melFuelKg ?? undefined,
+    melfuel_units: policy.melFuelKg ? "wgt" : undefined,
     atcfuel: policy.atcFuelMinutes ?? undefined,
+    atcfuel_units: policy.atcFuelMinutes ? "min" : undefined,
     wxxfuel: policy.weatherFuelMinutes ?? undefined,
+    wxxfuel_units: policy.weatherFuelMinutes ? "min" : undefined,
     addedfuel: policy.extraFuelKg ?? undefined,
-    addedfuel_label: policy.addedFuelLabel ?? undefined,
+    addedfuel_label: policy.addedFuelLabel?.toLowerCase() ?? undefined,
+    addedfuel_units: policy.extraFuelKg ? "wgt" : undefined,
     tankering: policy.tankering?.recommendedKg ?? 0,
+    tankering_units: policy.tankering ? "wgt" : undefined,
     etops: policy.routeType === "LONG_HAUL" ? 1 : 0,
   };
 }

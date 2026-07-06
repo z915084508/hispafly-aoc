@@ -27,3 +27,15 @@ export function buildSimBriefPayload<T extends SimBriefPayload>(payload: T): T {
   return clean(payload) as T;
 }
 
+export function buildSimBriefFormBody(payload: SimBriefPayload) {
+  const params = new URLSearchParams();
+  const clean = buildSimBriefPayload(payload);
+  for (const [key, value] of Object.entries(clean)) {
+    if (value === undefined || value === null || value === "") continue;
+    if (Array.isArray(value)) params.set(key, value.filter((item) => item !== undefined && item !== null && item !== "").join(","));
+    else if (value instanceof Date) params.set(key, value.toISOString());
+    else if (typeof value === "object") params.set(key, JSON.stringify(value));
+    else params.set(key, String(value));
+  }
+  return params;
+}

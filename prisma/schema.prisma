@@ -178,6 +178,8 @@ model Pilot {
   flightDispatches     FlightDispatch[]
   createdFlightOffers  FlightOffer[]         @relation("PilotCreatedFlightOffers")
   pilotBookings        PilotBooking[]
+  efbPerformanceCalculations EfbPerformanceCalculation[]
+  efbDepartureReadiness EfbDepartureReadiness[]
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
@@ -766,6 +768,53 @@ model FlightAnalysisReport {
 
   @@index([ofpBriefingId])
   @@index([fuelDiffPercent])
+}
+
+model EfbPerformanceCalculation {
+  id                      String   @id @default(cuid())
+  pilotId                 String
+  pilot                   Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  ofpBriefingId           String?
+  flightDispatchId        String?
+  vamsysBookingId         String?
+  type                    String
+  mode                    String   @default("MANUAL")
+  airportIcao             String
+  runway                  String?
+  aircraftType            String
+  aircraftRegistration    String?
+  weightKg                Int?
+  source                  String   @default("simbrief_v2")
+  input                   Json
+  result                  Json?
+  status                  String
+  warningLevel            String?
+  errorMessage            String?
+  officialForDeparture    Boolean  @default(false)
+  usedForReadyForDeparture Boolean @default(false)
+  createdAt               DateTime @default(now())
+
+  @@index([pilotId, createdAt])
+  @@index([ofpBriefingId])
+  @@index([flightDispatchId])
+  @@index([vamsysBookingId])
+  @@index([type, airportIcao])
+}
+
+model EfbDepartureReadiness {
+  id                      String   @id @default(cuid())
+  flightDispatchId        String   @unique
+  pilotId                 String
+  pilot                   Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  status                  String   @default("PENDING")
+  takeoffPerformanceId    String?
+  blockingReason          String?
+  warnings                Json?
+  readyAt                 DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([pilotId, status])
 }
 
 model FuelPolicyProfile {

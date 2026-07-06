@@ -25,8 +25,9 @@ assert.equal(payload.dest, "LEMD");
 assert.equal(payload.cargo, 800);
 assert.equal(payload.planformat, "lido");
 assert.equal(payload.units, "kgs");
+assert.equal(payload.date, "6 Jul 2026 - 12:30");
 assert.equal(payload.route, undefined);
 assert.equal(payload.static_id, "HFAOC-dispatch-1");
 assert.notEqual(payload.callsign, "HISPAFLY0200");
 
-console.log("SimBrief OFP V2 payload: 11 assertions passed.");
+console.log("SimBrief OFP V2 payload: 12 assertions passed.");

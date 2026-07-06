@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getValidNavigraphAccessToken } from "./token";
 import { buildSimBriefApiUrl } from "./config";
 import { parseSimBriefError, SimBriefApiError } from "./errors";
-import { buildSimBriefPayload, type SimBriefFlightplan, type SimBriefFlightplanList, type SimBriefPayload, type SimBriefQuery } from "./types";
+import { buildSimBriefFormBody, type SimBriefFlightplan, type SimBriefFlightplanList, type SimBriefPayload, type SimBriefQuery } from "./types";
 
 function queryString(query?: SimBriefQuery) {
   if (!query) return "";
@@ -31,7 +31,6 @@ async function send(path: string, accessToken: string | null, init: RequestInit,
     headers: {
       Accept: "application/json",
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
       ...init.headers,
     },
     cache: "no-store",
@@ -80,11 +79,11 @@ export function getSimBriefFlightplan(pilotId: string, requestIdOrStaticId: stri
 }
 
 export function generateSimBriefFlightplan(pilotId: string, payload: SimBriefPayload) {
-  return simBriefRequest<SimBriefFlightplan>(pilotId, "/v2/plan/generate", { method: "POST", body: JSON.stringify(buildSimBriefPayload(payload)) });
+  return simBriefRequest<SimBriefFlightplan>(pilotId, "/v2/plan/generate", { method: "POST", body: buildSimBriefFormBody(payload) });
 }
 
 export function calculateSimBriefFlightplan(pilotId: string, payload: SimBriefPayload) {
-  return simBriefRequest<SimBriefFlightplan>(pilotId, "/v2/plan/calculate", { method: "POST", body: JSON.stringify(buildSimBriefPayload(payload)) });
+  return simBriefRequest<SimBriefFlightplan>(pilotId, "/v2/plan/calculate", { method: "POST", body: buildSimBriefFormBody(payload) });
 }
 
 export function getSimBriefSystemAirframes() {
@@ -109,4 +108,3 @@ export function calculateLandingPerformance(pilotId: string, params: SimBriefQue
 }
 
 export { SimBriefApiError };
-
