@@ -7,6 +7,23 @@ export class VamsysApiError extends Error {
   }
 }
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}) {
+  const configuredTimeout = Number(process.env.VAMSYS_PILOT_API_TIMEOUT_MS ?? "");
+  const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? Math.max(5_000, configuredTimeout) : 25_000;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new VamsysApiError(`vAMSYS request timed out after ${Math.round(timeoutMs / 1000)}s. Please try Final Dispatch again.`, 504, "timeout");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
   if (!response.ok) {
@@ -26,7 +43,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
 async function pilotApiRequest(path: string, accessToken: string, init?: RequestInit): Promise<VamsysApiRecord> {
   const { apiBaseUrl } = getVamsysPilotConfig();
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetchWithTimeout(`${apiBaseUrl}${path}`, {
     ...init,
     headers: {
       Accept: "application/json",
@@ -71,7 +88,7 @@ export function fetchVamsysProfile(accessToken: string) {
 
 async function tokenRequest(parameters: URLSearchParams): Promise<VamsysTokenResponse> {
   const { tokenUrl } = getVamsysPilotConfig();
-  const response = await fetch(tokenUrl, {
+  const response = await fetchWithTimeout(tokenUrl, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
     body: parameters,

@@ -10,6 +10,8 @@ import { assertDispatchReleaseAllowsFinalDispatch } from "@/lib/dispatch-release
 import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
 
 type JsonRow = Record<string, unknown>;
+const FINAL_DISPATCH_LOCK = "FINAL_DISPATCH_IN_PROGRESS";
+const FINAL_DISPATCH_LOCK_TTL_MS = 2 * 60_000;
 
 function record(value: unknown): JsonRow | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonRow : null;
@@ -81,16 +83,28 @@ export async function finalDispatchFlightOffer(dispatchId: string, pilotId: stri
   await assertDispatchReleaseAllowsFinalDispatch(dispatch.ofpBriefing.id, pilotId);
   if (!dispatch.selectedDepartureAt) throw new Error("The selected departure time is missing.");
   if (dispatch.flightOffer.validUntil <= new Date()) throw new Error("This flight offer has expired.");
-  const claimed = await prisma.flightDispatch.updateMany({ where: { id: dispatch.id, status: "DISPATCHING", NOT: { errorMessage: "FINAL_DISPATCH_IN_PROGRESS" } }, data: { errorMessage: "FINAL_DISPATCH_IN_PROGRESS" } });
-  if (claimed.count !== 1) throw new Error("Final Dispatch is already in progress.");
+  const staleLockBefore = new Date(Date.now() - FINAL_DISPATCH_LOCK_TTL_MS);
+  const claimed = await prisma.flightDispatch.updateMany({
+    where: {
+      id: dispatch.id,
+      status: "DISPATCHING",
+      OR: [
+        { errorMessage: null },
+        { errorMessage: { not: FINAL_DISPATCH_LOCK } },
+        { updatedAt: { lt: staleLockBefore } },
+      ],
+    },
+    data: { errorMessage: FINAL_DISPATCH_LOCK },
+  });
+  if (claimed.count !== 1) throw new Error("Final Dispatch is already in progress. If the previous attempt did not complete, wait two minutes and try again.");
 
   const oauth = await prisma.vamsysOAuthToken.findUnique({ where: { pilotId }, select: { scopes: true, revokedAt: true } });
   const grantedScopes = new Set(oauth?.scopes.split(/\s+/).filter(Boolean) ?? []);
   if (!oauth || oauth.revokedAt || !grantedScopes.has("flights:write")) {
-    await prisma.flightDispatch.update({ where: { id: dispatch.id }, data: { errorMessage: null } });
+    await prisma.flightDispatch.updateMany({ where: { id: dispatch.id, errorMessage: FINAL_DISPATCH_LOCK }, data: { errorMessage: null } });
     throw new Error("Reconnect vAMSYS and authorize flights:write before Final Dispatch.");
   }
-  const accessToken = await getValidVamsysAccessToken(pilotId).catch(async () => { await prisma.flightDispatch.update({ where: { id: dispatch.id }, data: { errorMessage: null } }); throw new Error("Connect vAMSYS before Final Dispatch."); });
+  const accessToken = await getValidVamsysAccessToken(pilotId).catch(async () => { await prisma.flightDispatch.updateMany({ where: { id: dispatch.id, errorMessage: FINAL_DISPATCH_LOCK }, data: { errorMessage: null } }); throw new Error("Connect vAMSYS before Final Dispatch."); });
   const offer = dispatch.flightOffer;
   const identity = normalizeFlightIdentity({ flightNumber: offer.flightNumber, callsign: offer.callsign });
 
