@@ -10,14 +10,16 @@ import { finalDispatchFlightOffer } from "@/lib/flightOffers/service";
 import { evaluateDispatchRelease } from "@/lib/dispatch-release/service";
 
 export async function generateSimbriefOFPAction(formData: FormData) {
-  const pilot = await requirePilotSession(); const ofpId = String(formData.get("ofpId") ?? "");
+  const pilot = await requirePilotSession();
+  const ofpId = String(formData.get("ofpId") ?? "");
+  const alternateIcao = String(formData.get("alternateIcao") ?? "").trim().toUpperCase() || null;
   let error: string | null = null;
   try {
-    await generateDispatchSimBriefOfp({ ofpId, pilotId: pilot.id });
+    await generateDispatchSimBriefOfp({ ofpId, pilotId: pilot.id, alternateIcao });
     revalidatePath(`/pilot/ofp/${ofpId}`); revalidatePath("/pilot/ofp"); revalidatePath("/staff/ofp");
   }
   catch (caught) { error = caught instanceof Error ? caught.message : "OFP generation failed."; }
-  redirect(`/pilot/ofp/${ofpId}?${error ? `error=${encodeURIComponent(error)}` : `success=${encodeURIComponent("OFP generated.")}`}`);
+  redirect(`/pilot/ofp/${ofpId}?${error ? `error=${encodeURIComponent(error)}` : `success=${encodeURIComponent(alternateIcao ? `OFP regenerated with alternate ${alternateIcao}. Review and sign again.` : "OFP generated.")}`}`);
 }
 
 export async function signOFPAction(formData: FormData) {
