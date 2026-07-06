@@ -238,6 +238,14 @@ model Aircraft {
   mtowKg           Int?
   fuelOnBoardKg    Int?
   fuelReportedAt   DateTime?
+  publicVisible    Boolean  @default(false)
+  publicDisplayName String?
+  publicDescription String?
+  publicImageUrl    String?
+  publicBaseIcao    String?
+  publicStatus      String?
+  publicDisplayOrder Int     @default(0)
+  publicPublishedAt DateTime?
   rawData          Json?
   performanceProfile AircraftPerformanceProfile?
   createdAt        DateTime @default(now())
@@ -245,6 +253,7 @@ model Aircraft {
 
   @@index([registration])
   @@index([aircraftType])
+  @@index([publicVisible, publicDisplayOrder])
 }
 
 model AircraftProfile {

@@ -358,6 +358,16 @@
                                 "updatedAt":  "Updated",
                                 "coordinates":  "Coordinates",
                                 "coordinatesOk":  "OK"
+                            },
+                  "public": {
+                                "title": "Public website fleet",
+                                "copy": "Choose which aircraft can appear on the HISPAFLY public website. Only safe public fields are exposed.",
+                                "visible": "Visible",
+                                "showOnWebsite": "Show on website",
+                                "websiteName": "Website name",
+                                "base": "Base",
+                                "imageUrl": "Image URL",
+                                "order": "Order"
                             }
               }
 }

@@ -358,6 +358,16 @@
                                 "updatedAt":  "Actualizado",
                                 "coordinates":  "Coordenadas",
                                 "coordinatesOk":  "OK"
+                            },
+                  "public": {
+                                "title": "Flota en la web publica",
+                                "copy": "Elige que aeronaves pueden aparecer en la web publica de HISPAFLY. Solo se exponen campos publicos seguros.",
+                                "visible": "Visible",
+                                "showOnWebsite": "Mostrar en la web",
+                                "websiteName": "Nombre en la web",
+                                "base": "Base",
+                                "imageUrl": "URL de imagen",
+                                "order": "Orden"
                             }
               }
 }

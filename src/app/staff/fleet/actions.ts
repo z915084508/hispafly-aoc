@@ -7,6 +7,7 @@ import { setAircraftLocationManually, syncAircraftLocationsFromPireps } from "@/
 import { prisma } from "@/lib/prisma";
 import { completeMaintenance, initializeAircraftConditions } from "@/lib/aircraft-maintenance/service";
 import { redirect } from "next/navigation";
+import { writeAuditLogSafely } from "@/lib/audit/log";
 
 const allowed = new Set<AircraftLocationStatus>(["AVAILABLE", "RESERVED", "IN_FLIGHT", "MAINTENANCE", "UNKNOWN"]);
 
@@ -41,4 +42,64 @@ export async function initializeAircraftConditionsAction() {
   const result=await initializeAircraftConditions(staff.id);revalidatePath("/staff/fleet");revalidatePath("/pilot/fleet");
   const query=new URLSearchParams({created:String(result.created),existing:String(result.existing),skipped:String(result.skipped),errors:String(result.errors.length)});
   redirect(`/staff/fleet?${query}`);
+}
+
+function cleanText(value: FormDataEntryValue | null, maxLength = 240) {
+  const text = String(value ?? "").trim();
+  return text ? text.slice(0, maxLength) : null;
+}
+
+function cleanIcao(value: FormDataEntryValue | null) {
+  const code = String(value ?? "").trim().toUpperCase();
+  return /^[A-Z0-9]{4}$/.test(code) ? code : null;
+}
+
+function cleanUrl(value: FormDataEntryValue | null) {
+  const url = String(value ?? "").trim();
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" ? parsed.toString().slice(0, 500) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function updatePublicFleetAircraftAction(formData: FormData) {
+  const staff = await requireStaffPermission("FLIGHT_OFFER_MANAGE", {
+    entityType: "Aircraft",
+    attemptedAction: "publish aircraft information to the public website",
+  });
+  const aircraftId = String(formData.get("aircraftId") ?? "").trim();
+  if (!aircraftId) throw new Error("Aircraft ID is required.");
+
+  const publicVisible = formData.get("publicVisible") === "on";
+  const publicDisplayOrder = Number(formData.get("publicDisplayOrder") ?? 0);
+  const safeOrder = Number.isFinite(publicDisplayOrder) ? Math.max(0, Math.round(publicDisplayOrder)) : 0;
+
+  await prisma.aircraft.update({
+    where: { id: aircraftId },
+    data: {
+      publicVisible,
+      publicDisplayName: cleanText(formData.get("publicDisplayName"), 80),
+      publicDescription: cleanText(formData.get("publicDescription"), 600),
+      publicImageUrl: cleanUrl(formData.get("publicImageUrl")),
+      publicBaseIcao: cleanIcao(formData.get("publicBaseIcao")),
+      publicStatus: cleanText(formData.get("publicStatus"), 40),
+      publicDisplayOrder: safeOrder,
+      publicPublishedAt: publicVisible ? new Date() : null,
+    },
+  });
+
+  await writeAuditLogSafely({
+    staffUserId: staff.id,
+    action: publicVisible ? "PUBLIC_FLEET_AIRCRAFT_PUBLISHED" : "PUBLIC_FLEET_AIRCRAFT_UNPUBLISHED",
+    entityType: "Aircraft",
+    entityId: aircraftId,
+    message: `Public fleet visibility ${publicVisible ? "enabled" : "disabled"} for aircraft ${aircraftId}.`,
+    metadata: { publicVisible, publicDisplayOrder: safeOrder },
+  });
+
+  revalidatePath("/staff/fleet");
+  revalidatePath("/api/public/fleet");
 }
