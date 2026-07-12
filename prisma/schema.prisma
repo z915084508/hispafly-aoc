@@ -162,6 +162,15 @@ enum FleetSyncStatus {
   MISSING
 }
 
+enum AircraftSyncStatus {
+  LOCAL_DRAFT
+  PUBLISHING
+  SYNCED
+  UPDATE_PENDING
+  SYNC_ERROR
+  MISSING
+}
+
 model StaffUser {
   id           String        @id @default(cuid())
   name         String        @map("displayName")
@@ -289,33 +298,54 @@ model Fleet {
 }
 
 model Aircraft {
-  id                 String                      @id @default(cuid())
-  vamsysAircraftId   String                      @unique
-  registration       String?
-  aircraftType       String?
-  fleetId            String?
-  fleetName          String?
-  status             String?
-  seatCapacity       Int?
-  cargoCapacityKg    Int?
-  mtowKg             Int?
-  fuelOnBoardKg      Int?
-  fuelReportedAt     DateTime?
-  publicVisible      Boolean                     @default(false)
-  publicDisplayName  String?
-  publicDescription  String?
-  publicImageUrl     String?
-  publicBaseIcao     String?
-  publicStatus       String?
-  publicDisplayOrder Int                         @default(0)
-  publicPublishedAt  DateTime?
-  rawData            Json?
-  performanceProfile AircraftPerformanceProfile?
-  createdAt          DateTime                    @default(now())
-  updatedAt          DateTime                    @updatedAt
+  id                    String                      @id @default(cuid())
+  vamsysAircraftId      String                      @unique
+  name                  String?
+  registration          String?
+  aircraftType          String?
+  fleetId               String?
+  fleetName             String?
+  status                String?
+  seatCapacity          Int?
+  cargoCapacityKg       Int?
+  containerUnits        Int?
+  selcal                String?
+  finNumber             String?
+  hexcode               String?
+  hiddenInPhoenix       Boolean                     @default(false)
+  vamsysInternalRemarks String?
+  internalNotes         String?
+  simbriefOverrides     Json?
+  imageUrl              String?
+  imageAttribution      String?
+  imageLinkback         String?
+  syncStatus            AircraftSyncStatus          @default(LOCAL_DRAFT)
+  sourceUpdatedAt       DateTime?
+  lastSeenAt            DateTime?
+  lastSyncedAt          DateTime?
+  lastPublishedAt       DateTime?
+  lastSyncError         String?
+  mtowKg                Int?
+  fuelOnBoardKg         Int?
+  fuelReportedAt        DateTime?
+  publicVisible         Boolean                     @default(false)
+  publicDisplayName     String?
+  publicDescription     String?
+  publicImageUrl        String?
+  publicBaseIcao        String?
+  publicStatus          String?
+  publicDisplayOrder    Int                         @default(0)
+  publicPublishedAt     DateTime?
+  rawData               Json?
+  performanceProfile    AircraftPerformanceProfile?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
 
   @@index([registration])
   @@index([aircraftType])
+  @@index([fleetId])
+  @@index([syncStatus])
+  @@index([hiddenInPhoenix])
   @@index([publicVisible, publicDisplayOrder])
 }
 

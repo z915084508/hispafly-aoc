@@ -108,6 +108,7 @@
                      "privacy":  "Política de privacidad",
                      "fleet":  "Ubicación de flota",
                      "fleets":  "Gestión de flotas",
+                     "aircraft":  "Gestión de aeronaves",
                      "performance":  "Performance de flota",
                      "routes":  "Rutas"
                  },
