@@ -1,0 +1,1 @@
+export function assertRecoveryAccess(otherEffectiveManagers:number,targetWillRemainManager:boolean){if(!targetWillRemainManager&&otherEffectiveManagers<1)throw new Error("This change would remove the final Staff permissions administrator. Assign another recovery administrator first.")}

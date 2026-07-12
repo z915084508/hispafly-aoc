@@ -8,6 +8,11 @@ export interface StaffIdentity {
   email: string;
   role: StaffRole;
   active: boolean;
+  staffCode?: string | null;
+  roleTemplateCode?: string | null;
+  roleTemplateName?: string | null;
+  isSystemOwner?: boolean;
+  permissions?: readonly string[];
 }
 
 const DEVELOPMENT_STAFF: Record<string, Omit<StaffIdentity, "id">> = {
@@ -32,9 +37,9 @@ export async function getCurrentStaff(): Promise<StaffIdentity | null> {
   try {
     const staff = await prisma.staffUser.findUnique({
       where: { email: adminStaffEmail },
-      select: { id: true, name: true, email: true, role: true, active: true },
+      include: { roleTemplate: { include: { permissions: { include: { permission: true } } } }, permissionOverrides: { include: { permission: true } } },
     });
-    if (staff) return staff;
+    if (staff) { const {resolvePermissionCodes}=await import("./access/resolve");return {id:staff.id,name:staff.name,email:staff.email,role:staff.role,active:staff.active,staffCode:staff.staffCode,roleTemplateCode:staff.roleTemplate?.code,roleTemplateName:staff.roleTemplate?.name,isSystemOwner:staff.isSystemOwner,permissions:[...resolvePermissionCodes({legacyRole:staff.role,isSystemOwner:staff.isSystemOwner,rolePermissions:staff.roleTemplate?.permissions.map(x=>x.permission.code),overrides:staff.permissionOverrides.map(x=>({code:x.permission.code,effect:x.effect}))})]};}
     const fallback = DEVELOPMENT_STAFF["admin@hispafly.local"];
     return process.env.NODE_ENV === "production" ? null : { id: "development-staff", ...fallback };
   } catch (error) {

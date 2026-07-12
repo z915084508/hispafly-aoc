@@ -15,7 +15,7 @@ function finish(type: "success" | "error", message: string): never {
 
 export async function syncAllPireps() {
   try {
-    const staff = await requireStaffPermission("VAMSYS_PIREP_SYNC", {
+    const staff = await requireStaffPermission("PIREP_SYNC", {
       entityType: "VamsysPirepSync",
       attemptedAction: "sincronizar los PIREPs históricos de vAMSYS",
     });

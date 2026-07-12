@@ -1,0 +1,7 @@
+import assert from "node:assert/strict";import {resolvePermissionCodes} from "./resolve.ts";import {ROLE_TEMPLATE_PERMISSIONS} from "./catalog.ts";
+const inherited=resolvePermissionCodes({legacyRole:"VIEWER",rolePermissions:["ROUTE_VIEW"]});assert.equal(inherited.has("ROUTE_VIEW"),true);
+const allowed=resolvePermissionCodes({legacyRole:"VIEWER",rolePermissions:[],overrides:[{code:"ROUTE_CREATE",effect:"ALLOW"}]});assert.equal(allowed.has("ROUTE_CREATE"),true);
+const denied=resolvePermissionCodes({legacyRole:"ADMIN",rolePermissions:["ROUTE_ARCHIVE"],overrides:[{code:"ROUTE_ARCHIVE",effect:"DENY"}]});assert.equal(denied.has("ROUTE_ARCHIVE"),false);
+const denyWins=resolvePermissionCodes({legacyRole:"ADMIN",rolePermissions:[],overrides:[{code:"ROLE_MANAGE",effect:"ALLOW"},{code:"ROLE_MANAGE",effect:"DENY"}]});assert.equal(denyWins.has("ROLE_MANAGE"),false);
+assert.equal((ROLE_TEMPLATE_PERMISSIONS.NETWORK_PLANNING as readonly string[]).includes("ROUTE_CREATE"),true);assert.equal((ROLE_TEMPLATE_PERMISSIONS.NETWORK_PLANNING as readonly string[]).includes("FLEET_EDIT"),false);assert.equal((ROLE_TEMPLATE_PERMISSIONS.FLEET_MANAGER as readonly string[]).includes("AIRCRAFT_MAINTENANCE_MANAGE"),true);assert.equal((ROLE_TEMPLATE_PERMISSIONS.FLEET_MANAGER as readonly string[]).includes("ROUTE_EDIT"),false);assert.equal(ROLE_TEMPLATE_PERMISSIONS.VIEWER.some(x=>!x.endsWith("_VIEW")),false);
+console.log("Staff permission resolution: 9 assertions passed.");

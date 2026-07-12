@@ -1,0 +1,1 @@
+import {requireStaffPermission} from "@/lib/staff/authorization";export default async function Layout({children}:{children:React.ReactNode}){await requireStaffPermission("PIREP_VIEW",{entityType:"Pirep",attemptedAction:"view PIREPs"});return children}

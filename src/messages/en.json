@@ -110,7 +110,9 @@
                      "fleets":  "Fleet management",
                      "aircraft":  "Aircraft management",
                      "performance":  "Aircraft performance",
-                     "routes":  "Routes"
+                     "routes":  "Routes",
+                     "fleetOverview": "Fleet overview", "aircraftLocations": "Aircraft locations", "economyOverview": "Economy overview", "expensesShort": "Expenses", "staffPermissions": "Staff & permissions", "integrations": "Integrations", "apiSync": "API & synchronization", "systemSettings": "System settings",
+                     "groups": { "overview": "Overview", "operations": "Operations", "network": "Network Planning", "fleetEngineering": "Fleet & Engineering", "crew": "Crew", "finance": "Finance", "administration": "Administration" }
                  },
     "pilotNav":  {
                      "portal":  "Pilot Portal",

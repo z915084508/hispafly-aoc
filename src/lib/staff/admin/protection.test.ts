@@ -1,0 +1,1 @@
+import assert from "node:assert/strict";import {assertRecoveryAccess} from "./protection.ts";assert.doesNotThrow(()=>assertRecoveryAccess(0,true));assert.doesNotThrow(()=>assertRecoveryAccess(1,false));assert.throws(()=>assertRecoveryAccess(0,false),/final Staff permissions administrator/);console.log("Staff recovery protection: 3 assertions passed.");

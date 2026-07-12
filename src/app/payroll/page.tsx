@@ -3,7 +3,7 @@ import { PageHeading } from "@/components/page-heading";
 import { SelectAllCheckbox } from "@/components/bulk-select";
 import { canMutatePayroll, getPayrollRows } from "@/lib/workflow-data";
 import { getCurrentStaff } from "@/lib/staff/currentStaff";
-import { hasStaffPermission } from "@/lib/staff/permissions";
+import { staffHasPermission } from "@/lib/staff/permissions";
 import { approvePayroll, bulkApprovePayroll, bulkMarkPayrollPaid, bulkRejectPayroll, markPayrollPaid, recalculatePayroll, rejectPayroll } from "./actions";
 import { generateMissingPayroll } from "./backfill-actions";
 
@@ -19,9 +19,9 @@ function includesText(value: unknown, query: string) {
 
 export default async function PayrollPage({ searchParams }: { searchParams: Promise<PayrollSearchParams> }) {
   const [payroll, staff, filters] = await Promise.all([getPayrollRows(), getCurrentStaff(), searchParams]);
-  const canReview = Boolean(canMutatePayroll && staff?.active && hasStaffPermission(staff.role, "PAYROLL_APPROVE"));
-  const canPay = Boolean(canMutatePayroll && staff?.active && hasStaffPermission(staff.role, "PAYROLL_MARK_PAID"));
-  const canBackfill = Boolean(canMutatePayroll && staff?.active && hasStaffPermission(staff.role, "PAYROLL_RECALCULATE"));
+  const canReview = Boolean(canMutatePayroll && staff?.active && staffHasPermission(staff, "PAYROLL_APPROVE"));
+  const canPay = Boolean(canMutatePayroll && staff?.active && staffHasPermission(staff, "PAYROLL_MARK_PAID"));
+  const canBackfill = Boolean(canMutatePayroll && staff?.active && staffHasPermission(staff, "PAYROLL_RECALCULATE"));
   const bulkEnabled = canReview || canPay || canBackfill;
   const q = (filters.q ?? "").trim().toLowerCase();
   const selectedStatus = filters.status ?? "";

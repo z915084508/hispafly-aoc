@@ -14,7 +14,7 @@ const COMPANY_ECONOMY_BACKFILL_BATCH_SIZE = 10;
 export async function syncFleetDataAction() {
   let feedback: { type: "success" | "error"; message: string };
   try {
-    const staff = await requireStaffPermission("VAMSYS_PIREP_SYNC", { entityType: "Aircraft", entityId: "fleet", attemptedAction: "sync vAMSYS fleet, aircraft and airports" });
+    const staff = await requireStaffPermission("OPERATIONS_API_MANAGE", { entityType: "Aircraft", entityId: "fleet", attemptedAction: "sync vAMSYS fleet, aircraft and airports" });
     const result = await syncOperationsFleetData(staff.id);
     const totalAircraft = result.aircraftImported + result.aircraftUpdated;
     const totalFleets = result.fleetsImported + result.fleetsUpdated;
@@ -32,7 +32,7 @@ export async function syncFleetDataAction() {
 export async function backfillCompanyEconomyAction() {
   let feedback: { type: "success" | "error"; message: string };
   try {
-    const staff = await requireStaffPermission("VAMSYS_PIREP_SYNC", { entityType: "CompanyExpense", entityId: "backfill", attemptedAction: "backfill company economy data" });
+    const staff = await requireStaffPermission("OPERATIONS_API_MANAGE", { entityType: "CompanyExpense", entityId: "backfill", attemptedAction: "backfill company economy data" });
     const result = await backfillCompanyEconomy(staff.id, COMPANY_ECONOMY_BACKFILL_BATCH_SIZE);
     const suffix = result.errors.length ? ` Avisos: ${result.errors.slice(0, 2).join(" | ")}` : "";
     feedback = { type: result.errors.length ? "error" : "success", message: `Backfill por lote: ${result.scanned} PIREPs revisados, ${result.fuelUpdated} fuel snapshots y ${result.expensesGenerated} gastos generados/recalculados. Puedes volver a pulsar para continuar con el siguiente lote.${suffix}` };
@@ -49,7 +49,7 @@ export async function backfillCompanyEconomyAction() {
 export async function saveFuelPriceAction(formData: FormData) {
   let feedback: { type: "success" | "error"; message: string };
   try {
-    const staff = await requireStaffPermission("VAMSYS_PIREP_SYNC", { entityType: "FuelPrice", entityId: "iata", attemptedAction: "update IATA fuel price reference" });
+    const staff = await requireStaffPermission("OPERATIONS_API_MANAGE", { entityType: "FuelPrice", entityId: "iata", attemptedAction: "update IATA fuel price reference" });
     const region = String(formData.get("region") ?? "GLOBAL").toUpperCase();
     const priceText = String(formData.get("pricePerKg") ?? "").replace(",", ".").trim();
     const pricePerKg = Number(priceText);

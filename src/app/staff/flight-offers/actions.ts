@@ -17,7 +17,7 @@ const routeDurationMinutes = (value: unknown) => {
 };
 
 export async function getRouteFleetIdsAction(routeId: string) {
-  await requireStaffPermission("FLIGHT_OFFER_MANAGE", { entityType: "FlightOffer", attemptedAction: "consultar flotas de una ruta" });
+  await requireStaffPermission("FLIGHT_OFFER_VIEW", { entityType: "FlightOffer", attemptedAction: "consultar flotas de una ruta" });
   if (!/^\d+$/.test(routeId)) return { fleetIds: [] as string[], durationMinutes: null, error: "El route_id debe ser numérico." };
 
   try {
@@ -69,7 +69,7 @@ function done(type: "success" | "error", message: string): never {
 export async function createFlightOfferAction(formData: FormData) {
   let feedback: { type: "success" | "error"; message: string };
   try {
-    const staff = await requireStaffPermission("FLIGHT_OFFER_MANAGE", { entityType: "FlightOffer", attemptedAction: "crear una oferta de vuelo" });
+    const staff = await requireStaffPermission("FLIGHT_OFFER_CREATE", { entityType: "FlightOffer", attemptedAction: "crear una oferta de vuelo" });
     const title = text(formData, "title");
     const departureIcao = text(formData, "departureIcao").toUpperCase();
     const arrivalIcao = text(formData, "arrivalIcao").toUpperCase();
@@ -113,7 +113,7 @@ export async function createFlightOfferAction(formData: FormData) {
 
 async function changeStatus(formData: FormData, status: "PUBLISHED" | "CANCELLED") {
   const id = text(formData, "id");
-  const staff = await requireStaffPermission("FLIGHT_OFFER_MANAGE", { entityType: "FlightOffer", entityId: id, attemptedAction: `${status} oferta` });
+  const staff = await requireStaffPermission(status === "CANCELLED" ? "FLIGHT_OFFER_CANCEL" : "FLIGHT_OFFER_EDIT", { entityType: "FlightOffer", entityId: id, attemptedAction: `${status} oferta` });
   const current = await prisma.flightOffer.findUnique({ where: { id }, include: { dispatches: true } });
   if (!current) throw new Error("La oferta no existe.");
   if (status === "PUBLISHED" && current.status !== "DRAFT") throw new Error("Solo se pueden publicar ofertas en borrador.");
@@ -141,7 +141,7 @@ export async function reopenFailedFlightOfferAction(formData: FormData) {
   let feedback: { type: "success" | "error"; message: string };
   try {
     const id = text(formData, "id");
-    const staff = await requireStaffPermission("FLIGHT_OFFER_MANAGE", { entityType: "FlightOffer", entityId: id, attemptedAction: "reabrir una oferta fallida" });
+    const staff = await requireStaffPermission("FLIGHT_OFFER_EDIT", { entityType: "FlightOffer", entityId: id, attemptedAction: "reabrir una oferta fallida" });
     const offer = await prisma.flightOffer.findUnique({ where: { id }, include: { dispatches: true } });
     const dispatch = offer?.dispatches.find((item) => item.status === "FAILED");
     if (!offer || !dispatch || dispatch.status !== "FAILED") throw new Error("Solo se pueden reabrir ofertas con dispatch fallido.");

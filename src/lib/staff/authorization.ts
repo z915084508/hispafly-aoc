@@ -8,14 +8,14 @@ interface PermissionContext {
   attemptedAction: string;
 }
 
-export class StaffAuthorizationError extends Error {}
+export class StaffAuthorizationError extends Error { constructor(message:string){super(message);this.name="StaffAuthorizationError"} }
 
 export async function requireStaffPermission(
   permission: StaffPermission,
   context: PermissionContext,
 ): Promise<StaffIdentity> {
   const staff = await getCurrentStaff();
-  const allowed = staff?.active && hasStaffPermission(staff.role, permission);
+  const allowed = staff?.active && (staff.permissions ? staff.permissions.includes(permission) : hasStaffPermission(staff.role, permission));
   if (allowed && staff) return staff;
 
   if (staff && staff.id !== "development-staff") {

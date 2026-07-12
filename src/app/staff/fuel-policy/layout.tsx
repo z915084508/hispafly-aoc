@@ -1,0 +1,1 @@
+import {requireStaffPermission} from "@/lib/staff/authorization";export default async function Layout({children}:{children:React.ReactNode}){await requireStaffPermission("FUEL_POLICY_VIEW",{entityType:"FuelPolicy",attemptedAction:"view fuel policy"});return children}

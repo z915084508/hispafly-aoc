@@ -17,7 +17,7 @@ function finish(id: string, type: "success" | "error", message: string): never {
 }
 
 async function authorize(id: string, action: string) {
-  return requireStaffPermission("VAMSYS_PIREP_SYNC", {
+  return requireStaffPermission("PIREP_SCORE", {
     entityType: "Pirep",
     entityId: id,
     attemptedAction: action,

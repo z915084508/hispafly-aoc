@@ -32,7 +32,7 @@ function finish(type: "success" | "error", message: string): never {
 }
 
 async function authorize(attemptedAction: string, entityType: string, entityId?: string) {
-  return requireStaffPermission("VAMSYS_PIREP_SYNC", { entityType, entityId, attemptedAction });
+  return requireStaffPermission("EXPENSE_RULE_MANAGE", { entityType, entityId, attemptedAction });
 }
 
 function chargeRuleData(formData: FormData) {
