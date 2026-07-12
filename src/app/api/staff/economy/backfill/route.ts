@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    const staff = await requireStaffPermission("VAMSYS_PIREP_SYNC", {
+    const staff = await requireStaffPermission("OPERATIONS_API_MANAGE", {
       entityType: "CompanyExpense",
       entityId: "backfill-all",
       attemptedAction: "backfill all company economy data",

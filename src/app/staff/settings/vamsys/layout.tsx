@@ -1,0 +1,1 @@
+import {requireStaffPermission} from "@/lib/staff/authorization";export default async function Layout({children}:{children:React.ReactNode}){await requireStaffPermission("VAMSYS_CONNECTION_VIEW",{entityType:"VamsysConnection",attemptedAction:"view integrations"});return children}

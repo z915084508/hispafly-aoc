@@ -10,7 +10,7 @@ const number = (data: FormData, key: string) => { const raw = String(data.get(ke
 export async function saveAircraftPerformanceAction(formData: FormData) {
   const fleetKey = String(formData.get("fleetKey") ?? ""); let error: string | null = null, updated = 0;
   try {
-    const staff = await requireStaffPermission("FLIGHT_OFFER_MANAGE", { entityType: "AircraftPerformanceProfile", entityId: fleetKey, attemptedAction: "update fleet performance" });
+    const staff = await requireStaffPermission("AIRCRAFT_PERFORMANCE_EDIT", { entityType: "AircraftPerformanceProfile", entityId: fleetKey, attemptedAction: "update fleet performance" });
     const data = { operatingEmptyWeightKg: number(formData, "operatingEmptyWeightKg"), maxZeroFuelWeightKg: number(formData, "maxZeroFuelWeightKg"), maxTakeoffWeightKg: number(formData, "maxTakeoffWeightKg"), maxLandingWeightKg: number(formData, "maxLandingWeightKg"), maxFuelKg: number(formData, "maxFuelKg"), maxPayloadKg: number(formData, "maxPayloadKg"), defaultCostIndex: number(formData, "defaultCostIndex"), fuelBiasPercent: number(formData, "fuelBiasPercent") ?? 0, taxiFuelKg: number(formData, "taxiFuelKg"), locked: formData.get("locked") === "yes", notes: String(formData.get("notes") ?? "").trim() || null };
     const aircraftData = { seatCapacity: number(formData, "seatCapacity"), cargoCapacityKg: number(formData, "cargoCapacityKg") };
     const aircraft = (await prisma.aircraft.findMany()).filter((item) => fleetKeyForAircraft(item) === fleetKey);
@@ -36,7 +36,7 @@ const optionalNumber = (raw: string, column: string, row: number, options: { int
 export async function importAircraftPerformanceAction(formData: FormData) {
   let error: string | null = null, updatedAircraft = 0, updatedFleets = 0;
   try {
-    const staff = await requireStaffPermission("FLIGHT_OFFER_MANAGE", { entityType: "AircraftPerformanceProfile", attemptedAction: "bulk import aircraft performance" });
+    const staff = await requireStaffPermission("AIRCRAFT_PERFORMANCE_EDIT", { entityType: "AircraftPerformanceProfile", attemptedAction: "bulk import aircraft performance" });
     const file = formData.get("file");
     if (!(file instanceof File) || file.size === 0) throw new Error("Choose a completed CSV file first.");
     if (file.size > 2_000_000) throw new Error("The CSV file must be smaller than 2 MB.");

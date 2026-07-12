@@ -3,7 +3,7 @@ import { Badge, DataTable, Identity } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
 import { getPirepRows } from "@/lib/workflow-data";
 import { getCurrentStaff } from "@/lib/staff/currentStaff";
-import { hasStaffPermission } from "@/lib/staff/permissions";
+import { staffHasPermission } from "@/lib/staff/permissions";
 import { isOperationsConfigured } from "@/lib/vamsys/operations";
 import { syncAllPireps } from "./actions";
 
@@ -21,7 +21,7 @@ function routeMatches(route: string, query: string) {
 
 export default async function PirepsPage({ searchParams }: { searchParams: Promise<PirepSearchParams> }) {
   const [pireps, staff, filters] = await Promise.all([getPirepRows(), getCurrentStaff(), searchParams]);
-  const canSync = Boolean(staff?.active && hasStaffPermission(staff.role, "VAMSYS_PIREP_SYNC") && isOperationsConfigured());
+  const canSync = Boolean(staff?.active && staffHasPermission(staff, "PIREP_SYNC") && isOperationsConfigured());
   const q = (filters.q ?? "").trim().toLowerCase();
   const selectedStatus = filters.status ?? "";
   const selectedMonth = filters.month ?? "";

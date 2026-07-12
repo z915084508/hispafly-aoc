@@ -3,10 +3,12 @@ import { getDashboardSummary } from "@/lib/workflow-data";
 import { prisma } from "@/lib/prisma";
 import { getTranslations } from "@/lib/i18n/server";
 import { formatCurrency, formatNumber } from "@/lib/i18n/core";
+import {requireStaffPermission} from "@/lib/staff/authorization";
 
 export const dynamic = "force-dynamic";
 
 export default async function StaffDashboard() {
+  await requireStaffPermission("DASHBOARD_VIEW",{entityType:"StaffDashboard",attemptedAction:"view dashboard"});
   const { t, locale } = await getTranslations();
   const money = (cents: number) => formatCurrency(cents, locale);
   const integer = (value: number) => formatNumber(value, locale, { maximumFractionDigits: 0 });

@@ -1,1 +1,1 @@
-export { default } from "../../settings/page";
+import SettingsPage from "../../settings/page";import {requireStaffPermission} from "@/lib/staff/authorization";export default async function StaffSettings(){await requireStaffPermission("SYSTEM_SETTINGS_VIEW",{entityType:"SystemSettings",attemptedAction:"view system settings"});return <SettingsPage/>}

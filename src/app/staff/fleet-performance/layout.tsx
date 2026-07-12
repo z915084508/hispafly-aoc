@@ -1,0 +1,1 @@
+import {requireStaffPermission} from "@/lib/staff/authorization";export default async function Layout({children}:{children:React.ReactNode}){await requireStaffPermission("AIRCRAFT_PERFORMANCE_VIEW",{entityType:"AircraftPerformance",attemptedAction:"view aircraft performance"});return children}

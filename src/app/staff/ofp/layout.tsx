@@ -1,0 +1,1 @@
+import {requireStaffPermission} from "@/lib/staff/authorization";export default async function Layout({children}:{children:React.ReactNode}){await requireStaffPermission("OFP_VIEW",{entityType:"OFP",attemptedAction:"view OFP control"});return children}

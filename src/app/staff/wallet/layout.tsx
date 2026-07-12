@@ -1,0 +1,1 @@
+import {requireStaffPermission} from "@/lib/staff/authorization";export default async function Layout({children}:{children:React.ReactNode}){await requireStaffPermission("ECONOMY_VIEW",{entityType:"Economy",attemptedAction:"view economy"});return children}

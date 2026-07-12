@@ -12,7 +12,7 @@ import { writeAuditLogSafely } from "@/lib/audit/log";
 const allowed = new Set<AircraftLocationStatus>(["AVAILABLE", "RESERVED", "IN_FLIGHT", "MAINTENANCE", "UNKNOWN"]);
 
 export async function setAircraftLocationAction(formData: FormData) {
-  const staff = await requireStaffPermission("FLIGHT_OFFER_MANAGE", { entityType: "AircraftLocationSnapshot", attemptedAction: "actualizar la ubicación de una aeronave" });
+  const staff = await requireStaffPermission("FLEET_LOCATION_EDIT", { entityType: "AircraftLocationSnapshot", attemptedAction: "actualizar la ubicación de una aeronave" });
   const vamsysAircraftId = String(formData.get("vamsysAircraftId") ?? "").trim();
   const statusValue = String(formData.get("status") ?? "UNKNOWN") as AircraftLocationStatus;
   if (!vamsysAircraftId) throw new Error("Aircraft ID is required.");
@@ -22,13 +22,13 @@ export async function setAircraftLocationAction(formData: FormData) {
 }
 
 export async function syncAircraftLocationsAction() {
-  await requireStaffPermission("FLIGHT_OFFER_MANAGE", { entityType: "AircraftLocationSnapshot", attemptedAction: "sincronizar ubicaciones desde PIREPs" });
+  await requireStaffPermission("FLEET_LOCATION_SYNC", { entityType: "AircraftLocationSnapshot", attemptedAction: "sincronizar ubicaciones desde PIREPs" });
   await syncAircraftLocationsFromPireps();
   revalidatePath("/staff/fleet"); revalidatePath("/pilot/fleet");
 }
 
 export async function maintenanceAction(formData: FormData) {
-  const staff=await requireStaffPermission("FLIGHT_OFFER_MANAGE",{entityType:"AircraftMaintenance",attemptedAction:"manage maintenance"});
+  const staff=await requireStaffPermission("AIRCRAFT_MAINTENANCE_MANAGE",{entityType:"AircraftMaintenance",attemptedAction:"manage maintenance"});
   const action=String(formData.get("action")??""), aircraftId=String(formData.get("aircraftId")??""), orderId=String(formData.get("orderId")??"");
   if(action==="complete"){await completeMaintenance(orderId,staff.id);}
   else if(action==="start"){await prisma.aircraftMaintenanceOrder.update({where:{id:orderId},data:{status:"IN_PROGRESS",startedAt:new Date()}});await prisma.aircraftConditionSnapshot.update({where:{vamsysAircraftId:aircraftId},data:{operationalStatus:"IN_MAINTENANCE",maintenanceStatus:"IN_PROGRESS"}});}
@@ -38,7 +38,7 @@ export async function maintenanceAction(formData: FormData) {
 }
 
 export async function initializeAircraftConditionsAction() {
-  const staff=await requireStaffPermission("FLIGHT_OFFER_MANAGE",{entityType:"AircraftConditionSnapshot",attemptedAction:"initialize fleet conditions"});
+  const staff=await requireStaffPermission("AIRCRAFT_CONDITION_EDIT",{entityType:"AircraftConditionSnapshot",attemptedAction:"initialize fleet conditions"});
   const result=await initializeAircraftConditions(staff.id);revalidatePath("/staff/fleet");revalidatePath("/pilot/fleet");
   const query=new URLSearchParams({created:String(result.created),existing:String(result.existing),skipped:String(result.skipped),errors:String(result.errors.length)});
   redirect(`/staff/fleet?${query}`);
@@ -66,7 +66,7 @@ function cleanUrl(value: FormDataEntryValue | null) {
 }
 
 export async function updatePublicFleetAircraftAction(formData: FormData) {
-  const staff = await requireStaffPermission("FLIGHT_OFFER_MANAGE", {
+  const staff = await requireStaffPermission("PUBLIC_FLEET_MANAGE", {
     entityType: "Aircraft",
     attemptedAction: "publish aircraft information to the public website",
   });

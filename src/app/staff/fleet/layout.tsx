@@ -1,0 +1,1 @@
+import {requireStaffPermission} from "@/lib/staff/authorization";export default async function Layout({children}:{children:React.ReactNode}){await requireStaffPermission("FLEET_LOCATION_VIEW",{entityType:"AircraftLocation",attemptedAction:"view aircraft locations"});return children}

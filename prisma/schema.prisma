@@ -14,6 +14,11 @@ enum StaffRole {
   VIEWER  @map("viewer")
 }
 
+enum PermissionEffect {
+  ALLOW
+  DENY
+}
+
 enum PilotStatus {
   active
   on_leave
@@ -172,15 +177,80 @@ enum AircraftSyncStatus {
 }
 
 model StaffUser {
-  id           String        @id @default(cuid())
-  name         String        @map("displayName")
-  email        String        @unique
-  role         StaffRole     @default(OPS)
-  active       Boolean       @default(true) @map("isActive")
-  auditLogs    AocAuditLog[]
-  flightOffers FlightOffer[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                  String                    @id @default(cuid())
+  name                String                    @map("displayName")
+  email               String                    @unique
+  role                StaffRole                 @default(OPS)
+  active              Boolean                   @default(true) @map("isActive")
+  staffCode           String?                   @unique
+  department          String?
+  jobTitle            String?
+  roleTemplateId      String?
+  roleTemplate        StaffRoleTemplate?        @relation(fields: [roleTemplateId], references: [id], onDelete: SetNull)
+  isSystemOwner       Boolean                   @default(false)
+  lastLoginAt         DateTime?
+  disabledAt          DateTime?
+  permissionOverrides StaffPermissionOverride[] @relation("StaffPermissionOverrides")
+  auditLogs           AocAuditLog[]
+  flightOffers        FlightOffer[]
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+}
+
+model StaffRoleTemplate {
+  id           String                @id @default(cuid())
+  code         String                @unique
+  name         String
+  description  String?
+  systemRole   Boolean               @default(false)
+  active       Boolean               @default(true)
+  displayOrder Int                   @default(0)
+  permissions  StaffRolePermission[]
+  users        StaffUser[]
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+}
+
+model StaffPermissionDefinition {
+  id           String                    @id @default(cuid())
+  code         String                    @unique
+  module       String
+  name         String
+  description  String?
+  dangerous    Boolean                   @default(false)
+  displayOrder Int                       @default(0)
+  roles        StaffRolePermission[]
+  overrides    StaffPermissionOverride[]
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  @@index([module, displayOrder])
+}
+
+model StaffRolePermission {
+  id           String                    @id @default(cuid())
+  roleId       String
+  permissionId String
+  role         StaffRoleTemplate         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   StaffPermissionDefinition @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model StaffPermissionOverride {
+  id                String                    @id @default(cuid())
+  staffUserId       String
+  permissionId      String
+  effect            PermissionEffect
+  reason            String?
+  assignedByStaffId String?
+  assignedAt        DateTime                  @default(now())
+  staffUser         StaffUser                 @relation("StaffPermissionOverrides", fields: [staffUserId], references: [id], onDelete: Cascade)
+  permission        StaffPermissionDefinition @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([staffUserId, permissionId])
+  @@index([effect])
 }
 
 model Pilot {
