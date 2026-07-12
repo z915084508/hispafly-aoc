@@ -153,6 +153,15 @@ enum RouteOperationalStatus {
   ARCHIVED
 }
 
+enum FleetSyncStatus {
+  LOCAL_DRAFT
+  PUBLISHING
+  SYNCED
+  UPDATE_PENDING
+  SYNC_ERROR
+  MISSING
+}
+
 model StaffUser {
   id           String        @id @default(cuid())
   name         String        @map("displayName")
@@ -245,13 +254,38 @@ model OperationsApiState {
 }
 
 model Fleet {
-  id               String                 @id @default(cuid())
-  vamsysFleetId    String                 @unique
-  name             String?
-  rawData          Json?
-  routeAssignments RouteFleetAssignment[]
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
+  id                       String                 @id @default(cuid())
+  vamsysFleetId            String?                @unique
+  name                     String?
+  code                     String?
+  type                     String?
+  maxPassengers            Int?
+  maxCargoKg               Int?
+  containerUnits           Int?
+  hiddenInPhoenix          Boolean                @default(false)
+  scoringGroupId           String?
+  simbriefAircraftProfiles Json?
+  simbriefOverrides        Json?
+  parameterIds             Json?
+  imageUrl                 String?
+  imageAttribution         String?
+  imageLinkback            String?
+  internalNotes            String?
+  syncStatus               FleetSyncStatus        @default(LOCAL_DRAFT)
+  sourceUpdatedAt          DateTime?
+  lastSeenAt               DateTime?
+  lastSyncedAt             DateTime?
+  lastPublishedAt          DateTime?
+  lastSyncError            String?
+  rawData                  Json?
+  routeAssignments         RouteFleetAssignment[]
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+
+  @@index([code])
+  @@index([type])
+  @@index([syncStatus])
+  @@index([hiddenInPhoenix])
 }
 
 model Aircraft {

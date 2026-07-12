@@ -62,7 +62,7 @@ async function validateReferences(input: RouteFormInput) {
   const departure = refs.airportByIcao.get(input.departureIcao), arrival = refs.airportByIcao.get(input.arrivalIcao);
   if (!departure || !arrival) throw new Error("Departure and arrival must be synchronized vAMSYS airports.");
   const fleets = input.fleetIds.map(id => refs.fleetByLocal.get(id));
-  if (fleets.some(fleet => !fleet)) throw new Error("Unknown fleet selection.");
+  if (fleets.some(fleet => !fleet?.vamsysFleetId)) throw new Error("Unknown or unpublished fleet selection.");
   return { refs, departureId: departure.id, arrivalId: arrival.id, fleetIds: fleets.map(fleet => Number(fleet!.vamsysFleetId)) };
 }
 
