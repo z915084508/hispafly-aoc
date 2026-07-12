@@ -68,7 +68,13 @@ async function validateReferences(input: RouteFormInput) {
 
 export async function createAndPublishRoute(input: RouteFormInput, staff: StaffIdentity) {
   const { refs, departureId, arrivalId, fleetIds } = await validateReferences(input);
-  const local = await prisma.route.create({ data: { departure: input.departureIcao, arrival: input.arrivalIcao, flightNumber: input.flightNumber, callsign: input.callsign, route: input.route, scheduledDurationMinutes: input.durationMinutes, distanceNm: input.distanceNm, cruiseAltitude: input.altitude, costIndex: input.costIndex && /^\d+$/.test(input.costIndex) ? Number(input.costIndex) : null, operationalStatus: input.hidden ? "HIDDEN" : "DRAFT", syncStatus: "PUBLISHING", active: !input.hidden, internalNotes: input.internalNotes } });
+  const duplicate = await prisma.route.findFirst({ where: { OR: [{ flightNumber: input.flightNumber }, { callsign: input.callsign }] }, select: { id: true } });
+  if (duplicate) throw new Error("Flight number or callsign is already in use. Generate another identity.");
+  const local = await prisma.$transaction(async tx => {
+    const route = await tx.route.create({ data: { departure: input.departureIcao, arrival: input.arrivalIcao, flightNumber: input.flightNumber, callsign: input.callsign, route: input.route, scheduledDurationMinutes: input.durationMinutes, distanceNm: input.distanceNm, cruiseAltitude: input.altitude, costIndex: input.costIndex && /^\d+$/.test(input.costIndex) ? Number(input.costIndex) : null, operationalStatus: input.hidden ? "HIDDEN" : "DRAFT", syncStatus: "PUBLISHING", active: !input.hidden, internalNotes: input.internalNotes } });
+    await tx.routeIdentityReservation.create({ data: { routeId: route.id, flightNumber: input.flightNumber, callsign: input.callsign } });
+    return route;
+  });
   try {
     const external = await createVamsysRoute(formToVamsysPayload(input, departureId, arrivalId, fleetIds, true));
     const mapped = externalRouteToPrisma(external, refs.airportsByExternal);
@@ -88,6 +94,9 @@ export async function updateAndPublishRoute(input: RouteFormInput, staff: StaffI
   if (!input.localId) throw new Error("Missing local route ID.");
   const current = await prisma.route.findUnique({ where: { id: input.localId } });
   if (!current?.vamsysRouteId) throw new Error("Only published routes can be updated.");
+  const duplicate = await prisma.route.findFirst({ where: { id: { not: current.id }, OR: [{ flightNumber: input.flightNumber }, { callsign: input.callsign }] }, select: { id: true } });
+  if (duplicate) throw new Error("Flight number or callsign is already in use.");
+  await prisma.routeIdentityReservation.upsert({ where: { routeId: current.id }, create: { routeId: current.id, flightNumber: input.flightNumber, callsign: input.callsign }, update: { flightNumber: input.flightNumber, callsign: input.callsign } });
   const { refs, departureId, arrivalId, fleetIds } = await validateReferences(input);
   const latest = await getVamsysRoute(current.vamsysRouteId);
   if (current.lastSyncedAt && latest.updated_at && new Date(latest.updated_at) > current.lastSyncedAt) throw new Error("vAMSYS contains a newer route update. Synchronize before editing.");

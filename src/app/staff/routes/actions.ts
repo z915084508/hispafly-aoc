@@ -3,6 +3,17 @@ import { redirect } from "next/navigation";
 import { requireStaffPermission } from "@/lib/staff/authorization";
 import { createAndPublishRoute, syncVamsysRoutes, updateAndPublishRoute } from "@/lib/vamsys/routes/service";
 import { validateRouteForm } from "@/lib/vamsys/routes/validation";
+import { prisma } from "@/lib/prisma";
+import { nextRouteIdentity } from "@/lib/vamsys/routes/planning";
+
+export async function suggestRouteIdentityAction() {
+  await requireStaffPermission("ROUTE_CREATE", { entityType: "Route", attemptedAction: "generate route identity" });
+  const [routes, reservations] = await Promise.all([
+    prisma.route.findMany({ select: { flightNumber: true, callsign: true } }),
+    prisma.routeIdentityReservation.findMany({ select: { flightNumber: true, callsign: true } }),
+  ]);
+  return nextRouteIdentity([...routes, ...reservations]);
+}
 
 export async function syncRoutesAction() {
   let target: string;

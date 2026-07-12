@@ -350,8 +350,8 @@ model Airport {
 }
 
 model Route {
-  id                       String                 @id @default(cuid())
-  vamsysRouteId            String?                @unique
+  id                       String                    @id @default(cuid())
+  vamsysRouteId            String?                   @unique
   flightNumber             String?
   callsign                 String?
   name                     String?
@@ -366,9 +366,9 @@ model Route {
   defaultCargoKg           Int?
   minimumRankId            String?
   hubId                    String?
-  operationalStatus        RouteOperationalStatus @default(DRAFT)
-  syncStatus               RouteSyncStatus        @default(LOCAL_DRAFT)
-  active                   Boolean                @default(true)
+  operationalStatus        RouteOperationalStatus    @default(DRAFT)
+  syncStatus               RouteSyncStatus           @default(LOCAL_DRAFT)
+  active                   Boolean                   @default(true)
   internalNotes            String?
   sourceUpdatedAt          DateTime?
   lastSeenAt               DateTime?
@@ -377,8 +377,9 @@ model Route {
   lastSyncError            String?
   rawData                  Json?
   fleetAssignments         RouteFleetAssignment[]
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
+  identityReservation      RouteIdentityReservation?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
 
   @@index([departure, arrival])
   @@index([flightNumber])
@@ -386,6 +387,15 @@ model Route {
   @@index([syncStatus])
   @@index([active])
   @@index([lastSyncedAt])
+}
+
+model RouteIdentityReservation {
+  id           String   @id @default(cuid())
+  routeId      String   @unique
+  route        Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  flightNumber String   @unique
+  callsign     String   @unique
+  createdAt    DateTime @default(now())
 }
 
 model RouteFleetAssignment {
