@@ -97,6 +97,7 @@ export async function getFlightOfferOptions() {
 
   const routeMap = new Map<string, FlightOfferRouteOption>();
   for (const stored of storedRoutes) {
+    if (!stored.vamsysRouteId || stored.syncStatus !== "SYNCED" || !stored.active || stored.operationalStatus !== "ACTIVE") continue;
     const raw = rec(stored.rawData);
     routeMap.set(stored.vamsysRouteId, {
       id: stored.vamsysRouteId,

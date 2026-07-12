@@ -4,7 +4,29 @@ import { writeAuditLogSafely } from "@/lib/audit/log";
 
 const env = (name: string, fallback = "") => process.env[name]?.trim() || fallback;
 export const isOperationsConfigured = () => Boolean(env("VAMSYS_OPERATIONS_CLIENT_ID") && env("VAMSYS_OPERATIONS_CLIENT_SECRET"));
-let cached: { token: string; expiresAt: number } | null = null;
+let cached: { token: string; expiresAt: number; scopes: string[] } | null = null;
+
+export class VamsysOperationsError extends Error {
+  constructor(message: string, public readonly details: { status?: number; code?: string; validation?: Record<string, string[]>; retryAfter?: number; path: string; method: string; uncertain?: boolean }) {
+    super(message); this.name = "VamsysOperationsError";
+  }
+  get status() { return this.details.status; }
+  get code() { return this.details.code; }
+  get validation() { return this.details.validation; }
+  get retryAfter() { return this.details.retryAfter; }
+  get path() { return this.details.path; }
+  get method() { return this.details.method; }
+  get uncertain() { return this.details.uncertain; }
+}
+
+export interface OperationsRequestOptions {
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+  body?: unknown;
+  headers?: HeadersInit;
+  retryAuthentication?: boolean;
+  expectedStatus?: number | number[];
+  requiredScope?: string;
+}
 
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}) {
   const timeoutMs = Number(env("VAMSYS_OPERATIONS_TIMEOUT_MS", "10000"));
@@ -26,12 +48,16 @@ export async function getOperationsAccessToken(force = false) {
   if (!force && cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
   const clientId = env("VAMSYS_OPERATIONS_CLIENT_ID"), secret = env("VAMSYS_OPERATIONS_CLIENT_SECRET");
   if (!clientId || !secret) throw new Error("La API Operations de vAMSYS no está configurada.");
-  const response = await fetchWithTimeout(env("VAMSYS_OPERATIONS_TOKEN_URL", "https://vamsys.io/oauth/token"), { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "client_credentials", client_id: clientId, client_secret: secret, scope: "*" }), cache: "no-store" });
+  const response = await fetchWithTimeout(env("VAMSYS_OPERATIONS_TOKEN_URL", "https://vamsys.io/oauth/token"), { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "client_credentials", client_id: clientId, client_secret: secret, scope: env("VAMSYS_OPERATIONS_SCOPES", "*") }), cache: "no-store" });
   const body = await response.json().catch(() => ({})) as Record<string, unknown>;
   if (!response.ok || typeof body.access_token !== "string") throw new Error(`vAMSYS rechazó las credenciales Operations (${response.status}).`);
-  cached = { token: body.access_token, expiresAt: Date.now() + (typeof body.expires_in === "number" ? body.expires_in : 604800) * 1000 };
+  const scope = typeof body.scope === "string" ? body.scope : env("VAMSYS_OPERATIONS_SCOPES", "*");
+  cached = { token: body.access_token, expiresAt: Date.now() + (typeof body.expires_in === "number" ? body.expires_in : 604800) * 1000, scopes: scope.split(/\s+/).filter(Boolean) };
   return cached.token;
 }
+
+export function hasGrantedOperationsScope(scope: string) { return Boolean(cached?.scopes.includes("*") || cached?.scopes.includes(scope)); }
+export function clearOperationsTokenCache() { cached = null; }
 
 function mapPilotIncrementalData(detail: Record<string, unknown>, externalId: string) {
   const firstName = str(detail, "first_name", "firstName") ?? nestedStr(detail, "user", "first_name", "firstName");
@@ -118,7 +144,10 @@ export async function syncOperationsPilotsIncremental(options: { maxPages?: numb
   return { imported, updated, skipped, errors };
 }
 
-export async function operationsRequest(path: string, retry = true): Promise<unknown> {
+export async function operationsRequest(path: string, options: OperationsRequestOptions | boolean = {}): Promise<unknown> {
+  const normalized = typeof options === "boolean" ? { retryAuthentication: options } : options;
+  const method = normalized.method ?? "GET";
+  const retry = normalized.retryAuthentication ?? true;
   const token = await getOperationsAccessToken();
   const baseUrl = env("VAMSYS_OPERATIONS_API_BASE_URL", "https://vamsys.io/api/v3/operations");
   const base = new URL(baseUrl);
@@ -130,11 +159,34 @@ export async function operationsRequest(path: string, retry = true): Promise<unk
   if (target.origin !== base.origin || !target.pathname.startsWith(`${base.pathname.replace(/\/$/, "")}/`)) {
     throw new Error("vAMSYS devolvió una URL de paginación fuera del API Operations configurado.");
   }
-  const response = await fetchWithTimeout(target, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` }, cache: "no-store" });
-  if (response.status === 401 && retry) { cached = null; await getOperationsAccessToken(true); return operationsRequest(path, false); }
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(target, { method, headers: { Accept: "application/json", ...(normalized.body === undefined ? {} : { "Content-Type": "application/json" }), ...normalized.headers, Authorization: `Bearer ${token}` }, body: normalized.body === undefined ? undefined : JSON.stringify(normalized.body), cache: "no-store" });
+  } catch (error) {
+    const uncertain = method === "POST";
+    throw new VamsysOperationsError(uncertain ? "The publication result is uncertain. Check vAMSYS before retrying." : error instanceof Error ? error.message : "vAMSYS Operations network error.", { path: target.pathname, method, uncertain });
+  }
+  if (response.status === 401 && retry) { clearOperationsTokenCache(); await getOperationsAccessToken(true); return operationsRequest(path, { ...normalized, retryAuthentication: false }); }
+  if (!response.ok && normalized.expectedStatus !== undefined) {
+    const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+    const validation = payload?.errors && typeof payload.errors === "object" && !Array.isArray(payload.errors) ? payload.errors as Record<string, string[]> : undefined;
+    const rawMessage = typeof payload?.message === "string" ? payload.message : typeof payload?.error === "string" ? payload.error : null;
+    const retryValue = response.headers.get("retry-after");
+    const message = response.status === 403 ? `The vAMSYS Operations client does not have ${normalized.requiredScope ?? "the required"} permission, or the requested route action is not permitted.` : rawMessage ?? (response.status === 409 ? "The route conflicts with existing vAMSYS data." : response.status === 422 ? "vAMSYS rejected one or more route fields." : response.status === 429 ? "vAMSYS rate limit reached." : `vAMSYS Operations responded ${response.status}.`);
+    throw new VamsysOperationsError(message, { status: response.status, code: typeof payload?.code === "string" ? payload.code : undefined, validation, retryAfter: retryValue && /^\d+$/.test(retryValue) ? Number(retryValue) : undefined, path: target.pathname, method });
+  }
   if (response.status === 429) throw new Error("vAMSYS ha alcanzado el límite de 100 solicitudes por minuto.");
   if (!response.ok) throw new Error(`vAMSYS Operations respondió ${response.status}.`);
-  return response.json();
+  const expected = normalized.expectedStatus === undefined ? null : Array.isArray(normalized.expectedStatus) ? normalized.expectedStatus : [normalized.expectedStatus];
+  const ok = expected ? expected.includes(response.status) : response.ok;
+  if (ok && response.status === 204) return null;
+  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+  if (ok) return payload;
+  const validation = payload?.errors && typeof payload.errors === "object" && !Array.isArray(payload.errors) ? payload.errors as Record<string, string[]> : undefined;
+  const rawMessage = typeof payload?.message === "string" ? payload.message : typeof payload?.error === "string" ? payload.error : null;
+  const retryValue = response.headers.get("retry-after");
+  const message = response.status === 403 ? `The vAMSYS Operations client does not have ${normalized.requiredScope ?? "the required"} permission, or the requested route action is not permitted.` : rawMessage ?? (response.status === 409 ? "The route conflicts with existing vAMSYS data." : response.status === 422 ? "vAMSYS rejected one or more route fields." : response.status === 429 ? "vAMSYS rate limit reached." : `vAMSYS Operations responded ${response.status}.`);
+  throw new VamsysOperationsError(message, { status: response.status, code: typeof payload?.code === "string" ? payload.code : undefined, validation, retryAfter: retryValue && /^\d+$/.test(retryValue) ? Number(retryValue) : undefined, path: target.pathname, method });
 }
 
 const rec = (v: unknown): Record<string, unknown> | null => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null;

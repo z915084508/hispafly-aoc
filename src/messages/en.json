@@ -107,7 +107,8 @@
                      "sourceNote":  "PEGASUS ACARS and vAMSYS remain the official source for accepted PIREPs.",
                      "privacy":  "Privacy policy",
                      "fleet":  "Fleet location",
-                     "performance":  "Aircraft performance"
+                     "performance":  "Aircraft performance",
+                     "routes":  "Routes"
                  },
     "pilotNav":  {
                      "portal":  "Pilot Portal",
