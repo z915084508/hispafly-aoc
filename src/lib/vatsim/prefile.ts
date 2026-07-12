@@ -15,6 +15,7 @@ export interface VatsimPrefileResult {
   url: string | null;
   missing: string[];
   fields: Record<string, string>;
+  icaoText: string;
 }
 
 const record = (value: unknown): JsonRecord | null => value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : null;
@@ -113,7 +114,21 @@ export function buildVatsimPrefile(snapshot: unknown, fallback: VatsimPrefileFal
   fields["1"] = "I";
   fields.voice = "/V/";
 
-  if (missing.length) return { url: null, missing, fields };
+  const icaoText = formatVatsimIcaoPlan(fields);
+  if (missing.length) return { url: null, missing, fields, icaoText };
   const query = new URLSearchParams({ raw: "?1=I", ...fields });
-  return { url: `https://my.vatsim.net/pilots/flightplan?${query}`, missing, fields };
+  return { url: `https://my.vatsim.net/pilots/flightplan?${query}`, missing, fields, icaoText };
+}
+
+export function formatVatsimIcaoPlan(fields: Record<string, string>) {
+  const time = `${fields["10a"] ?? ""}${fields["10b"] ?? ""}`;
+  const endurance = `${fields["12a"] ?? ""}${fields["12b"] ?? ""}`;
+  return [
+    `(FPL-${fields["2"] ?? "CALLSIGN"}-${fields["1"] ?? "I"}`,
+    `-${fields["3"] ?? "AIRCRAFT"}`,
+    `-${fields["5"] ?? "DEP"}${fields["6"] ?? "TIME"}`,
+    `-N${fields["4"] ?? "SPEED"}F${fields["7"] ?? "LEVEL"} ${fields["8"] ?? "ROUTE"}`,
+    `-${fields["9"] ?? "DEST"}${time || "EET"} ${fields["13"] ?? ""}`.trimEnd(),
+    `-E/${endurance || "ENDURANCE"} ${fields["11"] ?? ""})`.trimEnd(),
+  ].join("\n");
 }

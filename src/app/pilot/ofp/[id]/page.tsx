@@ -15,6 +15,7 @@ import { safeSimbriefPdfUrl } from "@/lib/simbrief/pdf";
 import { summarizeSimbriefOfp } from "@/lib/simbrief/response";
 import { getTranslations } from "@/lib/i18n/server";
 import { buildVatsimPrefile } from "@/lib/vatsim/prefile";
+import { VatsimFlightPlanPanel } from "@/components/vatsim-flight-plan-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export default async function PilotOfpPage({ params, searchParams }: { params: P
   const navigraphConnected = Boolean(token && !token.revokedAt);
   const canGenerate = ofp.status !== "SIGNED" && ofp.status !== "VOIDED";
   const vatsimPrefile = buildVatsimPrefile(ofp.ofpSnapshot, { callsign: identity.atcCallsign, aircraftType: offer.aircraftType, aircraftRegistration: offer.aircraftRegistration, departureIcao: offer.departureIcao, arrivalIcao: offer.arrivalIcao, route: offer.userRoute, altitude: offer.altitude, departureAt: dispatch.selectedDepartureAt });
-  const canPrefileVatsim = ofp.status === "SIGNED" && dispatch.status === "DISPATCHED" && Boolean(vatsimPrefile.url);
+  const vatsimUnlocked = ofp.status === "SIGNED" && dispatch.status === "DISPATCHED";
 
   return <PilotPortalShell>
     <PageHeading eyebrow="FLIGHT OPERATIONS" title={`OFP ${identity.commercialFlightNumber || offer.title}`} copy={`${offer.departureIcao} → ${offer.arrivalIcao} · Version ${ofp.version}`} />
@@ -76,14 +77,7 @@ export default async function PilotOfpPage({ params, searchParams }: { params: P
       </> : ofp.status === "AWAITING_SIGNATURE" ? <OfpSignaturePad ofpId={ofp.id}/> : <div className="notice">{t("ofp.generateBeforeSigning")}</div>}
       {dispatch.status === "DISPATCHING" && <form action={cancelFlightDispatchAction}><input type="hidden" name="dispatchId" value={ofp.flightDispatchId}/><button className="action-button reject" type="submit">Cancel pre-dispatch</button></form>}
     </section>
-    <section className="card">
-      <div className="card-header"><h2 className="card-title">VATSIM flight plan</h2><span className="meta">Optional pilot action</span></div>
-      <p>Open the official VATSIM prefile form with this dispatch package pre-filled. Review every field on VATSIM before filing.</p>
-      {canPrefileVatsim ? <a className="button" href={`/api/vatsim/prefile?ofpId=${encodeURIComponent(ofp.id)}`} target="_blank" rel="noreferrer">PREFILE TO VATSIM</a>
-        : dispatch.status !== "DISPATCHED" ? <div className="notice">Complete Final Dispatch to vAMSYS before opening the VATSIM prefile form.</div>
-        : ofp.status !== "SIGNED" ? <div className="notice">Review and sign the OFP before VATSIM prefiling.</div>
-        : <div className="notice">VATSIM prefile unavailable. Missing: {vatsimPrefile.missing.join(", ")}.</div>}
-      <p className="meta">HISPAFLY opens VATSIM&apos;s official form but does not submit it. The pilot remains responsible for the final review and filing.</p>
-    </section>
+    {!vatsimUnlocked && <div className="notice">{ofp.status !== "SIGNED" ? "Review and sign the OFP before VATSIM prefiling." : "Complete Final Dispatch to vAMSYS before opening the VATSIM prefile form."}</div>}
+    <VatsimFlightPlanPanel ofpId={ofp.id} fields={vatsimPrefile.fields} icaoText={vatsimPrefile.icaoText} missing={vatsimPrefile.missing} unlocked={vatsimUnlocked}/>
   </PilotPortalShell>;
 }

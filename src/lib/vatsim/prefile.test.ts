@@ -17,10 +17,13 @@ assert.equal(result.fields["10b"], "15");
 assert.equal(result.fields["12a"], "02");
 assert.equal(result.fields["12b"], "30");
 assert.match(result.fields["11"], /REG\/ECABC/);
+assert.match(result.icaoText, /^\(FPL-HPF200-I/m);
+assert.match(result.icaoText, /-LEMD1430/);
 
 const incomplete = buildVatsimPrefile({}, {});
 assert.equal(incomplete.url, null);
 assert.ok(incomplete.missing.includes("callsign"));
 assert.ok(incomplete.missing.includes("fuel endurance"));
+assert.match(incomplete.icaoText, /CALLSIGN/);
 
-console.log("VATSIM prefile: 10 assertions passed.");
+console.log("VATSIM prefile: 13 assertions passed.");
