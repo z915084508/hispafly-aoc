@@ -20,6 +20,7 @@
     "test:simbrief-user-id": "node --experimental-strip-types src/lib/simbrief/userId.test.ts",
     "test:simbrief-client": "node --experimental-strip-types src/lib/simbrief/client.test.ts",
     "test:simbrief-ofp-v2": "node --experimental-strip-types src/lib/simbrief/ofp-v2.test.ts",
+    "test:vatsim-prefile": "node --experimental-strip-types src/lib/vatsim/prefile.test.ts",
     "test:dispatch-release": "node --experimental-strip-types src/lib/dispatch-release/rules.test.ts",
     "test:fuel-policy": "node --experimental-strip-types src/lib/fuel-policy/tankering.test.ts",
     "test:flight-analysis": "node --experimental-strip-types src/lib/flight-analysis/calculations.test.ts",
