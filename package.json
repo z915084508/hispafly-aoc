@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma migrate deploy && prisma generate && next build",
     "start": "next start",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
@@ -27,8 +27,8 @@
     "test:maintenance": "node --experimental-strip-types src/lib/aircraft-maintenance/condition.test.ts",
     "test:performance-csv": "node --experimental-strip-types src/lib/fleet-performance/csv.test.ts",
     "maintenance:initialize": "node --experimental-strip-types scripts/initialize-aircraft-conditions.ts",
-    "test:vamsys": "node --experimental-strip-types src/lib/vamsys/pkce.test.ts && node --experimental-strip-types src/lib/vamsys/pilotMapper.test.ts && node --experimental-strip-types src/lib/vamsys/pireps.test.ts"
-    ,"test:routes": "node --experimental-strip-types src/lib/vamsys/routes/routes.test.ts"
+    "test:vamsys": "node --experimental-strip-types src/lib/vamsys/pkce.test.ts && node --experimental-strip-types src/lib/vamsys/pilotMapper.test.ts && node --experimental-strip-types src/lib/vamsys/pireps.test.ts",
+    "test:routes": "node --experimental-strip-types src/lib/vamsys/routes/routes.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
