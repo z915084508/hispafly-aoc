@@ -35,7 +35,18 @@ export default async function PilotOfpPage({ params, searchParams }: { params: P
   const token = await prisma.navigraphOAuthToken.findUnique({ where: { pilotId: pilot.id }, select: { revokedAt: true } });
   const navigraphConnected = Boolean(token && !token.revokedAt);
   const canGenerate = ofp.status !== "SIGNED" && ofp.status !== "VOIDED";
-  const vatsimPrefile = buildVatsimPrefile(ofp.ofpSnapshot, { callsign: identity.atcCallsign, aircraftType: offer.aircraftType, aircraftRegistration: offer.aircraftRegistration, departureIcao: offer.departureIcao, arrivalIcao: offer.arrivalIcao, route: offer.userRoute, altitude: offer.altitude, departureAt: dispatch.selectedDepartureAt });
+  const vatsimPrefile = buildVatsimPrefile(ofp.ofpSnapshot, {
+    callsign: identity.atcCallsign,
+    aircraftType: offer.aircraftType,
+    aircraftRegistration: offer.aircraftRegistration,
+    departureIcao: offer.departureIcao,
+    arrivalIcao: offer.arrivalIcao,
+    route: offer.userRoute,
+    altitude: offer.altitude,
+    departureAt: dispatch.selectedDepartureAt,
+    estimatedArrivalAt: dispatch.estimatedArrivalAt,
+    estimatedDurationMinutes: offer.estimatedDurationMinutes,
+  });
   const vatsimUnlocked = ofp.status === "SIGNED" && dispatch.status === "DISPATCHED";
 
   return <PilotPortalShell>
