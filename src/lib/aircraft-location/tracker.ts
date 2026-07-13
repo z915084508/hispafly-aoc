@@ -51,6 +51,45 @@ export async function updateAircraftLocationFromDispatch(params: {
   return snapshot;
 }
 
+export async function releaseAircraftReservationFromDispatch(params: {
+  vamsysAircraftId: string;
+  dispatchId: string;
+  bookingId?: string | null;
+  reason: string;
+}) {
+  const current = await prisma.aircraftLocationSnapshot.findUnique({
+    where: { vamsysAircraftId: params.vamsysAircraftId },
+    select: { id: true, registration: true, currentAirportIcao: true, reservedByDispatchId: true, lastBookingId: true },
+  });
+  if (!current || current.reservedByDispatchId !== params.dispatchId) return false;
+
+  const clearBookingId = Boolean(params.bookingId && current.lastBookingId === params.bookingId);
+  const released = await prisma.aircraftLocationSnapshot.updateMany({
+    where: { id: current.id, reservedByDispatchId: params.dispatchId },
+    data: {
+      status: "AVAILABLE",
+      reservedByDispatchId: null,
+      ...(clearBookingId ? { lastBookingId: null } : {}),
+      lastReportAt: new Date(),
+    },
+  });
+  if (released.count !== 1) return false;
+
+  await writeAuditLogSafely({
+    action: "AIRCRAFT_RESERVATION_RELEASED",
+    entityType: "AircraftLocationSnapshot",
+    entityId: current.id,
+    message: `Aircraft ${current.registration ?? params.vamsysAircraftId} released from dispatch ${params.dispatchId}.`,
+    metadata: {
+      dispatchId: params.dispatchId,
+      bookingId: params.bookingId ?? null,
+      airportIcao: current.currentAirportIcao,
+      reason: params.reason,
+    },
+  });
+  return true;
+}
+
 export async function updateAircraftLocationFromAcceptedPirep(params: {
   vamsysAircraftId: string; registration?: string | null; aircraftType?: string | null;
   arrivalAirportId?: string | null; arrivalIcao: string; arrivalIata?: string | null;
