@@ -40,6 +40,25 @@ export default async function PilotFlightOffersPage({ searchParams }: { searchPa
   const effectiveScopes = actualScopes.length ? actualScopes : storedScopes;
   const connected = Boolean(oauth && !oauth.revokedAt && effectiveScopes.includes("flights:write"));
   const bookingDetail = messages.dispatchId ? dispatches.find((item) => item.id === messages.dispatchId) : null;
+  const dispatchAction = (dispatch: (typeof dispatches)[number]) => {
+    if (dispatch.status === "EXPIRED") return "Expirada (-100 €)";
+    if (dispatch.status === "CANCELLED") return "Cancelada";
+
+    const canCancelBeforeBooking = dispatch.status === "DISPATCHING" && !dispatch.vamsysBookingId;
+    const canCancelBooking = dispatch.status === "DISPATCHED" && Boolean(dispatch.vamsysBookingId) && dispatch.flightOffer.validUntil > new Date();
+    const canCancel = canCancelBeforeBooking || canCancelBooking;
+    const showOfp = Boolean(dispatch.ofpBriefing && (dispatch.status === "DISPATCHING" || dispatch.status === "DISPATCHED"));
+
+    if (!showOfp && !canCancel) return "—";
+    return <div key={`actions-${dispatch.id}`} style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+      {showOfp && dispatch.ofpBriefing
+        ? <a className="action-button approve" href={`/pilot/ofp/${dispatch.ofpBriefing.id}`}>{dispatch.ofpBriefing.status === "SIGNED" ? "SIGNED OFP" : "OPEN & SIGN OFP"}</a>
+        : null}
+      {canCancel
+        ? <form action={cancelFlightDispatchAction}><input type="hidden" name="dispatchId" value={dispatch.id}/><button className="action-button reject" type="submit">{t("common.cancel")}{canCancelBooking ? " (-50 €)" : ""}</button></form>
+        : null}
+    </div>;
+  };
   return <PilotPortalShell>
     <PageHeading eyebrow={t("flightOffers.eyebrow")} title={t("flightOffers.title")} copy={t("flightOffers.pilotCopy")} />
     {messages.success && <div className="feedback success">{messages.success}</div>}
@@ -72,11 +91,7 @@ export default async function PilotFlightOffersPage({ searchParams }: { searchPa
         dispatch.rewardWalletTransaction ? formatCurrency(dispatch.rewardWalletTransaction.amountCents, locale) : reward(dispatch.flightOffer.rewardCents, dispatch.flightOffer.rewardType),
         when(dispatch.selectedDepartureAt ?? dispatch.dispatchedAt ?? dispatch.createdAt),
         when(dispatch.flightOffer.validUntil),
-        dispatch.ofpBriefing
-          ? <a className="action-button approve" href={`/pilot/ofp/${dispatch.ofpBriefing.id}`}>{dispatch.ofpBriefing.status === "SIGNED" ? "SIGNED OFP" : "OPEN & SIGN OFP"}</a>
-          : dispatch.status === "DISPATCHED" && dispatch.flightOffer.validUntil > new Date()
-          ? <form action={cancelFlightDispatchAction} key="cancel"><input type="hidden" name="dispatchId" value={dispatch.id}/><button className="action-button reject" type="submit">{t("common.cancel")} (-50 €)</button></form>
-          : dispatch.status === "EXPIRED" ? "Expirada (-100 €)" : dispatch.status === "CANCELLED" ? "Cancelada" : "—",
+        dispatchAction(dispatch),
       ])} /> : <div className="empty-state">{t("flightOffers.noDispatches")}</div>}
     </section>
   </PilotPortalShell>;
