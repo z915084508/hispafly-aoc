@@ -6,7 +6,7 @@ import { requireStaffPermission } from "@/lib/staff/authorization";
 import { createStaff, setOverride, updateStaffProfile } from "@/lib/staff/admin/service";
 import { generateTemporaryPassword, hashStaffPassword } from "@/lib/staff/auth/password";
 import { setTemporaryStaffPassword } from "@/lib/staff/auth/credentials";
-import { revokeAllStaffSessions } from "@/lib/staff/auth/session";
+import { createStaffSession, getStaffRequestContext, revokeAllStaffSessions } from "@/lib/staff/auth/session";
 
 const text = (formData: FormData, key: string) => String(formData.get(key) ?? "").trim();
 
@@ -84,6 +84,10 @@ export async function generateTemporaryPasswordAction(
     const password = generateTemporaryPassword();
     await setTemporaryStaffPassword(id, await hashStaffPassword(password));
     await revokeAllStaffSessions(id, "temporary_password_created");
+    if (actor.id === id) {
+      const context = await getStaffRequestContext();
+      await createStaffSession(id, context);
+    }
     await prisma.aocAuditLog.create({
       data: {
         staffUserId: actor.id === "development-staff" ? undefined : actor.id,
