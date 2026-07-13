@@ -18,6 +18,31 @@ function safeNextPath(value: string) {
   return value.startsWith("/staff") ? value : "/staff";
 }
 
+async function findLegacyRecoveryStaff() {
+  const ownerEmail = process.env.AOC_OWNER_EMAIL?.trim().toLowerCase();
+  const candidateEmails = Array.from(
+    new Set([ownerEmail, adminStaffEmail].filter((value): value is string => Boolean(value))),
+  );
+
+  for (const email of candidateEmails) {
+    const staff = await prisma.staffUser.findFirst({
+      where: { email: { equals: email, mode: "insensitive" }, active: true, disabledAt: null },
+    });
+    if (staff) return staff;
+  }
+
+  const owner = await prisma.staffUser.findFirst({
+    where: { isSystemOwner: true, active: true, disabledAt: null },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (owner) return owner;
+
+  return prisma.staffUser.findFirst({
+    where: { role: "ADMIN", active: true, disabledAt: null },
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
 async function loginWithLegacyRecovery(identifier: string, password: string) {
   if (!validateAdminCredentials(identifier, password)) return null;
   if (!databaseConfigured) {
@@ -25,11 +50,7 @@ async function loginWithLegacyRecovery(identifier: string, password: string) {
     return { mustChangePassword: false };
   }
 
-  const ownerEmail = process.env.AOC_OWNER_EMAIL?.trim().toLowerCase();
-  const targetEmail = ownerEmail || adminStaffEmail;
-  const staff = await prisma.staffUser.findFirst({
-    where: { email: { equals: targetEmail, mode: "insensitive" }, active: true, disabledAt: null },
-  });
+  const staff = await findLegacyRecoveryStaff();
   if (!staff) return null;
 
   const context = await getStaffRequestContext();

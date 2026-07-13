@@ -43,7 +43,11 @@ export default async function AdminLogin({
         <form className="login-form" action={loginAdmin}>
           {params.error && <div className="feedback error">{errorMessages[params.error] ?? "Staff access denied."}</div>}
           {params.success && <div className="feedback success">{successMessages[params.success] ?? params.success}</div>}
-          {legacyAdminLoginEnabled && <div className="notice">Legacy administrator recovery login is temporarily enabled.</div>}
+          {legacyAdminLoginEnabled && (
+            <div className="notice">
+              Legacy administrator recovery login is enabled. For recovery, enter the old administrator username here—not NET001, FLT001 or a Staff email—and use the existing administrator password.
+            </div>
+          )}
           <input type="hidden" name="next" value={next} />
           <label>
             Staff code or email
