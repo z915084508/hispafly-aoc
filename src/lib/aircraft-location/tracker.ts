@@ -1,4 +1,4 @@
-import { AircraftLocationSource, AircraftLocationStatus, PirepStatus } from "@prisma/client";
+import { AircraftLocationSource, AircraftLocationStatus, FlightDispatchStatus, PirepStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 
@@ -10,6 +10,14 @@ const pick = (source: JsonRow | null, ...keys: string[]) => {
   for (const key of keys) { const value = text(source[key]); if (value) return value; }
   return null;
 };
+
+const STALE_RESERVATION_DISPATCH_STATUSES = new Set<FlightDispatchStatus>([
+  "FLOWN",
+  "REWARDED",
+  "FAILED",
+  "CANCELLED",
+  "EXPIRED",
+]);
 
 export function extractAircraftLocationData(rawData: unknown, fallback: { arrival?: string | null; aircraftType?: string | null } = {}) {
   const root = row(rawData) ?? {};
@@ -90,6 +98,108 @@ export async function releaseAircraftReservationFromDispatch(params: {
   return true;
 }
 
+export async function releaseStaleAircraftReservations(options: {
+  staffUserId?: string | null;
+  trigger?: string;
+  limit?: number;
+} = {}) {
+  const trigger = options.trigger ?? "AUTOMATIC_RECONCILIATION";
+  const limit = Math.max(1, Math.min(options.limit ?? 250, 1000));
+  const result = { scanned: 0, released: 0, active: 0, missingDispatches: 0, errors: [] as string[] };
+
+  try {
+    const reservations = await prisma.aircraftLocationSnapshot.findMany({
+      where: { status: "RESERVED", reservedByDispatchId: { not: null } },
+      select: {
+        id: true,
+        vamsysAircraftId: true,
+        registration: true,
+        currentAirportIcao: true,
+        reservedByDispatchId: true,
+        lastBookingId: true,
+      },
+      take: limit,
+    });
+    result.scanned = reservations.length;
+    if (!reservations.length) return result;
+
+    const dispatchIds = [...new Set(reservations.map((item) => item.reservedByDispatchId).filter((value): value is string => Boolean(value)))];
+    const dispatches = await prisma.flightDispatch.findMany({
+      where: { id: { in: dispatchIds } },
+      select: { id: true, status: true, vamsysBookingId: true },
+    });
+    const dispatchById = new Map(dispatches.map((dispatch) => [dispatch.id, dispatch]));
+
+    for (const reservation of reservations) {
+      const dispatchId = reservation.reservedByDispatchId;
+      if (!dispatchId) continue;
+      const dispatch = dispatchById.get(dispatchId);
+      if (dispatch && !STALE_RESERVATION_DISPATCH_STATUSES.has(dispatch.status)) {
+        result.active++;
+        continue;
+      }
+      if (!dispatch) result.missingDispatches++;
+
+      try {
+        const clearBookingId = !dispatch || Boolean(dispatch.vamsysBookingId && reservation.lastBookingId === dispatch.vamsysBookingId);
+        const updated = await prisma.aircraftLocationSnapshot.updateMany({
+          where: {
+            id: reservation.id,
+            status: "RESERVED",
+            reservedByDispatchId: dispatchId,
+          },
+          data: {
+            status: "AVAILABLE",
+            reservedByDispatchId: null,
+            ...(clearBookingId ? { lastBookingId: null } : {}),
+            lastReportAt: new Date(),
+          },
+        });
+        if (updated.count !== 1) continue;
+
+        result.released++;
+        await writeAuditLogSafely({
+          staffUserId: options.staffUserId ?? null,
+          action: "AIRCRAFT_STALE_RESERVATION_RELEASED",
+          entityType: "AircraftLocationSnapshot",
+          entityId: reservation.id,
+          message: `Aircraft ${reservation.registration ?? reservation.vamsysAircraftId} released from stale dispatch reservation ${dispatchId}.`,
+          metadata: {
+            trigger,
+            dispatchId,
+            dispatchStatus: dispatch?.status ?? "MISSING",
+            bookingId: dispatch?.vamsysBookingId ?? reservation.lastBookingId,
+            airportIcao: reservation.currentAirportIcao,
+            clearedLastBookingId: clearBookingId,
+          },
+        });
+      } catch (error) {
+        result.errors.push(error instanceof Error ? error.message : `Failed to release reservation ${reservation.id}.`);
+      }
+    }
+  } catch (error) {
+    result.errors.push(error instanceof Error ? error.message : "Failed to reconcile stale aircraft reservations.");
+  }
+
+  if (result.released || result.errors.length) {
+    await writeAuditLogSafely({
+      staffUserId: options.staffUserId ?? null,
+      action: result.errors.length ? "AIRCRAFT_STALE_RESERVATION_RECONCILIATION_COMPLETED_WITH_ERRORS" : "AIRCRAFT_STALE_RESERVATION_RECONCILIATION_COMPLETED",
+      entityType: "AircraftLocationSnapshot",
+      message: `Stale aircraft reservation reconciliation released ${result.released} of ${result.scanned} scanned reservations.`,
+      metadata: {
+        trigger,
+        scanned: result.scanned,
+        released: result.released,
+        active: result.active,
+        missingDispatches: result.missingDispatches,
+        errors: result.errors.length,
+      },
+    });
+  }
+  return result;
+}
+
 export async function updateAircraftLocationFromAcceptedPirep(params: {
   vamsysAircraftId: string; registration?: string | null; aircraftType?: string | null;
   arrivalAirportId?: string | null; arrivalIcao: string; arrivalIata?: string | null;
@@ -135,6 +245,7 @@ export async function syncAircraftLocationsFromPireps() {
 }
 
 export async function getAircraftLocationSummary() {
+  await releaseStaleAircraftReservations({ trigger: "AIRCRAFT_LOCATION_SUMMARY_AUTO_RECONCILIATION" });
   const [total, groups, airportsWithAircraft, externalMovedAircraft] = await Promise.all([
     prisma.aircraftLocationSnapshot.count(),
     prisma.aircraftLocationSnapshot.groupBy({ by: ["status"], _count: true }),
@@ -145,7 +256,8 @@ export async function getAircraftLocationSummary() {
   return { total, available: count("AVAILABLE"), reserved: count("RESERVED"), inFlight: count("IN_FLIGHT"), maintenance: count("MAINTENANCE"), unknown: count("UNKNOWN"), airportsWithAircraft: airportsWithAircraft.length, externalMovedAircraft };
 }
 
-export function getAircraftLocationList() {
+export async function getAircraftLocationList() {
+  await releaseStaleAircraftReservations({ trigger: "AIRCRAFT_LOCATION_LIST_AUTO_RECONCILIATION" });
   return prisma.aircraftLocationSnapshot.findMany({ orderBy: [{ status: "asc" }, { registration: "asc" }, { vamsysAircraftId: "asc" }], select: { id: true, vamsysAircraftId: true, registration: true, aircraftType: true, currentAirportIcao: true, currentAirportIata: true, status: true, source: true, lastBookingId: true, lastVamsysPirepId: true, lastLatitude: true, lastLongitude: true, lastReportAt: true, updatedAt: true } });
 }
 
