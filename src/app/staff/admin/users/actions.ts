@@ -82,7 +82,7 @@ export async function generateTemporaryPasswordAction(
     if (target.isSystemOwner && !actor.isSystemOwner) throw new Error("Only the system owner may reset OWNER credentials.");
 
     const password = generateTemporaryPassword();
-    await setTemporaryStaffPassword(id, await hashStaffPassword(password));
+    await setTemporaryStaffPassword(id, await hashStaffPassword(password), actor.id !== id);
     await revokeAllStaffSessions(id, "temporary_password_created");
     if (actor.id === id) {
       const context = await getStaffRequestContext();
