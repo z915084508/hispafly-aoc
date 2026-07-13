@@ -45,16 +45,16 @@ export async function getStaffCredentialStatus(staffUserId: string) {
   };
 }
 
-export async function setTemporaryStaffPassword(staffUserId: string, passwordHash: string) {
+export async function setTemporaryStaffPassword(staffUserId: string, passwordHash: string, mustChangePassword = true) {
   const now = new Date();
   await prisma.$executeRaw`
     INSERT INTO "StaffCredential" (
       "staffUserId", "passwordHash", "mustChangePassword", "passwordChangedAt",
       "failedLoginCount", "lockedUntil", "updatedAt"
-    ) VALUES (${staffUserId}, ${passwordHash}, true, ${now}, 0, NULL, ${now})
+    ) VALUES (${staffUserId}, ${passwordHash}, ${mustChangePassword}, ${now}, 0, NULL, ${now})
     ON CONFLICT ("staffUserId") DO UPDATE SET
       "passwordHash" = EXCLUDED."passwordHash",
-      "mustChangePassword" = true,
+      "mustChangePassword" = ${mustChangePassword},
       "passwordChangedAt" = EXCLUDED."passwordChangedAt",
       "failedLoginCount" = 0,
       "lastFailedLoginAt" = NULL,
