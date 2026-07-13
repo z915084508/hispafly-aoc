@@ -3,15 +3,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { loginAdmin } from "./actions";
 import { getCurrentStaff } from "@/lib/staff/currentStaff";
-import { adminUsername } from "@/lib/staff/adminSession";
+import { legacyAdminLoginEnabled } from "@/lib/staff/adminSession";
 
 const errorMessages: Record<string, string> = {
-  invalid_credentials: "Admin username or password is incorrect.",
-  staff_access_denied: "Please sign in with an active Admin account to continue.",
+  invalid_credentials: "Invalid Staff code/email or password.",
+  account_locked: "This account is temporarily unavailable. Try again later or contact an administrator.",
+  staff_access_denied: "Please sign in with an active Staff account to continue.",
 };
 
 const successMessages: Record<string, string> = {
-  logged_out: "Admin session closed.",
+  logged_out: "Staff session closed.",
 };
 
 function safeNextPath(value?: string) {
@@ -25,34 +26,35 @@ export default async function AdminLogin({
 }) {
   const [params, staff] = await Promise.all([searchParams, getCurrentStaff()]);
   const next = safeNextPath(params.next);
-  if (staff?.active && staff.role === "ADMIN") redirect(next);
+  if (staff?.active) redirect(staff.mustChangePassword ? "/staff/account/change-password" : next);
 
   return (
     <main className="portal-gateway admin-login-gateway">
       <div className="gateway-brand">
         <Image src="/logo-hispafly-full.png" alt="HISPAFLY" width={1800} height={400} priority />
-        <p>AOC ADMIN PORTAL</p>
+        <p>AOC STAFF PORTAL</p>
       </div>
       <section className="login-panel">
         <div className="gateway-copy login-copy">
-          <span>ADMIN ACCESS</span>
+          <span>STAFF ACCESS</span>
           <h1>Sign in to AOC.</h1>
-          <p>Protected entry for HISPAFLY staff operations, PIREPs, payroll and reports.</p>
+          <p>Use your personal Staff code or email and password.</p>
         </div>
         <form className="login-form" action={loginAdmin}>
-          {params.error && <div className="feedback error">{errorMessages[params.error] ?? "Admin access denied."}</div>}
+          {params.error && <div className="feedback error">{errorMessages[params.error] ?? "Staff access denied."}</div>}
           {params.success && <div className="feedback success">{successMessages[params.success] ?? params.success}</div>}
+          {legacyAdminLoginEnabled && <div className="notice">Legacy administrator recovery login is temporarily enabled.</div>}
           <input type="hidden" name="next" value={next} />
           <label>
-            Account
-            <input name="username" type="text" defaultValue={adminUsername} autoComplete="username" required />
+            Staff code or email
+            <input name="identifier" type="text" autoComplete="username" required autoFocus />
           </label>
           <label>
             Password
             <input name="password" type="password" autoComplete="current-password" required />
           </label>
           <div className="login-actions">
-            <button className="button" type="submit">ENTER ADMIN PORTAL →</button>
+            <button className="button" type="submit">ENTER STAFF PORTAL →</button>
             <Link href="/">Back to portal selection</Link>
           </div>
         </form>

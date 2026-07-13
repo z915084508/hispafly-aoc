@@ -8,13 +8,21 @@ interface PermissionContext {
   attemptedAction: string;
 }
 
-export class StaffAuthorizationError extends Error { constructor(message:string){super(message);this.name="StaffAuthorizationError"} }
+export class StaffAuthorizationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StaffAuthorizationError";
+  }
+}
 
 export async function requireStaffPermission(
   permission: StaffPermission,
   context: PermissionContext,
 ): Promise<StaffIdentity> {
   const staff = await getCurrentStaff();
+  if (staff?.mustChangePassword) {
+    throw new StaffAuthorizationError("You must change your temporary password before continuing.");
+  }
   const allowed = staff?.active && (staff.permissions ? staff.permissions.includes(permission) : hasStaffPermission(staff.role, permission));
   if (allowed && staff) return staff;
 

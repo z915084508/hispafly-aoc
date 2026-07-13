@@ -4,8 +4,10 @@ import { cookies } from "next/headers";
 const COOKIE_NAME = "hispafly_aoc_admin_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 
+export const legacyAdminLoginEnabled = process.env.AOC_LEGACY_ADMIN_LOGIN_ENABLED !== "false";
 export const adminUsername = process.env.AOC_ADMIN_USERNAME ?? "Admin";
-const adminPassword = process.env.AOC_ADMIN_PASSWORD ?? "z915084508";
+const developmentPassword = process.env.NODE_ENV === "production" ? "" : "z915084508";
+const adminPassword = process.env.AOC_ADMIN_PASSWORD ?? developmentPassword;
 const sessionSecret = process.env.AOC_ADMIN_SESSION_SECRET ?? adminPassword;
 
 function safeEqual(left: string, right: string) {
@@ -25,7 +27,7 @@ function sessionValue() {
 }
 
 function isValidSessionValue(value?: string) {
-  if (!value) return false;
+  if (!value || !sessionSecret) return false;
   const [username, issuedAt, signature] = value.split(":");
   if (!username || !issuedAt || !signature) return false;
   if (!safeEqual(username.toLowerCase(), adminUsername.toLowerCase())) return false;
@@ -36,6 +38,7 @@ function isValidSessionValue(value?: string) {
 }
 
 export function validateAdminCredentials(username: string, password: string) {
+  if (!legacyAdminLoginEnabled || !adminPassword) return false;
   return safeEqual(username.trim().toLowerCase(), adminUsername.toLowerCase()) && safeEqual(password, adminPassword);
 }
 
