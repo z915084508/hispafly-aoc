@@ -41,7 +41,7 @@ export async function getStaffCredentialStatus(staffUserId: string) {
     lockedUntil: credential?.lockedUntil ?? null,
     lastLoginAt: credential?.lastLoginAt ?? null,
     passwordChangedAt: credential?.passwordChangedAt ?? null,
-    activeSessionCount: Number(sessions[0]?.count ?? 0n),
+    activeSessionCount: Number(sessions[0]?.count ?? 0),
   };
 }
 
