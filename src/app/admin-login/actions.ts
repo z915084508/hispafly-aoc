@@ -3,10 +3,11 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { authenticateStaff } from "@/lib/staff/auth/authenticate";
-import { createStaffSession, getStaffRequestContext, revokeCurrentStaffSession } from "@/lib/staff/auth/session";
-import { recordStaffLoginSuccess } from "@/lib/staff/auth/credentials";
+import { createStaffSession, getStaffRequestContext, revokeAllStaffSessions, revokeCurrentStaffSession } from "@/lib/staff/auth/session";
+import { changeStaffPassword, getStaffCredential, recordStaffLoginSuccess } from "@/lib/staff/auth/credentials";
+import { hashStaffPassword, validateStaffPasswordPolicy, verifyStaffPassword } from "@/lib/staff/auth/password";
 import { clearAdminSession, setAdminSession, validateAdminCredentials } from "@/lib/staff/adminSession";
-import { adminStaffEmail, databaseConfigured } from "@/lib/staff/currentStaff";
+import { adminStaffEmail, databaseConfigured, getCurrentStaff } from "@/lib/staff/currentStaff";
 
 function text(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -53,15 +54,47 @@ export async function loginAdmin(formData: FormData) {
   const next = safeNextPath(text(formData, "next"));
 
   const result = databaseConfigured ? await authenticateStaff(identifier, password) : { ok: false as const, reason: "invalid" as const };
-  if (result.ok) {
-    redirect(result.mustChangePassword ? "/staff/account/change-password" : next);
-  }
+  if (result.ok) redirect(result.mustChangePassword ? "/staff/account/change-password" : next);
 
   const recovery = await loginWithLegacyRecovery(identifier, password);
   if (recovery) redirect(next);
 
   const error = result.reason === "locked" ? "account_locked" : "invalid_credentials";
   redirect(`/admin-login?error=${error}&next=${encodeURIComponent(next)}`);
+}
+
+export async function changeOwnPasswordAction(formData: FormData) {
+  const staff = await getCurrentStaff();
+  if (!staff || staff.id === "development-staff") redirect("/admin-login?error=staff_access_denied");
+
+  const currentPassword = text(formData, "currentPassword");
+  const newPassword = text(formData, "newPassword");
+  const confirmPassword = text(formData, "confirmPassword");
+  const credential = await getStaffCredential(staff.id);
+
+  if (!credential?.passwordHash || !(await verifyStaffPassword(currentPassword, credential.passwordHash))) {
+    redirect("/staff/account/change-password?error=current_password");
+  }
+  if (newPassword !== confirmPassword) redirect("/staff/account/change-password?error=password_mismatch");
+  if (await verifyStaffPassword(newPassword, credential.passwordHash)) redirect("/staff/account/change-password?error=password_reused");
+
+  const policy = validateStaffPasswordPolicy(newPassword, { staffCode: staff.staffCode, email: staff.email });
+  if (!policy.valid) redirect(`/staff/account/change-password?error=${encodeURIComponent(policy.errors[0])}`);
+
+  await changeStaffPassword(staff.id, await hashStaffPassword(newPassword));
+  await revokeAllStaffSessions(staff.id, "password_changed");
+  const context = await getStaffRequestContext();
+  await createStaffSession(staff.id, context);
+  await prisma.aocAuditLog.create({
+    data: {
+      staffUserId: staff.id,
+      action: "STAFF_PASSWORD_CHANGED",
+      entityType: "StaffUser",
+      entityId: staff.id,
+      message: `${staff.name} changed the Staff account password.`,
+    },
+  });
+  redirect("/staff?passwordChanged=1");
 }
 
 export async function logoutAdmin() {
