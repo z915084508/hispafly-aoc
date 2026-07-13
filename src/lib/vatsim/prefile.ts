@@ -73,8 +73,9 @@ function durationParts(value: unknown): DurationParts | null {
     const clock = normalized.match(/^(\d{1,3}):([0-5]\d)(?::([0-5]\d(?:\.\d+)?))?$/);
     if (clock) return durationFromMinutes(Number(clock[1]) * 60 + Number(clock[2]) + Number(clock[3] ?? 0) / 60);
 
-    const compact = normalized.match(/^(\d{1,3})([0-5]\d)$/);
-    if (compact) return durationFromMinutes(Number(compact[1]) * 60 + Number(compact[2]));
+    if (/^0\d{3}$/.test(normalized)) {
+      return durationFromMinutes(Number(normalized.slice(0, -2)) * 60 + Number(normalized.slice(-2)));
+    }
 
     const iso = normalized.match(/^PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?$/);
     if (iso && (iso[1] || iso[2] || iso[3])) return durationFromMinutes(Number(iso[1] ?? 0) * 60 + Number(iso[2] ?? 0) + Number(iso[3] ?? 0) / 60);
