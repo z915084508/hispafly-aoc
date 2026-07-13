@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { cancelVamsysBooking, createVamsysBooking, VamsysApiError, type CreateVamsysBookingInput } from "@/lib/vamsys/client";
 import { getValidVamsysAccessToken } from "@/lib/vamsys/token";
-import { updateAircraftLocationFromDispatch } from "@/lib/aircraft-location/tracker";
+import { releaseAircraftReservationFromDispatch, updateAircraftLocationFromDispatch } from "@/lib/aircraft-location/tracker";
 import { createDispatchOfpBriefing } from "@/lib/simbrief/ofp";
 import { assertAircraftDispatchAllowed } from "@/lib/aircraft-maintenance/service";
 import { assertDispatchReleaseAllowsFinalDispatch } from "@/lib/dispatch-release/service";
@@ -37,6 +37,23 @@ function vamsysSafeDepartureAt(selectedDepartureAt: Date) {
   const minimumDepartureAt = new Date(Date.now() + VAMSYS_FINAL_DISPATCH_MIN_LEAD_MS);
   if (selectedDepartureAt > minimumDepartureAt) return { departureAt: selectedDepartureAt, adjusted: false };
   return { departureAt: minimumDepartureAt, adjusted: true };
+}
+
+async function releaseDispatchAircraft(
+  dispatch: { id: string; vamsysBookingId: string | null; flightOffer: { vamsysAircraftId: string } },
+  reason: string,
+) {
+  try {
+    return await releaseAircraftReservationFromDispatch({
+      vamsysAircraftId: dispatch.flightOffer.vamsysAircraftId,
+      dispatchId: dispatch.id,
+      bookingId: dispatch.vamsysBookingId,
+      reason,
+    });
+  } catch (error) {
+    console.error(`[Aircraft location] reservation release failed dispatch=${dispatch.id}`, error);
+    return false;
+  }
 }
 
 export async function prepareFlightOffer(offerId: string, pilotId: string, selectedDepartureAt: Date) {
@@ -211,6 +228,14 @@ async function applyDispatchPenalty(dispatchId: string, amountCents: number, des
       where: { id: current.flightOfferId },
       data: { status: status === "CANCELLED" && current.flightOffer.validUntil > new Date() && !current.flightOffer.createdByPilotId ? "PUBLISHED" : status === "CANCELLED" ? "CANCELLED" : "EXPIRED" },
     });
+    await tx.ofpBriefing.updateMany({
+      where: { flightDispatchId: current.id },
+      data: {
+        status: "VOIDED",
+        voidedAt: new Date(),
+        voidReason: status === "CANCELLED" ? "Pilot cancelled after Final Dispatch" : "Flight offer expired after Final Dispatch",
+      },
+    });
     return dispatch;
   });
 }
@@ -229,6 +254,7 @@ export async function cancelFlightDispatchByPilot(dispatchId: string, pilotId: s
       return saved;
     });
     await writeAuditLogSafely({ action: "FLIGHT_PRE_DISPATCH_CANCELLED", entityType: "FlightDispatch", entityId: dispatch.id, message: `Pilot cancelled ${dispatch.flightOffer.title} before vAMSYS booking; no penalty applied.`, metadata: { pilotId } });
+    await releaseDispatchAircraft(dispatch, "Pilot cancelled before Final Dispatch");
     return cancelled;
   }
   if (dispatch.status !== "DISPATCHED" || !dispatch.vamsysBookingId) throw new Error("Este dispatch ya no se puede cancelar.");
@@ -245,9 +271,11 @@ export async function cancelFlightDispatchByPilot(dispatchId: string, pilotId: s
     const cancelledSelfDispatch = await prisma.$transaction(async (tx) => {
       const saved = await tx.flightDispatch.update({ where: { id: dispatch.id }, data: { status: "CANCELLED", cancelledAt: new Date(), errorMessage: null } });
       await tx.flightOffer.update({ where: { id: dispatch.flightOfferId }, data: { status: "CANCELLED" } });
+      await tx.ofpBriefing.updateMany({ where: { flightDispatchId: dispatch.id }, data: { status: "VOIDED", voidedAt: new Date(), voidReason: "Pilot cancelled self dispatch after Final Dispatch" } });
       return saved;
     });
     await writeAuditLogSafely({ action: "SELF_DISPATCH_CANCELLED_BY_PILOT", entityType: "FlightDispatch", entityId: dispatch.id, message: `Pilot cancelled self dispatch ${dispatch.flightOffer.title}; no task penalty applied.`, metadata: { pilotId, bookingId: dispatch.vamsysBookingId } });
+    await releaseDispatchAircraft(dispatch, "Pilot cancelled self dispatch");
     return cancelledSelfDispatch;
   }
 
@@ -257,6 +285,7 @@ export async function cancelFlightDispatchByPilot(dispatchId: string, pilotId: s
     message: `El piloto canceló ${dispatch.flightOffer.title}; la oferta volvió a publicarse y se descontaron 50 € de su cartera.`,
     metadata: { pilotId, offerId: dispatch.flightOfferId, bookingId: dispatch.vamsysBookingId, penaltyCents: PILOT_CANCEL_PENALTY_CENTS },
   });
+  await releaseDispatchAircraft(dispatch, "Pilot cancelled dispatched flight");
   return cancelled;
 }
 
@@ -268,6 +297,7 @@ export async function expireOverdueFlightDispatches(limit = 10, pilotId?: string
       prisma.flightOffer.update({ where: { id: dispatch.flightOfferId }, data: { status: "EXPIRED" } }),
       prisma.ofpBriefing.updateMany({ where: { flightDispatchId: dispatch.id }, data: { status: "VOIDED", voidedAt: new Date(), voidReason: "Flight offer expired before Final Dispatch" } }),
     ]);
+    await releaseDispatchAircraft(dispatch, "Pre-dispatch workflow expired");
   }
   const overdue = await prisma.flightDispatch.findMany({
     where: { status: "DISPATCHED", matchedPirepId: null, ...(pilotId ? { pilotId } : {}), flightOffer: { validUntil: { lte: new Date() } } },
@@ -292,6 +322,7 @@ export async function expireOverdueFlightDispatches(limit = 10, pilotId?: string
         message: `${dispatch.flightOffer.title} expiró sin PIREP aceptado; se descontaron 100 € de la cartera del piloto.`,
         metadata: { pilotId: dispatch.pilotId, offerId: dispatch.flightOfferId, bookingId: dispatch.vamsysBookingId, penaltyCents: EXPIRED_OFFER_PENALTY_CENTS },
       });
+      await releaseDispatchAircraft(dispatch, "Dispatched flight expired without accepted PIREP");
       expired++;
     } catch (error) {
       errors.push(error instanceof Error ? error.message : "Error desconocido al expirar dispatch.");
