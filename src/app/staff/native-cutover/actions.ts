@@ -7,10 +7,16 @@ import { executeReviewResolution, previewReviewResolution, refreshReviewQueue } 
 import { writeAuditLogSafely } from "@/lib/audit/log";
 
 export async function refreshCutoverReviewQueueAction() {
-  const staff = await requireStaffPermission("NATIVE_CUTOVER_PREVIEW", { entityType: "NativeCutover", attemptedAction: "refresh cutover review queue" });
-  const result = await refreshReviewQueue();
-  await writeAuditLogSafely({ staffUserId: staff.id, action: "NATIVE_CUTOVER_QUEUE_REFRESHED", entityType: "NativeCutover", message: `${staff.name} refreshed Native cutover review queue.`, metadata: result });
-  revalidatePath("/staff/native-cutover");
+  try {
+    const staff = await requireStaffPermission("NATIVE_CUTOVER_PREVIEW", { entityType: "NativeCutover", attemptedAction: "refresh cutover review queue" });
+    const result = await refreshReviewQueue();
+    await writeAuditLogSafely({ staffUserId: staff.id, action: "NATIVE_CUTOVER_QUEUE_REFRESHED", entityType: "NativeCutover", message: `${staff.name} refreshed Native cutover review queue.`, metadata: result });
+    revalidatePath("/staff/native-cutover");
+    redirect(`/staff/native-cutover?success=${encodeURIComponent(`${result.scanned} records scanned. Review queues are ready below.`)}`);
+  } catch (error) {
+    if (error && typeof error === "object" && "digest" in error) throw error;
+    redirect(`/staff/native-cutover?error=${encodeURIComponent(error instanceof Error ? error.message : "Review queue refresh failed.")}`);
+  }
 }
 
 export async function previewCutoverResolutionAction(formData: FormData) {

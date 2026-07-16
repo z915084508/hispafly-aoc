@@ -169,16 +169,17 @@ export async function executeReviewBatch(input: { items: Array<{ reviewItemId: s
 }
 
 export async function getCutoverDashboard() {
-  const [inventory, pending, invalid, recentOperations] = await Promise.all([
+  const [inventory, pending, invalid, recentOperations, queueGroups] = await Promise.all([
     getMigrationInventory(),
     prisma.nativeCutoverReviewItem.count({ where: { status: "PENDING" } }),
     prisma.nativeCutoverReviewItem.count({ where: { status: "PENDING", classification: "INVALID_REQUIRES_REVIEW" } }),
     prisma.nativeCutoverOperation.findMany({ orderBy: { createdAt: "desc" }, take: 10 }),
+    prisma.nativeCutoverReviewItem.groupBy({ by: ["entityType"], where: { status: "PENDING" }, _count: { _all: true }, orderBy: { entityType: "asc" } }),
   ]);
   const nativeReady = inventory.reduce((sum, row) => sum + row.nativeReady, 0);
   const unresolved = inventory.reduce((sum, row) => sum + row.legacyUnresolved, 0);
   const requiredChain = ["Airport", "Route", "Fleet", "Aircraft", "Schedule", "Flight", "Booking", "Dispatch"];
   const nativeChainComplete = requiredChain.every((entityType) => (inventory.find((row) => row.entityType === entityType)?.nativeReady ?? 0) > 0);
   const status = invalid || !nativeChainComplete ? "NOT_READY" : pending || unresolved ? "REVIEW_REQUIRED" : "READY_FOR_ACARS";
-  return { inventory, nativeReady, unresolved, invalid, pending, recentOperations, acarsContractVersion: "1.0", runtimeDependencyAudit: "LEGACY_DISABLED_REVIEWED", disabledIntegrations: ["vAMSYS OAuth", "vAMSYS cron", "vAMSYS webhook processing", "vAMSYS Operations API"], environmentReadiness: "VAMSYS_ENV_NOT_REQUIRED", endToEndStatus: nativeChainComplete ? "NATIVE_CHAIN_PRESENT" : "NOT_EXECUTABLE_NO_NATIVE_CHAIN", status };
+  return { inventory, nativeReady, unresolved, invalid, pending, queueGroups: queueGroups.map((group) => ({ entityType: group.entityType, count: group._count._all })), recentOperations, acarsContractVersion: "1.0", runtimeDependencyAudit: "LEGACY_DISABLED_REVIEWED", disabledIntegrations: ["vAMSYS OAuth", "vAMSYS cron", "vAMSYS webhook processing", "vAMSYS Operations API"], environmentReadiness: "VAMSYS_ENV_NOT_REQUIRED", endToEndStatus: nativeChainComplete ? "NATIVE_CHAIN_PRESENT" : "NOT_EXECUTABLE_NO_NATIVE_CHAIN", status };
 }
