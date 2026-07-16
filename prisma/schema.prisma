@@ -140,6 +140,13 @@ enum AircraftLocationSource {
   IMPORTED
 }
 
+enum AocDataOrigin {
+  HISPAFLY_NATIVE
+  VAMSYS_LEGACY
+  IMPORTED
+  MANUAL
+}
+
 enum OfpStatus {
   GENERATED
   AWAITING_SIGNATURE
@@ -262,6 +269,7 @@ model StaffPermissionOverride {
 
 model Pilot {
   id                         String                      @id @default(cuid())
+  dataOrigin                 AocDataOrigin               @default(HISPAFLY_NATIVE)
   vamsysPilotId              String?                     @unique
   authUserId                 String?                     @unique
   authUser                   AuthUser?                   @relation(fields: [authUserId], references: [id], onDelete: SetNull)
@@ -305,15 +313,15 @@ model Pilot {
 }
 
 model AuthUser {
-  id                  String                 @id @default(cuid())
-  email               String                 @unique
-  username            String                 @unique
+  id                  String                   @id @default(cuid())
+  email               String                   @unique
+  username            String                   @unique
   passwordHash        String?
   displayName         String
-  status              AuthUserStatus         @default(PENDING_VERIFICATION)
+  status              AuthUserStatus           @default(PENDING_VERIFICATION)
   emailVerifiedAt     DateTime?
   passwordChangedAt   DateTime?
-  failedLoginAttempts Int                    @default(0)
+  failedLoginAttempts Int                      @default(0)
   lockedUntil         DateTime?
   lastLoginAt         DateTime?
   pilot               Pilot?
@@ -321,31 +329,31 @@ model AuthUser {
   sessions            AuthSession[]
   resetTokens         PasswordResetToken[]
   verificationTokens  EmailVerificationToken[]
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 
   @@index([status])
 }
 
 model AuthRole {
-  id          String                   @id @default(cuid())
-  code        String                   @unique
+  id          String               @id @default(cuid())
+  code        String               @unique
   name        String
   description String?
-  systemRole  Boolean                  @default(false)
+  systemRole  Boolean              @default(false)
   users       AuthUserRole[]
   permissions AuthRolePermission[]
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 }
 
 model AuthPermission {
-  id          String                   @id @default(cuid())
-  code        String                   @unique
+  id          String               @id @default(cuid())
+  code        String               @unique
   description String?
   roles       AuthRolePermission[]
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 }
 
 model AuthUserRole {
@@ -360,26 +368,26 @@ model AuthUserRole {
 }
 
 model AuthRolePermission {
-  roleId      String
+  roleId       String
   permissionId String
-  role        AuthRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission  AuthPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         AuthRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   AuthPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
   @@index([permissionId])
 }
 
 model AuthSession {
-  id           String   @id @default(cuid())
-  userId       String
-  tokenHash    String   @unique
-  expiresAt    DateTime
-  lastSeenAt   DateTime @default(now())
-  ipAddress    String?
-  userAgent    String?
-  revokedAt    DateTime?
-  user         AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  lastSeenAt DateTime  @default(now())
+  ipAddress  String?
+  userAgent  String?
+  revokedAt  DateTime?
+  user       AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
 
   @@index([userId, expiresAt])
 }
@@ -447,6 +455,7 @@ model OperationsApiState {
 
 model Fleet {
   id                       String                 @id @default(cuid())
+  dataOrigin               AocDataOrigin          @default(HISPAFLY_NATIVE)
   vamsysFleetId            String?                @unique
   name                     String?
   code                     String?
@@ -482,6 +491,7 @@ model Fleet {
 
 model Aircraft {
   id                    String                      @id @default(cuid())
+  dataOrigin            AocDataOrigin               @default(HISPAFLY_NATIVE)
   vamsysAircraftId      String                      @unique
   name                  String?
   registration          String?
@@ -564,6 +574,7 @@ model Airport {
 
 model Route {
   id                       String                    @id @default(cuid())
+  dataOrigin               AocDataOrigin             @default(HISPAFLY_NATIVE)
   vamsysRouteId            String?                   @unique
   flightNumber             String?
   callsign                 String?
@@ -680,6 +691,7 @@ model VamsysOAuthToken {
 
 model Pirep {
   id                     String                @id @default(cuid())
+  dataOrigin             AocDataOrigin         @default(HISPAFLY_NATIVE)
   vamsysPirepId          String                @unique
   vamsysBookingId        String?
   pilotId                String
@@ -889,6 +901,7 @@ model AircraftLocationSnapshot {
 
 model FlightOffer {
   id                       String                @id @default(cuid())
+  dataOrigin               AocDataOrigin         @default(HISPAFLY_NATIVE)
   title                    String
   offerType                String                @default("STANDARD")
   titleEs                  String?

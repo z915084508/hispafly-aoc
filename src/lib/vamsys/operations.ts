@@ -1,9 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
+import { assertVamsysNetworkDisabled } from "./legacy-policy";
 
 const env = (name: string, fallback = "") => process.env[name]?.trim() || fallback;
-export const isOperationsConfigured = () => Boolean(env("VAMSYS_OPERATIONS_CLIENT_ID") && env("VAMSYS_OPERATIONS_CLIENT_SECRET"));
+export const isOperationsConfigured = () => false;
 let cached: { token: string; expiresAt: number; scopes: string[] } | null = null;
 
 export class VamsysOperationsError extends Error {
@@ -145,6 +146,7 @@ export async function syncOperationsPilotsIncremental(options: { maxPages?: numb
 }
 
 export async function operationsRequest(path: string, options: OperationsRequestOptions | boolean = {}): Promise<unknown> {
+  assertVamsysNetworkDisabled(`Operations API request ${path}`);
   const normalized = typeof options === "boolean" ? { retryAuthentication: options } : options;
   const method = normalized.method ?? "GET";
   const retry = normalized.retryAuthentication ?? true;
