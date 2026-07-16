@@ -11,18 +11,6 @@ import { formatCurrency, formatDate, formatNumber } from "@/lib/i18n/core";
 
 export const dynamic = "force-dynamic";
 
-function tokenScopes(accessToken: string | undefined) {
-  if (!accessToken) return [] as string[];
-  try {
-    const payloadPart = accessToken.split(".")[1];
-    if (!payloadPart) return [];
-    const payload = JSON.parse(Buffer.from(payloadPart, "base64url").toString("utf8")) as { scopes?: unknown; scope?: unknown };
-    const value = payload.scopes ?? payload.scope;
-    if (Array.isArray(value)) return value.filter((scope): scope is string => typeof scope === "string");
-    return typeof value === "string" ? value.split(/\s+/).filter(Boolean) : [];
-  } catch { return []; }
-}
-
 export default async function PilotFlightOffersPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string; dispatchId?: string }> }) {
   const pilot = await requirePilotSession();
   const { t, locale } = await getTranslations();
@@ -33,12 +21,10 @@ export default async function PilotFlightOffersPage({ searchParams }: { searchPa
     searchParams,
     prisma.flightOffer.findMany({ where: { createdByStaffId: { not: null }, status: "PUBLISHED", validUntil: { gt: new Date() }, dispatches: { none: { status: { in: ["DISPATCHING", "DISPATCHED"] } } } }, orderBy: { availableFrom: "asc" } }),
     prisma.flightDispatch.findMany({ where: { pilotId: pilot.id, flightOffer: { createdByStaffId: { not: null } } }, include: { flightOffer: true, matchedPirep: true, rewardWalletTransaction: true, ofpBriefing: true }, orderBy: { createdAt: "desc" } }),
-    prisma.vamsysOAuthToken.findUnique({ where: { pilotId: pilot.id }, select: { revokedAt: true, scopes: true, accessToken: true } }),
+    prisma.vamsysOAuthToken.findUnique({ where: { pilotId: pilot.id }, select: { revokedAt: true, scopes: true } }),
   ]);
   const storedScopes = oauth?.scopes.split(/\s+/).filter(Boolean) ?? [];
-  const actualScopes = tokenScopes(oauth?.accessToken);
-  const effectiveScopes = actualScopes.length ? actualScopes : storedScopes;
-  const connected = Boolean(oauth && !oauth.revokedAt && effectiveScopes.includes("flights:write"));
+  const connected = Boolean(oauth && !oauth.revokedAt && storedScopes.includes("flights:write"));
   const bookingDetail = messages.dispatchId ? dispatches.find((item) => item.id === messages.dispatchId) : null;
   return <PilotPortalShell>
     <PageHeading eyebrow={t("flightOffers.eyebrow")} title={t("flightOffers.title")} copy={t("flightOffers.pilotCopy")} />

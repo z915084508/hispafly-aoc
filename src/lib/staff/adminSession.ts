@@ -4,9 +4,13 @@ import { cookies } from "next/headers";
 const COOKIE_NAME = "hispafly_aoc_admin_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 
-export const adminUsername = process.env.AOC_ADMIN_USERNAME ?? "Admin";
-const adminPassword = process.env.AOC_ADMIN_PASSWORD ?? "z915084508";
-const sessionSecret = process.env.AOC_ADMIN_SESSION_SECRET ?? adminPassword;
+function requiredSecret(name: "AOC_ADMIN_PASSWORD" | "AOC_ADMIN_SESSION_SECRET") {
+  const secret = process.env[name]?.trim();
+  if (!secret) throw new Error(`${name} must be configured.`);
+  return secret;
+}
+
+export const adminUsername = process.env.AOC_ADMIN_USERNAME?.trim() || "Admin";
 
 function safeEqual(left: string, right: string) {
   const leftBuffer = Buffer.from(left);
@@ -15,7 +19,7 @@ function safeEqual(left: string, right: string) {
 }
 
 function sign(payload: string) {
-  return createHmac("sha256", sessionSecret).update(payload).digest("base64url");
+  return createHmac("sha256", requiredSecret("AOC_ADMIN_SESSION_SECRET")).update(payload).digest("base64url");
 }
 
 function sessionValue() {
@@ -36,7 +40,7 @@ function isValidSessionValue(value?: string) {
 }
 
 export function validateAdminCredentials(username: string, password: string) {
-  return safeEqual(username.trim().toLowerCase(), adminUsername.toLowerCase()) && safeEqual(password, adminPassword);
+  return safeEqual(username.trim().toLowerCase(), adminUsername.toLowerCase()) && safeEqual(password, requiredSecret("AOC_ADMIN_PASSWORD"));
 }
 
 export async function hasValidAdminSession() {

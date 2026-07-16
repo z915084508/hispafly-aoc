@@ -19,6 +19,13 @@ enum PermissionEffect {
   DENY
 }
 
+enum AuthUserStatus {
+  ACTIVE
+  DISABLED
+  LOCKED
+  PENDING_VERIFICATION
+}
+
 enum PilotStatus {
   active
   on_leave
@@ -255,7 +262,9 @@ model StaffPermissionOverride {
 
 model Pilot {
   id                         String                      @id @default(cuid())
-  vamsysPilotId              String                      @unique
+  vamsysPilotId              String?                     @unique
+  authUserId                 String?                     @unique
+  authUser                   AuthUser?                   @relation(fields: [authUserId], references: [id], onDelete: SetNull)
   vamsysUserId               String?                     @unique
   username                   String?
   firstName                  String?
@@ -293,6 +302,110 @@ model Pilot {
 
   @@index([status])
   @@index([base])
+}
+
+model AuthUser {
+  id                  String                 @id @default(cuid())
+  email               String                 @unique
+  username            String                 @unique
+  passwordHash        String?
+  displayName         String
+  status              AuthUserStatus         @default(PENDING_VERIFICATION)
+  emailVerifiedAt     DateTime?
+  passwordChangedAt   DateTime?
+  failedLoginAttempts Int                    @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  pilot               Pilot?
+  roles               AuthUserRole[]
+  sessions            AuthSession[]
+  resetTokens         PasswordResetToken[]
+  verificationTokens  EmailVerificationToken[]
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  @@index([status])
+}
+
+model AuthRole {
+  id          String                   @id @default(cuid())
+  code        String                   @unique
+  name        String
+  description String?
+  systemRole  Boolean                  @default(false)
+  users       AuthUserRole[]
+  permissions AuthRolePermission[]
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+}
+
+model AuthPermission {
+  id          String                   @id @default(cuid())
+  code        String                   @unique
+  description String?
+  roles       AuthRolePermission[]
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+}
+
+model AuthUserRole {
+  userId     String
+  roleId     String
+  user       AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       AuthRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+model AuthRolePermission {
+  roleId      String
+  permissionId String
+  role        AuthRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission  AuthPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model AuthSession {
+  id           String   @id @default(cuid())
+  userId       String
+  tokenHash    String   @unique
+  expiresAt    DateTime
+  lastSeenAt   DateTime @default(now())
+  ipAddress    String?
+  userAgent    String?
+  revokedAt    DateTime?
+  user         AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@index([userId, expiresAt])
 }
 
 model PilotNote {

@@ -1,0 +1,2 @@
+import { resetPassword } from "@/lib/auth/service";
+export async function POST(request:Request){const body=await request.json().catch(()=>null) as {token?:unknown;password?:unknown}|null;if(typeof body?.token!=="string"||typeof body.password!=="string")return Response.json({error:"invalid_request"},{status:400});try{return await resetPassword(body.token,body.password)?Response.json({ok:true}):Response.json({error:"invalid_or_expired_token"},{status:400});}catch(error){return Response.json({error:error instanceof Error?error.message:"invalid_password"},{status:400});}}

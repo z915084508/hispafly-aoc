@@ -4,7 +4,7 @@ import { getCurrentStaff, type StaffIdentity } from "./currentStaff";
 
 export async function requireAdminStaff(): Promise<StaffIdentity> {
   const staff = await getCurrentStaff();
-  if (!staff?.active) {
+  if (!staff?.active || (staff.role !== "ADMIN" && !staff.isSystemOwner)) {
     await writeAuditLogSafely({
       staffUserId: staff?.id === "development-staff" ? undefined : staff?.id,
       action: "STAFF_PORTAL_ACCESS_DENIED",
