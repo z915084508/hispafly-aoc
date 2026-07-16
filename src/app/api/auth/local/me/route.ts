@@ -1,0 +1,2 @@
+import { currentAuthUser } from "@/lib/auth/session";
+export async function GET(){const user=await currentAuthUser();if(!user)return Response.json({error:"unauthorized"},{status:401});return Response.json({id:user.id,email:user.email,displayName:user.displayName,status:user.status,roles:user.roles.map(x=>x.role.code),pilot:user.pilot?{id:user.pilot.id,callsign:user.pilot.callsign,base:user.pilot.base,status:user.pilot.status}:null});}

@@ -1,0 +1,1 @@
+import {redirect} from "next/navigation";export default async function LoginPage({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){const q=await searchParams;const suffix=new URLSearchParams(Object.entries(q).filter((x):x is [string,string]=>typeof x[1]==="string")).toString();redirect(`/pilot${suffix?`?${suffix}`:""}`);}

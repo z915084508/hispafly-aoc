@@ -4,6 +4,7 @@ import { requirePilotSession } from "@/lib/pilot/session";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { getTranslations } from "@/lib/i18n/server";
 import { formatCurrency } from "@/lib/i18n/core";
+import { logoutPilot } from "@/app/pilot/actions";
 
 const flightNavItems = [
   ["dashboard", "/pilot/dashboard"], ["pireps", "/pilot/pireps"], ["offers", "/pilot/flight-offers"], ["bookings", "/pilot/bookings"], ["ofp", "/pilot/ofp"], ["fleet", "/pilot/fleet"], ["roster", "/pilot/roster"],
@@ -44,6 +45,7 @@ export async function PilotPortalShell({ children }: { children: React.ReactNode
               <span className="secondary">{t("pilotNav.walletBalance")}: {formatCurrency(pilot.walletBalanceCents, locale)}</span>
             </div>
             <div className="avatar">{initials}</div>
+            <form action={logoutPilot}><button className="action-button" type="submit">Sign out</button></form>
           </div>
         </header>
         <div className="content">{children}</div>

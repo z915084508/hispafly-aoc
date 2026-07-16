@@ -4,11 +4,14 @@ import { cookies } from "next/headers";
 const COOKIE_NAME = "hispafly_aoc_admin_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 
-export const legacyAdminLoginEnabled = process.env.AOC_LEGACY_ADMIN_LOGIN_ENABLED !== "false";
-export const adminUsername = process.env.AOC_ADMIN_USERNAME ?? "Admin";
-const developmentPassword = process.env.NODE_ENV === "production" ? "" : "z915084508";
-const adminPassword = process.env.AOC_ADMIN_PASSWORD ?? developmentPassword;
-const sessionSecret = process.env.AOC_ADMIN_SESSION_SECRET ?? adminPassword;
+function requiredSecret(name: "AOC_ADMIN_PASSWORD" | "AOC_ADMIN_SESSION_SECRET") {
+  const secret = process.env[name]?.trim();
+  if (!secret) throw new Error(`${name} must be configured.`);
+  return secret;
+}
+
+export const adminUsername = process.env.AOC_ADMIN_USERNAME?.trim() || "Admin";
+export const legacyAdminLoginEnabled = process.env.AOC_LEGACY_ADMIN_LOGIN_ENABLED === "true";
 
 function safeEqual(left: string, right: string) {
   const leftBuffer = Buffer.from(left);
@@ -17,7 +20,7 @@ function safeEqual(left: string, right: string) {
 }
 
 function sign(payload: string) {
-  return createHmac("sha256", sessionSecret).update(payload).digest("base64url");
+  return createHmac("sha256", requiredSecret("AOC_ADMIN_SESSION_SECRET")).update(payload).digest("base64url");
 }
 
 function sessionValue() {
@@ -27,7 +30,7 @@ function sessionValue() {
 }
 
 function isValidSessionValue(value?: string) {
-  if (!value || !sessionSecret) return false;
+  if (!value || !process.env.AOC_ADMIN_SESSION_SECRET?.trim()) return false;
   const [username, issuedAt, signature] = value.split(":");
   if (!username || !issuedAt || !signature) return false;
   if (!safeEqual(username.toLowerCase(), adminUsername.toLowerCase())) return false;
@@ -38,8 +41,8 @@ function isValidSessionValue(value?: string) {
 }
 
 export function validateAdminCredentials(username: string, password: string) {
-  if (!legacyAdminLoginEnabled || !adminPassword) return false;
-  return safeEqual(username.trim().toLowerCase(), adminUsername.toLowerCase()) && safeEqual(password, adminPassword);
+  if (!legacyAdminLoginEnabled || !process.env.AOC_ADMIN_PASSWORD?.trim()) return false;
+  return safeEqual(username.trim().toLowerCase(), adminUsername.toLowerCase()) && safeEqual(password, requiredSecret("AOC_ADMIN_PASSWORD"));
 }
 
 export async function hasValidAdminSession() {

@@ -375,8 +375,8 @@ export async function syncAcceptedOperationsPirepsIncremental(options: { limit?:
 
     await prisma.operationsApiState.upsert({
       where: { id: "vamsys" },
-      update: { status: result.errors.length ? "degraded" : "healthy", lastPirepSyncAt: now, lastCronPirepSyncAt: options.cron ? now : state?.lastCronPirepSyncAt, lastError: result.errors[0]?.slice(0, 180) ?? null },
-      create: { id: "vamsys", status: result.errors.length ? "degraded" : "healthy", lastPirepSyncAt: now, lastCronPirepSyncAt: options.cron ? now : null, lastError: result.errors[0]?.slice(0, 180) },
+      update: { status: result.errors.length ? "degraded" : "healthy", lastPirepSyncAt: result.errors.length ? state?.lastPirepSyncAt : now, lastCronPirepSyncAt: result.errors.length ? state?.lastCronPirepSyncAt : options.cron ? now : state?.lastCronPirepSyncAt, lastError: result.errors[0]?.slice(0, 180) ?? null },
+      create: { id: "vamsys", status: result.errors.length ? "degraded" : "healthy", lastPirepSyncAt: result.errors.length ? null : now, lastCronPirepSyncAt: result.errors.length ? null : options.cron ? now : null, lastError: result.errors[0]?.slice(0, 180) },
     });
     console.info(`[vAMSYS PIREP cron] completed imported=${result.importedCount} updated=${result.updatedCount} skipped=${result.skippedCount} payrollGenerated=${result.payrollGeneratedCount} errors=${result.errors.length}`);
     await writeAuditLogSafely({ action: "VAMSYS_OPERATIONS_PIREP_CRON_COMPLETED", entityType: "Pirep", message: `Cron Operations PIREPs: ${result.importedCount} nuevos, ${result.updatedCount} actualizados, ${result.skippedCount} omitidos y ${result.payrollGeneratedCount} nóminas.`, metadata: { imported: result.importedCount, updated: result.updatedCount, skipped: result.skippedCount, payrollGenerated: result.payrollGeneratedCount, errors: result.errors.length } });

@@ -1,41 +1,14 @@
 import { Badge, DataTable, Identity } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
+import { createPilotIdentity, setPilotIdentityStatus, setPilotTemporaryPassword } from "@/app/staff/pilots/identity-actions";
 import { prisma } from "@/lib/prisma";
-
-export const dynamic = "force-dynamic";
-
-function statusLabel(status: string) {
-  if (status === "active") return { label: "Activo", tone: "green" as const };
-  if (status === "on_leave") return { label: "De permiso", tone: "amber" as const };
-  return { label: "Inactivo", tone: "gray" as const };
-}
-
-function formatBalance(cents: number) {
-  return `${(cents / 100).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-}
-
-export default async function PilotsPage() {
-  const pilots = await prisma.pilot.findMany({
-    orderBy: [{ status: "asc" }, { displayName: "asc" }],
-    take: 500,
-  });
-
-  return <>
-    <PageHeading eyebrow="DIRECTORIO DE TRIPULACIONES" title="Pilotos" copy="Consulta el estado, la asignación y el saldo virtual de cada piloto." action="Añadir piloto" />
-    <div className="card">
-      {pilots.length === 0 ? <p className="meta">Todavía no hay pilotos sincronizados desde vAMSYS.</p> : <DataTable
-        headers={["Piloto", "Rango", "Base", "Estado", "Saldo"]}
-        rows={pilots.map((pilot) => {
-          const status = statusLabel(pilot.status);
-          return [
-            <Identity key="i" primary={pilot.displayName} secondary={pilot.callsign ?? pilot.vamsysPilotId} />,
-            pilot.rankName ?? pilot.rank ?? "—",
-            pilot.base ?? "—",
-            <Badge key="b" tone={status.tone}>{status.label}</Badge>,
-            formatBalance(pilot.walletBalanceCents),
-          ];
-        })}
-      />}
-    </div>
-  </>;
+import { requireStaffPermission } from "@/lib/staff/authorization";
+export const dynamic="force-dynamic";
+const statusLabel=(status:string)=>status==="active"?{label:"Active",tone:"green" as const}:status==="on_leave"?{label:"On leave",tone:"amber" as const}:{label:"Inactive",tone:"gray" as const};
+const balance=(cents:number)=>`${(cents/100).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} EUR`;
+export default async function PilotsPage({searchParams}:{searchParams:Promise<{success?:string;error?:string}>}){
+  await requireStaffPermission("STAFF_VIEW",{entityType:"Pilot",attemptedAction:"view Pilot identities"});const messages=await searchParams;
+  const pilots=await prisma.pilot.findMany({include:{authUser:true},orderBy:[{status:"asc"},{displayName:"asc"}],take:500});
+  const rows=pilots.map(pilot=>{const status=statusLabel(pilot.status);const identity=pilot.authUser?<div key="auth"><strong>{pilot.authUser.email}</strong><div className="button-row"><form action={setPilotIdentityStatus}><input type="hidden" name="userId" value={pilot.authUser.id}/><input type="hidden" name="enabled" value={pilot.authUser.status==="DISABLED"?"true":"false"}/><button className="action-button">{pilot.authUser.status==="DISABLED"?"Enable":"Disable"}</button></form><form action={setPilotTemporaryPassword} className="inline-form"><input type="hidden" name="userId" value={pilot.authUser.id}/><input name="temporaryPassword" type="password" minLength={12} placeholder="New temporary password" required/><button className="action-button">Reset password</button></form></div></div>:<form action={createPilotIdentity} className="inline-form" key="create"><input type="hidden" name="pilotId" value={pilot.id}/><input name="email" type="email" defaultValue={pilot.email??""} placeholder="pilot@email" required/><input name="username" defaultValue={pilot.username??pilot.callsign?.toLowerCase()??""} placeholder="username" minLength={3} required/><input name="temporaryPassword" type="password" minLength={12} placeholder="Temporary password" required/><button className="action-button">Create login</button></form>;return [<Identity key="i" primary={pilot.displayName} secondary={pilot.callsign??pilot.id}/>,pilot.rankName??pilot.rank??"—",pilot.base??"—",<Badge key="b" tone={status.tone}>{status.label}</Badge>,balance(pilot.walletBalanceCents),identity]});
+  return <><PageHeading eyebrow="CREW DIRECTORY" title="Pilots" copy="Manage pilot profiles and independent Hispafly login identities."/>{messages.success&&<div className="feedback success">Pilot identity updated.</div>}{messages.error&&<div className="feedback error">{messages.error}</div>}<div className="card">{pilots.length?<DataTable headers={["Pilot","Rank","Base","Status","Balance","Hispafly identity"]} rows={rows}/>:<p className="meta">No pilots are available.</p>}</div></>;
 }
