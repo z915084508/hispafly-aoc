@@ -169,6 +169,8 @@ export async function getFlightOfferOptions() {
       const raw = rec(fleet.rawData);
       return { id: fleet.vamsysFleetId!, name: fleet.name, code: fleet.code ?? str(raw, "code", "icao"), passengers: fleet.maxPassengers ?? num(raw, "max_pax", "passengers"), cargoKg: fleet.maxCargoKg ?? num(raw, "max_cargo", "cargo") };
     }),
-    aircraft,
+    aircraft: aircraft
+      .filter((item) => item.vamsysAircraftId !== null)
+      .map((item) => ({ ...item, vamsysAircraftId: item.vamsysAircraftId! })),
   };
 }

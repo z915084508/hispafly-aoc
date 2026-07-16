@@ -54,6 +54,7 @@ export async function preparePilotBooking(pilotId: string, input: PreparePilotBo
   const aircraftOption = options.aircraft.find((item) => item.vamsysAircraftId === input.aircraftId);
   if (!route) throw new Error("The selected vAMSYS route is no longer available.");
   if (!aircraftOption) throw new Error("The selected aircraft is no longer available.");
+  if (!aircraftOption.vamsysAircraftId) throw new Error("The selected aircraft has no legacy vAMSYS reference.");
   await assertAircraftDispatchAllowed({ vamsysAircraftId: aircraftOption.vamsysAircraftId, offerType: "SELF_DISPATCH", arrivalIcao: route.arrival });
   const liveDetails = await getOperationsRouteDetails(route.id);
   const fleetId = input.fleetId || aircraftOption.fleetId || null;
@@ -113,6 +114,7 @@ export async function createPilotBooking(pilotId: string, input: CreatePilotBook
   const options = await getFlightOfferOptions();
   const route = options.routes.find((item) => item.id === input.routeId);
   const aircraft = options.aircraft.find((item) => item.vamsysAircraftId === input.aircraftId);
+  if (aircraft && !aircraft.vamsysAircraftId) throw new Error("The selected aircraft has no legacy vAMSYS reference.");
   if (!route) throw new Error("La ruta seleccionada ya no está disponible en vAMSYS.");
   if (!aircraft) throw new Error("La aeronave seleccionada ya no está disponible.");
   await assertAircraftDispatchAllowed({ vamsysAircraftId: aircraft.vamsysAircraftId, offerType: "STANDARD", arrivalIcao: route.arrival });
@@ -185,6 +187,7 @@ export async function cancelPilotBooking(id: string, pilotId: string) {
   const booking = await prisma.pilotBooking.findFirst({ where: { id, pilotId } });
   if (!booking) throw new Error("No tienes acceso a este booking.");
   if (booking.status !== "BOOKED") throw new Error("Este booking ya no se puede cancelar.");
+  if (!booking.vamsysBookingId) throw new Error("Native bookings are not cancelled through the legacy vAMSYS workflow.");
   const token = await getValidVamsysAccessToken(pilotId);
   try {
     await cancelVamsysBooking(token, booking.vamsysBookingId);
