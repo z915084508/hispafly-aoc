@@ -167,6 +167,7 @@ enum RouteSyncStatus {
 enum RouteOperationalStatus {
   DRAFT
   ACTIVE
+  SUSPENDED
   INACTIVE
   HIDDEN
   ARCHIVED
@@ -193,6 +194,7 @@ enum AircraftSyncStatus {
 enum AirportStatus {
   ACTIVE
   INACTIVE
+  ARCHIVED
 }
 
 enum FlightScheduleStatus {
@@ -614,6 +616,7 @@ model Airport {
   source            String                     @default("hispafly_native")
   legacyVamsysId    String?                    @unique
   rawData           Json?
+  archivedAt        DateTime?
   departureRoutes   Route[]                    @relation("RouteDepartureAirport")
   arrivalRoutes     Route[]                    @relation("RouteArrivalAirport")
   currentAircraft   Aircraft[]
@@ -644,6 +647,7 @@ model Route {
   defaultFleetId           String?
   defaultFleet             Fleet?                    @relation("RouteDefaultFleet", fields: [defaultFleetId], references: [id], onDelete: SetNull)
   route                    String?
+  networkPolicy            String?
   scheduledDurationMinutes Int?
   distanceNm               Int?
   cruiseAltitude           Int?
@@ -664,6 +668,7 @@ model Route {
   lastPublishedAt          DateTime?
   lastSyncError            String?
   rawData                  Json?
+  archivedAt               DateTime?
   fleetAssignments         RouteFleetAssignment[]
   identityReservation      RouteIdentityReservation?
   schedules                FlightSchedule[]

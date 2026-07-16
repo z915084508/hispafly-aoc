@@ -1,35 +1,60 @@
 "use server";
+import type { RouteOperationalStatus } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { changeRouteStatus, copyRouteToNativeDraft, createNativeRoute, updateNativeRoute } from "@/lib/native-flight/route";
 import { requireStaffPermission } from "@/lib/staff/authorization";
-import { createAndPublishRoute, syncVamsysRoutes, updateAndPublishRoute } from "@/lib/vamsys/routes/service";
-import { validateRouteForm } from "@/lib/vamsys/routes/validation";
-import { prisma } from "@/lib/prisma";
-import { nextRouteIdentity } from "@/lib/vamsys/routes/planning";
 
-export async function suggestRouteIdentityAction() {
-  await requireStaffPermission("ROUTE_CREATE", { entityType: "Route", attemptedAction: "generate route identity" });
-  const [routes, reservations] = await Promise.all([
-    prisma.route.findMany({ select: { flightNumber: true, callsign: true } }),
-    prisma.routeIdentityReservation.findMany({ select: { flightNumber: true, callsign: true } }),
-  ]);
-  return nextRouteIdentity([...routes, ...reservations]);
+const value = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
+const optionalNumber = (form: FormData, key: string) => value(form, key) === "" ? null : Number(value(form, key));
+const optionalDate = (form: FormData, key: string) => value(form, key) ? new Date(`${value(form, key)}T00:00:00.000Z`) : null;
+function routeInput(form: FormData) {
+  return {
+    routeCode: value(form, "routeCode"), flightNumber: value(form, "flightNumber"),
+    callsign: value(form, "callsign"), departureAirportId: value(form, "departureAirportId"),
+    arrivalAirportId: value(form, "arrivalAirportId"), defaultFleetId: value(form, "defaultFleetId") || null,
+    durationMinutes: optionalNumber(form, "durationMinutes"), cruiseAltitude: optionalNumber(form, "cruiseAltitude"),
+    route: value(form, "route"), networkPolicy: value(form, "networkPolicy"),
+    effectiveFrom: optionalDate(form, "effectiveFrom"), effectiveUntil: optionalDate(form, "effectiveUntil"),
+    internalNotes: value(form, "internalNotes"), overrideConflicts: value(form, "overrideConflicts") === "yes",
+    overrideReason: value(form, "overrideReason"),
+  };
 }
-
-export async function syncRoutesAction() {
-  let target: string;
-  try { const staff = await requireStaffPermission("ROUTE_SYNC", { entityType: "Route", attemptedAction: "synchronize routes" }); const result = await syncVamsysRoutes(staff); target = `/staff/routes?success=${encodeURIComponent(`Synchronized: ${result.imported} imported, ${result.updated} updated, ${result.missing} missing`)}`; }
-  catch (error) { target = `/staff/routes?error=${encodeURIComponent(error instanceof Error ? error.message : "Route synchronization failed.")}`; }
+export async function createRouteAction(form: FormData) {
+  let target = "/staff/routes/new";
+  try {
+    const staff = await requireStaffPermission("ROUTE_CREATE", { entityType: "Route", attemptedAction: "create Native route" });
+    const route = await createNativeRoute(routeInput(form), staff);
+    target = `/staff/routes/${route.id}?success=Native%20route%20created.`;
+  } catch (error) { target += `?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to create route.")}`; }
   redirect(target);
 }
-export async function createAndPublishRouteAction(formData: FormData) {
-  let target: string;
-  try { const staff = await requireStaffPermission("ROUTE_CREATE", { entityType: "Route", attemptedAction: "create and publish route" }); const route = await createAndPublishRoute(validateRouteForm(formData), staff); target = `/staff/routes/${route.id}?success=${encodeURIComponent("Route published successfully.")}`; }
-  catch (error) { target = `/staff/routes/new?error=${encodeURIComponent(error instanceof Error ? error.message : "Route publication failed.")}`; }
+export async function updateRouteAction(form: FormData) {
+  const id = value(form, "id"); let target = `/staff/routes/${id}/edit`;
+  try {
+    const staff = await requireStaffPermission("ROUTE_EDIT", { entityType: "Route", entityId: id, attemptedAction: "edit Native route" });
+    await updateNativeRoute(id, routeInput(form), staff); revalidatePath("/staff/routes");
+    target = `/staff/routes/${id}?success=Route%20updated.`;
+  } catch (error) { target += `?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to update route.")}`; }
   redirect(target);
 }
-export async function updateAndPublishRouteAction(formData: FormData) {
-  const id = String(formData.get("id") ?? ""); let target: string;
-  try { const staff = await requireStaffPermission("ROUTE_EDIT", { entityType: "Route", entityId: id, attemptedAction: "update route" }); const route = await updateAndPublishRoute(validateRouteForm(formData), staff); target = `/staff/routes/${route.id}?success=${encodeURIComponent("Route updated successfully.")}`; }
-  catch (error) { target = `/staff/routes/${id}/edit?error=${encodeURIComponent(error instanceof Error ? error.message : "Route update failed.")}`; }
+export async function changeRouteStatusAction(form: FormData) {
+  const id = value(form, "id"), status = value(form, "status") as RouteOperationalStatus;
+  let target = `/staff/routes/${id}`;
+  try {
+    const permission = status === "ARCHIVED" ? "ROUTE_ARCHIVE" : "ROUTE_EDIT";
+    const staff = await requireStaffPermission(permission, { entityType: "Route", entityId: id, attemptedAction: `${status.toLowerCase()} route` });
+    await changeRouteStatus(id, status, staff, value(form, "reason")); revalidatePath("/staff/routes");
+    target += "?success=Route%20status%20updated.";
+  } catch (error) { target += `?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to change route status.")}`; }
+  redirect(target);
+}
+export async function copyRouteAction(form: FormData) {
+  const id = value(form, "id"); let target = `/staff/routes/${id}`;
+  try {
+    const staff = await requireStaffPermission("ROUTE_CREATE", { entityType: "Route", entityId: id, attemptedAction: "copy route to Native draft" });
+    const copy = await copyRouteToNativeDraft(id, { routeCode: value(form, "routeCode"), overrideConflicts: value(form, "overrideConflicts") === "yes", overrideReason: value(form, "overrideReason") }, staff);
+    target = `/staff/routes/${copy.id}?success=Native%20draft%20created.`;
+  } catch (error) { target += `?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to copy route.")}`; }
   redirect(target);
 }
