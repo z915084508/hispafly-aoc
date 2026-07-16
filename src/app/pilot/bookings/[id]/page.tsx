@@ -5,6 +5,8 @@ import { requirePilotSession } from "@/lib/pilot/session";
 import { prisma } from "@/lib/prisma";
 import { checkPilotEligibility } from "@/lib/native-flight/booking";
 import { cancelPilotBookingAction } from "../actions";
+import { createPilotDispatchAction } from "../../dispatch/actions";
+import { randomUUID } from "node:crypto";
 
 export default async function PilotBookingDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; success?: string }> }) {
   const [{ id }, query, pilot] = await Promise.all([params, searchParams, requirePilotSession()]);
@@ -18,6 +20,8 @@ export default async function PilotBookingDetail({ params, searchParams }: { par
       {eligibility?.warnings.map((warning) => <div className="notice" key={warning}>{warning}</div>)}
       {booking.dispatch?.ofpBriefing && <a className="button" href={`/pilot/ofp/${booking.dispatch.ofpBriefing.id}`}>Open OFP</a>}
       {booking.cancellationReason && <p>Cancellation: {booking.cancellationReason}</p>}
+      {booking.status === "CONFIRMED" && !booking.dispatch && <form action={createPilotDispatchAction}><input type="hidden" name="bookingId" value={booking.id}/><input type="hidden" name="idempotencyKey" value={randomUUID()}/><button className="button">Create Dispatch</button></form>}
+      {booking.dispatch && <a className="button" href={`/pilot/dispatch/${booking.dispatch.id}`}>Open Dispatch</a>}
       {cancellable && <form action={cancelPilotBookingAction}><input type="hidden" name="bookingId" value={booking.id}/><label>Cancellation reason<input name="reason" required/></label><button className="button danger">Cancel booking</button></form>}
     </section>
   </PilotPortalShell>;

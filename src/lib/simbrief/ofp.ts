@@ -41,9 +41,12 @@ export function simbriefDispatchUrl(input: {
 }
 
 export async function createDispatchOfpBriefing(dispatchId: string) {
-  const dispatch = await prisma.flightDispatch.findUnique({ where: { id: dispatchId }, include: { flightOffer: true, pilot: true } });
+  const dispatch = await prisma.flightDispatch.findUnique({
+    where: { id: dispatchId },
+    include: { flightOffer: true, pilot: true, aircraft: { include: { performanceProfile: true } } },
+  });
   if (!dispatch) throw new Error("Dispatch not found.");
-  const aircraft = await prisma.aircraft.findUnique({ where: { vamsysAircraftId: dispatch.flightOffer.vamsysAircraftId }, include: { performanceProfile: true } });
+  const aircraft = dispatch.aircraft ?? await prisma.aircraft.findUnique({ where: { vamsysAircraftId: dispatch.flightOffer.vamsysAircraftId }, include: { performanceProfile: true } });
   const performance = aircraft?.performanceProfile;
   const identity = normalizeFlightIdentity({ flightNumber: dispatch.flightOffer.flightNumber, callsign: dispatch.flightOffer.callsign });
   const staticId = `HISPAFLY_${dispatch.id.replace(/[^a-zA-Z0-9]/g, "_")}`;
@@ -80,14 +83,18 @@ export async function importSimbriefOfp(ofpId: string, pilotId: string, simbrief
 export async function generateDispatchSimBriefOfp(input: { ofpId: string; pilotId: string; staffUserId?: string | null; alternateIcao?: string | null }) {
   const ofp = await prisma.ofpBriefing.findFirst({
     where: { id: input.ofpId, flightDispatch: { pilotId: input.pilotId } },
-    include: { flightDispatch: { include: { flightOffer: true, pilot: true } } },
+    include: { flightDispatch: { include: { flightOffer: true, pilot: true, aircraft: { include: { conditionSnapshot: true } } } } },
   });
   if (!ofp) throw new Error("OFP not found or is not assigned to this pilot.");
   if (ofp.status === "VOIDED") throw new Error("This OFP can no longer be regenerated.");
   const dispatch = ofp.flightDispatch, offer = dispatch.flightOffer;
-  if (dispatch.status !== "DISPATCHING") throw new Error("This OFP can only be regenerated before Final Dispatch.");
+  if (!["DISPATCHING", "DRAFT", "PREPARING", "CHECK_REQUIRED", "READY_FOR_RELEASE"].includes(dispatch.status)) throw new Error("This OFP can only be regenerated before Final Dispatch.");
   if (!dispatch.selectedDepartureAt) throw new Error("The selected departure time is missing.");
-  await assertAircraftDispatchAllowed({ vamsysAircraftId: offer.vamsysAircraftId, offerType: offer.offerType, arrivalIcao: offer.arrivalIcao });
+  if (dispatch.dataOrigin === "HISPAFLY_NATIVE" && dispatch.aircraft) {
+    if (["AOG", "IN_MAINTENANCE"].includes(dispatch.aircraft.conditionSnapshot?.operationalStatus ?? "")) throw new Error("Aircraft is AOG or in maintenance.");
+  } else {
+    await assertAircraftDispatchAllowed({ vamsysAircraftId: offer.vamsysAircraftId, offerType: offer.offerType, arrivalIcao: offer.arrivalIcao });
+  }
   const alternateIcao = normalizeAlternateIcao(input.alternateIcao);
   const staticId = `HFAOC-${dispatch.id.replace(/[^A-Za-z0-9-]/g, "-")}`;
   const basePayload = buildSimBriefGeneratePayload({
@@ -111,7 +118,7 @@ export async function generateDispatchSimBriefOfp(input: { ofpId: string; pilotI
     const fuelPolicy = await buildAppliedFuelPolicy({
       pilotId: input.pilotId,
       ofpBriefingId: ofp.id,
-      vamsysAircraftId: offer.vamsysAircraftId,
+      vamsysAircraftId: dispatch.aircraft?.vamsysAircraftId ?? offer.vamsysAircraftId,
       aircraftType: offer.aircraftType,
       departureIcao: offer.departureIcao,
       arrivalIcao: offer.arrivalIcao,

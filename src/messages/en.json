@@ -94,6 +94,7 @@
                      "pireps":  "PIREPs",
                      "offers":  "Flight offers",
                      "bookings": "Bookings",
+                     "dispatch": "Dispatch",
                       "ofp":  "OFP control",
                       "fuelPolicy": "Fuel policy",
                      "payroll":  "Payroll",
