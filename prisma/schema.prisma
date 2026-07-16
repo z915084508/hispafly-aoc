@@ -231,21 +231,27 @@ enum FlightScheduleStatus {
   DRAFT
   ACTIVE
   SUSPENDED
+  EXPIRED
   ARCHIVED
 }
 
 enum NativeFlightStatus {
   SCHEDULED
   OPEN
+  OPEN_FOR_BOOKING
   BOOKED
+  DISPATCH_PENDING
   DISPATCHED
   BOARDING
+  IN_PROGRESS
   DEPARTED
   AIRBORNE
   LANDED
   COMPLETED
   CANCELLED
   DIVERTED
+  RETURNED
+  EXPIRED
 }
 
 model StaffUser {
@@ -513,9 +519,9 @@ model OperationsApiState {
 }
 
 model Fleet {
-  id                       String                 @id @default(cuid())
-  dataOrigin               AocDataOrigin          @default(HISPAFLY_NATIVE)
-  vamsysFleetId            String?                @unique
+  id                       String                    @id @default(cuid())
+  dataOrigin               AocDataOrigin             @default(HISPAFLY_NATIVE)
+  vamsysFleetId            String?                   @unique
   name                     String?
   code                     String?
   type                     String?
@@ -531,11 +537,11 @@ model Fleet {
   cruiseSpeedKts           Int?
   defaultCruiseAltitudeFt  Int?
   etopsMinutes             Int?
-  operationalStatus        FleetOperationalStatus @default(DRAFT)
+  operationalStatus        FleetOperationalStatus    @default(DRAFT)
   archivedAt               DateTime?
-  active                   Boolean                @default(true)
+  active                   Boolean                   @default(true)
   containerUnits           Int?
-  hiddenInPhoenix          Boolean                @default(false)
+  hiddenInPhoenix          Boolean                   @default(false)
   scoringGroupId           String?
   simbriefAircraftProfiles Json?
   simbriefOverrides        Json?
@@ -544,7 +550,7 @@ model Fleet {
   imageAttribution         String?
   imageLinkback            String?
   internalNotes            String?
-  syncStatus               FleetSyncStatus        @default(LOCAL_DRAFT)
+  syncStatus               FleetSyncStatus           @default(LOCAL_DRAFT)
   sourceUpdatedAt          DateTime?
   lastSeenAt               DateTime?
   lastSyncedAt             DateTime?
@@ -552,12 +558,14 @@ model Fleet {
   lastSyncError            String?
   rawData                  Json?
   routeAssignments         RouteFleetAssignment[]
-  nativeAircraft           Aircraft[]             @relation("NativeFleetAircraft")
-  defaultRoutes            Route[]                @relation("RouteDefaultFleet")
+  nativeAircraft           Aircraft[]                @relation("NativeFleetAircraft")
+  defaultRoutes            Route[]                   @relation("RouteDefaultFleet")
   routeCompatibility       RouteFleetCompatibility[]
+  scheduleDefaults         FlightSchedule[]          @relation("ScheduleDefaultFleet")
+  scheduledFlights         Flight[]                  @relation("FlightFleet")
   flightOffers             FlightOffer[]
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
 
   @@index([code])
   @@index([type])
@@ -622,6 +630,7 @@ model Aircraft {
   rawData               Json?
   performanceProfile    AircraftPerformanceProfile?
   assignedFlights       Flight[]
+  scheduleAssignments   FlightSchedule[]            @relation("ScheduleAssignedAircraft")
   nativeBookings        PilotBooking[]
   nativeDispatches      FlightDispatch[]
   flightOffers          FlightOffer[]
@@ -656,28 +665,30 @@ model AircraftProfile {
 }
 
 model Airport {
-  id                String                     @id @default(cuid())
-  icao              String                     @unique
-  iata              String?
-  name              String?
-  city              String?
-  country           String?
-  region            String?
-  timezone          String?
-  latitude          Float?
-  longitude         Float?
-  status            AirportStatus              @default(ACTIVE)
-  dataOrigin        AocDataOrigin              @default(HISPAFLY_NATIVE)
-  source            String                     @default("hispafly_native")
-  legacyVamsysId    String?                    @unique
-  rawData           Json?
-  archivedAt        DateTime?
-  departureRoutes   Route[]                    @relation("RouteDepartureAirport")
-  arrivalRoutes     Route[]                    @relation("RouteArrivalAirport")
-  currentAircraft   Aircraft[]
-  locationSnapshots AircraftLocationSnapshot[]
-  createdAt         DateTime                   @default(now())
-  updatedAt         DateTime                   @updatedAt
+  id                  String                     @id @default(cuid())
+  icao                String                     @unique
+  iata                String?
+  name                String?
+  city                String?
+  country             String?
+  region              String?
+  timezone            String?
+  latitude            Float?
+  longitude           Float?
+  status              AirportStatus              @default(ACTIVE)
+  dataOrigin          AocDataOrigin              @default(HISPAFLY_NATIVE)
+  source              String                     @default("hispafly_native")
+  legacyVamsysId      String?                    @unique
+  rawData             Json?
+  archivedAt          DateTime?
+  departureRoutes     Route[]                    @relation("RouteDepartureAirport")
+  arrivalRoutes       Route[]                    @relation("RouteArrivalAirport")
+  scheduledDepartures Flight[]                   @relation("FlightDepartureAirport")
+  scheduledArrivals   Flight[]                   @relation("FlightArrivalAirport")
+  currentAircraft     Aircraft[]
+  locationSnapshots   AircraftLocationSnapshot[]
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
 
   @@index([iata])
   @@index([region])
@@ -1054,54 +1065,93 @@ model AircraftLocationSnapshot {
 }
 
 model FlightSchedule {
-  id                      String               @id @default(cuid())
-  dataOrigin              AocDataOrigin        @default(HISPAFLY_NATIVE)
-  routeId                 String
-  route                   Route                @relation(fields: [routeId], references: [id], onDelete: Restrict)
-  code                    String
-  daysOfWeek              Int[]
-  departureTimeMinutesUtc Int
-  arrivalTimeMinutesUtc   Int
-  effectiveFrom           DateTime
-  effectiveUntil          DateTime?
-  status                  FlightScheduleStatus @default(DRAFT)
-  legacyExternalReference String?
-  flights                 Flight[]
-  createdAt               DateTime             @default(now())
-  updatedAt               DateTime             @updatedAt
+  id                        String               @id @default(cuid())
+  dataOrigin                AocDataOrigin        @default(HISPAFLY_NATIVE)
+  routeId                   String
+  route                     Route                @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  code                      String
+  name                      String?
+  daysOfWeek                Int[]
+  departureTimeMinutesUtc   Int
+  arrivalTimeMinutesUtc     Int
+  departureLocalTimeMinutes Int                  @default(0)
+  arrivalLocalTimeMinutes   Int?
+  departureTimezone         String               @default("UTC")
+  arrivalTimezone           String               @default("UTC")
+  scheduledDurationMinutes  Int                  @default(60)
+  defaultFleetId            String?
+  defaultFleet              Fleet?               @relation("ScheduleDefaultFleet", fields: [defaultFleetId], references: [id], onDelete: SetNull)
+  assignedAircraftId        String?
+  assignedAircraft          Aircraft?            @relation("ScheduleAssignedAircraft", fields: [assignedAircraftId], references: [id], onDelete: SetNull)
+  bookingOpenOffsetMinutes  Int                  @default(10080)
+  bookingCloseOffsetMinutes Int                  @default(60)
+  generationHorizonDays     Int                  @default(30)
+  notes                     String?
+  effectiveFrom             DateTime
+  effectiveUntil            DateTime?
+  status                    FlightScheduleStatus @default(DRAFT)
+  archivedAt                DateTime?
+  legacyExternalReference   String?
+  flights                   Flight[]
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
 
   @@unique([routeId, code, effectiveFrom])
   @@index([routeId, status])
   @@index([effectiveFrom, effectiveUntil])
+  @@index([defaultFleetId])
+  @@index([assignedAircraftId])
   @@index([dataOrigin])
 }
 
 model Flight {
-  id                      String             @id @default(cuid())
-  dataOrigin              AocDataOrigin      @default(HISPAFLY_NATIVE)
-  routeId                 String
-  route                   Route              @relation(fields: [routeId], references: [id], onDelete: Restrict)
-  scheduleId              String?
-  schedule                FlightSchedule?    @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
-  operatingDate           DateTime           @db.Date
-  scheduledDeparture      DateTime
-  scheduledArrival        DateTime
-  flightNumber            String
-  callsign                String
-  assignedAircraftId      String?
-  assignedAircraft        Aircraft?          @relation(fields: [assignedAircraftId], references: [id], onDelete: SetNull)
-  status                  NativeFlightStatus @default(SCHEDULED)
-  legacyExternalReference String?
-  offers                  FlightOffer[]
-  bookings                PilotBooking[]
-  dispatches              FlightDispatch[]
-  createdAt               DateTime           @default(now())
-  updatedAt               DateTime           @updatedAt
+  id                       String             @id @default(cuid())
+  dataOrigin               AocDataOrigin      @default(HISPAFLY_NATIVE)
+  routeId                  String
+  route                    Route              @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  departureAirportId       String?
+  departureAirport         Airport?           @relation("FlightDepartureAirport", fields: [departureAirportId], references: [id], onDelete: Restrict)
+  arrivalAirportId         String?
+  arrivalAirport           Airport?           @relation("FlightArrivalAirport", fields: [arrivalAirportId], references: [id], onDelete: Restrict)
+  scheduleId               String?
+  schedule                 FlightSchedule?    @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  operatingDate            DateTime           @db.Date
+  scheduledDeparture       DateTime
+  scheduledArrival         DateTime
+  scheduledDurationMinutes Int
+  flightNumber             String
+  callsign                 String
+  departureIcao            String
+  arrivalIcao              String
+  departureTimezone        String
+  arrivalTimezone          String
+  departureLocalTime       String
+  arrivalLocalTime         String
+  fleetId                  String?
+  fleet                    Fleet?             @relation("FlightFleet", fields: [fleetId], references: [id], onDelete: SetNull)
+  assignedAircraftId       String?
+  assignedAircraft         Aircraft?          @relation(fields: [assignedAircraftId], references: [id], onDelete: SetNull)
+  status                   NativeFlightStatus @default(SCHEDULED)
+  bookingOpenAt            DateTime?
+  bookingCloseAt           DateTime?
+  generationKey            String?            @unique
+  operatingType            String             @default("SCHEDULED")
+  notes                    String?
+  manuallyModifiedAt       DateTime?
+  legacyExternalReference  String?
+  offers                   FlightOffer[]
+  bookings                 PilotBooking[]
+  dispatches               FlightDispatch[]
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
 
   @@unique([operatingDate, flightNumber, scheduledDeparture])
   @@index([routeId, operatingDate])
   @@index([scheduleId, operatingDate])
   @@index([assignedAircraftId, scheduledDeparture, scheduledArrival])
+  @@index([departureAirportId, scheduledDeparture])
+  @@index([arrivalAirportId, scheduledArrival])
+  @@index([fleetId, scheduledDeparture])
   @@index([status, scheduledDeparture])
   @@index([dataOrigin])
 }
@@ -1188,21 +1238,21 @@ model AircraftConditionSnapshot {
 }
 
 model AircraftWearEvent {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   aircraftId        String?
   aircraft          Aircraft? @relation(fields: [aircraftId], references: [id], onDelete: SetNull)
   vamsysAircraftId  String
-  localPirepId      String   @unique
+  localPirepId      String    @unique
   vamsysPirepId     String?
-  previousCondition Decimal  @db.Decimal(5, 2)
-  wearPercent       Decimal  @db.Decimal(5, 2)
-  newCondition      Decimal  @db.Decimal(5, 2)
+  previousCondition Decimal   @db.Decimal(5, 2)
+  wearPercent       Decimal   @db.Decimal(5, 2)
+  newCondition      Decimal   @db.Decimal(5, 2)
   blockMinutes      Int?
   landingRate       Int?
-  landingG          Decimal? @db.Decimal(4, 2)
+  landingG          Decimal?  @db.Decimal(4, 2)
   aircraftType      String?
   factors           Json
-  createdAt         DateTime @default(now())
+  createdAt         DateTime  @default(now())
 
   @@index([vamsysAircraftId, createdAt])
   @@index([aircraftId, createdAt])
