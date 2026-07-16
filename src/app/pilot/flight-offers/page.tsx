@@ -1,82 +1,31 @@
-import { Badge, DataTable } from "@/components/data-table";
+import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
 import { requirePilotSession } from "@/lib/pilot/session";
+import { listBookableFlights } from "@/lib/native-flight/booking";
 import { prisma } from "@/lib/prisma";
-import { expireOverdueFlightDispatches } from "@/lib/flightOffers/service";
-import { PilotFlightOfferCalendar } from "@/components/pilot-flight-offer-calendar";
-import { cancelFlightDispatchAction } from "./actions";
-import { getTranslations } from "@/lib/i18n/server";
-import { formatCurrency, formatDate, formatNumber } from "@/lib/i18n/core";
 
 export const dynamic = "force-dynamic";
-
-export default async function PilotFlightOffersPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string; dispatchId?: string }> }) {
+export default async function PilotFlightOffersPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const pilot = await requirePilotSession();
-  const { t, locale } = await getTranslations();
-  const when = (value: Date | null) => value ? formatDate(value, locale, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) + " UTC" : "—";
-  const reward = (cents: number, type: string) => type === "FIXED" ? formatCurrency(cents, locale) : `${formatNumber(cents / 100, locale)} %`;
-  await expireOverdueFlightDispatches(10, pilot.id);
-  const [messages, offers, dispatches] = await Promise.all([
-    searchParams,
-    prisma.flightOffer.findMany({ where: { createdByStaffId: { not: null }, status: "PUBLISHED", validUntil: { gt: new Date() }, dispatches: { none: { status: { in: ["DISPATCHING", "DISPATCHED"] } } } }, orderBy: { availableFrom: "asc" } }),
-    prisma.flightDispatch.findMany({ where: { pilotId: pilot.id, flightOffer: { createdByStaffId: { not: null } } }, include: { flightOffer: true, matchedPirep: true, rewardWalletTransaction: true, ofpBriefing: true }, orderBy: { createdAt: "desc" } }),
+  const query = await searchParams;
+  const [result, airports, fleets] = await Promise.all([
+    listBookableFlights({
+      pilotId: pilot.id,
+      from: query.from ? new Date(`${query.from}T00:00:00Z`) : undefined,
+      to: query.to ? new Date(`${query.to}T23:59:59Z`) : undefined,
+      departureAirportId: query.departureAirportId,
+      arrivalAirportId: query.arrivalAirportId,
+      flightNumber: query.flightNumber,
+      fleetId: query.fleetId,
+      page: Number(query.page) || 1,
+    }),
+    prisma.airport.findMany({ where: { status: "ACTIVE" }, orderBy: { icao: "asc" } }),
+    prisma.fleet.findMany({ where: { operationalStatus: "ACTIVE" }, orderBy: { code: "asc" } }),
   ]);
-  const connected = false;
-  const bookingDetail = messages.dispatchId ? dispatches.find((item) => item.id === messages.dispatchId) : null;
-  const dispatchAction = (dispatch: (typeof dispatches)[number]) => {
-    if (dispatch.status === "EXPIRED") return "Expirada (-100 €)";
-    if (dispatch.status === "CANCELLED") return "Cancelada";
-
-    const canCancelBeforeBooking = dispatch.status === "DISPATCHING" && !dispatch.vamsysBookingId;
-    const canCancelBooking = dispatch.status === "DISPATCHED" && Boolean(dispatch.vamsysBookingId) && dispatch.flightOffer.validUntil > new Date();
-    const canCancel = canCancelBeforeBooking || canCancelBooking;
-    const showOfp = Boolean(dispatch.ofpBriefing && (dispatch.status === "DISPATCHING" || dispatch.status === "DISPATCHED"));
-
-    if (!showOfp && !canCancel) return "—";
-    return <div key={`actions-${dispatch.id}`} style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-      {showOfp && dispatch.ofpBriefing
-        ? <a className="action-button approve" href={`/pilot/ofp/${dispatch.ofpBriefing.id}`}>{dispatch.ofpBriefing.status === "SIGNED" ? "SIGNED OFP" : "OPEN & SIGN OFP"}</a>
-        : null}
-      {canCancel
-        ? <form action={cancelFlightDispatchAction}><input type="hidden" name="dispatchId" value={dispatch.id}/><button className="action-button reject" type="submit">{t("common.cancel")}{canCancelBooking ? " (-50 €)" : ""}</button></form>
-        : null}
-    </div>;
-  };
   return <PilotPortalShell>
-    <PageHeading eyebrow={t("flightOffers.eyebrow")} title={t("flightOffers.title")} copy={t("flightOffers.pilotCopy")} />
-    {messages.success && <div className="feedback success">{messages.success}</div>}
-    {messages.error && <div className="feedback error">{messages.error}</div>}
-    {bookingDetail && <section className="card booking-confirmation-card"><div className="card-header"><h2 className="card-title">{t("flightOffers.bookingDetail")}</h2><Badge tone="green">{t("status.dispatched")}</Badge></div><div className="workflow-summary"><div><span>{t("bookings.bookingId")}</span><strong>{bookingDetail.vamsysBookingId ?? "—"}</strong></div><div><span>{t("flightOffers.route")}</span><strong>{bookingDetail.flightOffer.departureIcao} → {bookingDetail.flightOffer.arrivalIcao}</strong></div><div><span>{t("bookings.aircraft")}</span><strong>{bookingDetail.flightOffer.aircraftRegistration ?? bookingDetail.flightOffer.aircraftType ?? bookingDetail.flightOffer.vamsysAircraftId}</strong></div><div><span>{t("flightOffers.selectedDepartureUtc")}</span><strong>{when(bookingDetail.selectedDepartureAt)}</strong></div><div><span>{t("flightOffers.estimatedArrival")}</span><strong>{when(bookingDetail.estimatedArrivalAt)}</strong></div><div><span>{t("flightOffers.reward")}</span><strong>{reward(bookingDetail.flightOffer.rewardCents, bookingDetail.flightOffer.rewardType)}</strong></div></div></section>}
-    {!connected && <div className="notice">Self Dispatch is temporarily unavailable while HispaFly replaces the legacy vAMSYS booking workflow in TASK 5. Historical dispatches remain visible.</div>}
-    <PilotFlightOfferCalendar connected={connected} offers={offers.map((offer) => ({
-      id: offer.id,
-      title: (locale === "en" ? offer.titleEn : offer.titleEs) ?? offer.title,
-      flightNumber: offer.flightNumber,
-      departureIcao: offer.departureIcao,
-      arrivalIcao: offer.arrivalIcao,
-      aircraftLabel: offer.aircraftRegistration ?? offer.aircraftType ?? "Aeronave asignada",
-      passengers: offer.passengers,
-      loadFactorPercent: offer.loadFactorPercent,
-      availableFrom: offer.availableFrom.toISOString(),
-      validUntil: offer.validUntil.toISOString(),
-      durationMinutes: offer.estimatedDurationMinutes,
-      rewardLabel: reward(offer.rewardCents, offer.rewardType),
-    }))} />
-
-    <section className="card ranking-card">
-      <div className="card-header"><h2 className="card-title">{t("flightOffers.myDispatches")}</h2><span className="meta">{t("flightOffers.bookingPirepReward")}</span></div>
-      {dispatches.length ? <DataTable headers={[t("flightOffers.title"), t("flightOffers.route"), t("common.status"), "Booking ID", "PIREP", t("flightOffers.reward"), t("flightOffers.selectedDeparture"), t("flightOffers.validUntil"), t("common.actions")]} rows={dispatches.map((dispatch) => [
-        (locale === "en" ? dispatch.flightOffer.titleEn : dispatch.flightOffer.titleEs) ?? dispatch.flightOffer.title,
-        `${dispatch.flightOffer.departureIcao}–${dispatch.flightOffer.arrivalIcao}`,
-        <Badge key="status" tone={dispatch.status === "REWARDED" || dispatch.status === "FLOWN" ? "green" : dispatch.status === "FAILED" ? "red" : "amber"}>{t(`status.${dispatch.status.toLowerCase()}`)}</Badge>,
-        dispatch.vamsysBookingId ?? "—",
-        dispatch.matchedPirep?.flightNumber ?? dispatch.vamsysPirepId ?? "—",
-        dispatch.rewardWalletTransaction ? formatCurrency(dispatch.rewardWalletTransaction.amountCents, locale) : reward(dispatch.flightOffer.rewardCents, dispatch.flightOffer.rewardType),
-        when(dispatch.selectedDepartureAt ?? dispatch.dispatchedAt ?? dispatch.createdAt),
-        when(dispatch.flightOffer.validUntil),
-        dispatchAction(dispatch),
-      ])} /> : <div className="empty-state">{t("flightOffers.noDispatches")}</div>}
-    </section>
+    <PageHeading eyebrow="HISPAFLY NATIVE" title="Available flights" copy="Search and book concrete HispaFly flights without any external booking system." />
+    <form className="audit-filters"><label>From<input type="date" name="from" defaultValue={query.from}/></label><label>To<input type="date" name="to" defaultValue={query.to}/></label><label>Departure<select name="departureAirportId" defaultValue={query.departureAirportId ?? ""}><option value="">All</option>{airports.map((airport) => <option key={airport.id} value={airport.id}>{airport.icao}</option>)}</select></label><label>Arrival<select name="arrivalAirportId" defaultValue={query.arrivalAirportId ?? ""}><option value="">All</option>{airports.map((airport) => <option key={airport.id} value={airport.id}>{airport.icao}</option>)}</select></label><label>Flight<input name="flightNumber" defaultValue={query.flightNumber}/></label><label>Fleet<select name="fleetId" defaultValue={query.fleetId ?? ""}><option value="">All</option>{fleets.map((fleet) => <option key={fleet.id} value={fleet.id}>{fleet.code ?? fleet.name}</option>)}</select></label><button className="button secondary">Search</button></form>
+    <section className="card"><div className="table-wrap"><table><thead><tr><th>Flight</th><th>Route</th><th>Operating date</th><th>Local schedule</th><th>Duration</th><th>Fleet / Aircraft</th><th>Window</th><th></th></tr></thead><tbody>{result.rows.map((flight) => <tr key={flight.id}><td><strong>{flight.flightNumber}</strong><br/>{flight.callsign}</td><td>{flight.departureIcao} → {flight.arrivalIcao}</td><td>{flight.operatingDate.toISOString().slice(0, 10)}</td><td>{flight.departureLocalTime} {flight.departureTimezone}<br/>{flight.arrivalLocalTime} {flight.arrivalTimezone}</td><td>{flight.scheduledDurationMinutes} min</td><td>{flight.fleet?.code ?? "Fleet pending"}<br/>{flight.assignedAircraft?.registration ?? "Aircraft pending assignment"}</td><td>{flight.bookingCloseAt ? `Closes ${flight.bookingCloseAt.toISOString()}` : "Open until departure"}</td><td><Link className="action-button approve" href={`/pilot/flight-offers/${flight.id}`}>Review & book</Link></td></tr>)}</tbody></table></div>{!result.rows.length && <div className="empty-state">No currently bookable flights match these filters.</div>}</section>
   </PilotPortalShell>;
 }
