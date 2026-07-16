@@ -1,14 +1,16 @@
-import { Badge, DataTable, Identity } from "@/components/data-table";
-import { PageHeading } from "@/components/page-heading";
-import { createPilotIdentity, setPilotIdentityStatus, setPilotTemporaryPassword } from "@/app/staff/pilots/identity-actions";
-import { prisma } from "@/lib/prisma";
-import { requireStaffPermission } from "@/lib/staff/authorization";
+import Link from "next/link";
+import {Badge,DataTable,Identity} from "@/components/data-table";
+import {PageHeading} from "@/components/page-heading";
+import {prisma} from "@/lib/prisma";
+import {requireStaffPermission} from "@/lib/staff/authorization";
 export const dynamic="force-dynamic";
-const statusLabel=(status:string)=>status==="active"?{label:"Active",tone:"green" as const}:status==="on_leave"?{label:"On leave",tone:"amber" as const}:{label:"Inactive",tone:"gray" as const};
-const balance=(cents:number)=>`${(cents/100).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} EUR`;
-export default async function PilotsPage({searchParams}:{searchParams:Promise<{success?:string;error?:string}>}){
-  await requireStaffPermission("STAFF_VIEW",{entityType:"Pilot",attemptedAction:"view Pilot identities"});const messages=await searchParams;
-  const pilots=await prisma.pilot.findMany({include:{authUser:true},orderBy:[{status:"asc"},{displayName:"asc"}],take:500});
-  const rows=pilots.map(pilot=>{const status=statusLabel(pilot.status);const identity=pilot.authUser?<div key="auth"><strong>{pilot.authUser.email}</strong><div className="button-row"><form action={setPilotIdentityStatus}><input type="hidden" name="userId" value={pilot.authUser.id}/><input type="hidden" name="enabled" value={pilot.authUser.status==="DISABLED"?"true":"false"}/><button className="action-button">{pilot.authUser.status==="DISABLED"?"Enable":"Disable"}</button></form><form action={setPilotTemporaryPassword} className="inline-form"><input type="hidden" name="userId" value={pilot.authUser.id}/><input name="temporaryPassword" type="password" minLength={12} placeholder="New temporary password" required/><button className="action-button">Reset password</button></form></div></div>:<form action={createPilotIdentity} className="inline-form" key="create"><input type="hidden" name="pilotId" value={pilot.id}/><input name="email" type="email" defaultValue={pilot.email??""} placeholder="pilot@email" required/><input name="username" defaultValue={pilot.username??pilot.callsign?.toLowerCase()??""} placeholder="username" minLength={3} required/><input name="temporaryPassword" type="password" minLength={12} placeholder="Temporary password" required/><button className="action-button">Create login</button></form>;return [<Identity key="i" primary={pilot.displayName} secondary={pilot.callsign??pilot.id}/>,pilot.rankName??pilot.rank??"—",pilot.base??"—",<Badge key="b" tone={status.tone}>{status.label}</Badge>,balance(pilot.walletBalanceCents),identity]});
-  return <><PageHeading eyebrow="CREW DIRECTORY" title="Pilots" copy="Manage pilot profiles and independent Hispafly login identities."/>{messages.success&&<div className="feedback success">Pilot identity updated.</div>}{messages.error&&<div className="feedback error">{messages.error}</div>}<div className="card">{pilots.length?<DataTable headers={["Pilot","Rank","Base","Status","Balance","Hispafly identity"]} rows={rows}/>:<p className="meta">No pilots are available.</p>}</div></>;
+const tone=(status:string)=>status==="active"?"green" as const:status==="on_leave"?"amber" as const:"gray" as const;
+export default async function PilotsPage({searchParams}:{searchParams:Promise<{q?:string;status?:string;success?:string;error?:string}>}){
+ await requireStaffPermission("PILOT_VIEW",{entityType:"Pilot",attemptedAction:"view RRHH Pilot directory"});const q=await searchParams,term=q.q?.trim();
+ const pilots=await prisma.pilot.findMany({where:{...(q.status?{status:q.status as "active"|"inactive"|"on_leave"}:{}),...(term?{OR:[{displayName:{contains:term,mode:"insensitive"}},{email:{contains:term,mode:"insensitive"}},{callsign:{contains:term,mode:"insensitive"}},{username:{contains:term,mode:"insensitive"}}]}:{})},include:{authUser:true,_count:{select:{pireps:true,payrollRecords:true}}},orderBy:[{status:"asc"},{displayName:"asc"}],take:500});
+ const rows=pilots.map(p=>[<Identity key="pilot" primary={p.displayName} secondary={`${p.callsign??"No callsign"} · ${p.email??"No email"}`}/>,p.rankName??p.rank??"—",p.base??"—",<Badge key="status" tone={tone(p.status)}>{p.status}</Badge>,p._count.pireps,p.authUser?<Badge key="login" tone={p.authUser.status==="ACTIVE"?"green":"amber"}>{p.authUser.status}</Badge>:<Badge key="login" tone="gray">No login</Badge>,<Link key="open" className="action-button" href={`/staff/pilots/${p.id}`}>Open</Link>]);
+ return <><PageHeading eyebrow="RRHH · CREW ADMINISTRATION" title="Pilots" copy="Manage Pilot profiles, local identities, account recovery and legacy-record merges."/>
+ {q.success&&<div className="feedback success">{q.success}</div>}{q.error&&<div className="feedback error">{q.error}</div>}
+ <form className="card inline-form"><label>Search<input name="q" defaultValue={q.q} placeholder="Name, email, callsign or username"/></label><label>Status<select name="status" defaultValue={q.status??""}><option value="">All</option><option value="active">Active</option><option value="on_leave">On leave</option><option value="inactive">Inactive</option></select></label><button className="button">FILTER</button></form>
+ <div className="card">{pilots.length?<DataTable headers={["Pilot","Rank","Base","Status","PIREPs","Identity",""]} rows={rows}/>:<p className="meta">No pilots match this filter.</p>}</div></>;
 }
