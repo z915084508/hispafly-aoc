@@ -13,6 +13,17 @@ export async function registerPilot(input:RegisterPilotInput){
   const user=await prisma.$transaction(async tx=>{const role=await tx.authRole.findUnique({where:{code:"PILOT"}});if(!role)throw new Error("PILOT role is not installed.");return tx.authUser.create({data:{email,username,passwordHash,displayName:`${firstName} ${lastName}`,status:"PENDING_VERIFICATION",roles:{create:{roleId:role.id}},pilot:{create:{firstName,lastName,displayName:`${firstName} ${lastName}`,email,username,callsign,status:"inactive"}},verificationTokens:{create:{tokenHash:hashToken(token),expiresAt:new Date(Date.now()+24*60*60*1000)}}},include:{pilot:true}})});
   await writeAuditLogSafely({action:"IDENTITY_REGISTERED",entityType:"AuthUser",entityId:user.id,message:"A new Hispafly Pilot account registered."});return {user,token};
 }
+export async function issueEmailVerification(email:string){
+  const user=await prisma.authUser.findUnique({where:{email:normalize(email)}});
+  if(!user||user.status!=="PENDING_VERIFICATION"||user.emailVerifiedAt)return null;
+  const token=randomBytes(32).toString("base64url");
+  await prisma.$transaction([
+    prisma.emailVerificationToken.updateMany({where:{userId:user.id,usedAt:null},data:{usedAt:new Date()}}),
+    prisma.emailVerificationToken.create({data:{userId:user.id,tokenHash:hashToken(token),expiresAt:new Date(Date.now()+24*60*60*1000)}})
+  ]);
+  await writeAuditLogSafely({action:"EMAIL_VERIFICATION_REISSUED",entityType:"AuthUser",entityId:user.id,message:"A new identity verification email was requested."});
+  return {user,token};
+}
 export async function verifyEmail(token:string){const record=await prisma.emailVerificationToken.findUnique({where:{tokenHash:hashToken(token)}});if(!record||record.usedAt||record.expiresAt<=new Date())return false;await prisma.$transaction([prisma.emailVerificationToken.update({where:{id:record.id},data:{usedAt:new Date()}}),prisma.authUser.update({where:{id:record.userId},data:{emailVerifiedAt:new Date(),status:"ACTIVE"}}),prisma.pilot.updateMany({where:{authUserId:record.userId},data:{status:"active"}})]);await writeAuditLogSafely({action:"EMAIL_VERIFIED",entityType:"AuthUser",entityId:record.userId,message:"Hispafly identity email verified."});return true;}
 export async function loginWithPassword(email:string,password:string,metadata:{ipAddress?:string;userAgent?:string}={}){
   const normalized=normalize(email),user=await prisma.authUser.findUnique({where:{email:normalized}}),locked=Boolean(user?.lockedUntil&&user.lockedUntil>new Date());
