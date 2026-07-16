@@ -1,6 +1,7 @@
 import { AocDataOrigin, NativeFlightStatus, PilotBookingStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
+import { assertNativeIds, assertNativeOrigin } from "@/lib/native-cutover/write-gate";
 
 const ACTIVE_BOOKING_STATUSES: PilotBookingStatus[] = [
   PilotBookingStatus.PENDING,
@@ -57,7 +58,7 @@ export async function checkPilotEligibility(
   });
   if (conflict) blockingReasons.push("Pilot has an overlapping booking or turnaround conflict.");
   const activeDispatch = await db.flightDispatch.findFirst({
-    where: { pilotId, status: { in: ["DISPATCHING", "DISPATCHED"] } },
+    where: { pilotId, status: { in: ["DISPATCHING", "DISPATCHED", "RELEASED"] } },
     select: { id: true },
   });
   if (activeDispatch) blockingReasons.push("Pilot already has an active dispatch.");
@@ -122,6 +123,9 @@ export async function createNativeBooking(input: {
       include: { route: true, assignedAircraft: { include: { nativeFleet: true, conditionSnapshot: true } } },
     });
     if (!flight) throw new Error("Flight does not exist.");
+    assertNativeOrigin("Flight booking", flight.dataOrigin);
+    assertNativeOrigin("Flight booking route", flight.route.dataOrigin);
+    assertNativeIds("Flight booking", { flightId: flight.id, routeId: flight.routeId, departureAirportId: flight.departureAirportId, arrivalAirportId: flight.arrivalAirportId });
     const now = new Date();
     if (!BOOKABLE_FLIGHT_STATUSES.includes(flight.status)) throw new Error("Flight is not open for booking.");
     if (flight.scheduledDeparture <= now) throw new Error("Flight departure has passed.");
@@ -137,6 +141,7 @@ export async function createNativeBooking(input: {
     if (aircraftId) {
       const aircraft = await tx.aircraft.findUnique({ where: { id: aircraftId }, include: { nativeFleet: true, conditionSnapshot: true } });
       if (!aircraft) throw new Error("Aircraft does not exist.");
+      assertNativeOrigin("Flight booking aircraft", aircraft.dataOrigin);
       if (!["AVAILABLE", "FERRY_ONLY"].includes(aircraft.operationalStatus)) throw new Error("Aircraft is not operationally available.");
       if (aircraft.conditionSnapshot && ["AOG", "IN_MAINTENANCE"].includes(aircraft.conditionSnapshot.operationalStatus)) throw new Error("Aircraft maintenance status blocks booking.");
       if (flight.fleetId && aircraft.nativeFleetId !== flight.fleetId) throw new Error("Aircraft does not belong to the required fleet.");

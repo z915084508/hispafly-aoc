@@ -46,6 +46,7 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
 }
 
 export async function getOperationsAccessToken(force = false) {
+  assertVamsysNetworkDisabled("Operations token request");
   if (!force && cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
   const clientId = env("VAMSYS_OPERATIONS_CLIENT_ID"), secret = env("VAMSYS_OPERATIONS_CLIENT_SECRET");
   if (!clientId || !secret) throw new Error("La API Operations de vAMSYS no está configurada.");

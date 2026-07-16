@@ -192,6 +192,31 @@ enum AocDataOrigin {
   MANUAL
 }
 
+enum NativeCutoverClassification {
+  NATIVE_READY
+  LEGACY_LINKED
+  LEGACY_UNRESOLVED
+  LEGACY_HISTORICAL_ONLY
+  INVALID_REQUIRES_REVIEW
+}
+
+enum NativeCutoverReviewStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  HISTORICAL_ONLY
+  RESOLVED
+}
+
+enum NativeCutoverOperationStatus {
+  PREVIEWED
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+  ROLLED_BACK
+}
+
 enum OfpStatus {
   GENERATED
   AWAITING_SIGNATURE
@@ -1194,8 +1219,8 @@ model FlightOffer {
   aircraft                 Aircraft?             @relation(fields: [aircraftId], references: [id], onDelete: SetNull)
   fleetId                  String?
   fleet                    Fleet?                @relation(fields: [fleetId], references: [id], onDelete: SetNull)
-  vamsysRouteId            String
-  vamsysAircraftId         String
+  vamsysRouteId            String?
+  vamsysAircraftId         String?
   vamsysFleetId            String?
   availableFrom            DateTime
   scheduledDeparture       DateTime?
@@ -1637,4 +1662,77 @@ model AocAuditLog {
   @@index([staffUserId, createdAt])
   @@index([entityType, entityId])
   @@index([action])
+}
+
+model NativeCutoverReviewItem {
+  id                String                      @id @default(cuid())
+  entityType        String
+  sourceId          String
+  classification    NativeCutoverClassification
+  issueType         String
+  sourceSnapshot    Json
+  candidateTargets  Json?
+  proposedTargetId  String?
+  matchingReason    String?
+  confidence        String?
+  affectedFields    String[]
+  downstreamImpact  Json?
+  warnings          String[]
+  status            NativeCutoverReviewStatus   @default(PENDING)
+  resolutionNote    String?
+  resolvedTargetId  String?
+  resolvedByStaffId String?
+  resolvedAt        DateTime?
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+
+  @@unique([entityType, sourceId, issueType])
+  @@index([entityType, status])
+  @@index([classification, status])
+}
+
+model NativeCutoverOperation {
+  id           String                       @id @default(cuid())
+  operationKey String                       @unique
+  actorStaffId String
+  entityType   String
+  action       String
+  status       NativeCutoverOperationStatus @default(PREVIEWED)
+  requestedIds String[]
+  succeeded    Int                          @default(0)
+  skipped      Int                          @default(0)
+  failed       Int                          @default(0)
+  summary      Json?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime                     @default(now())
+  updatedAt    DateTime                     @updatedAt
+
+  entries NativeCutoverOperationEntry[]
+
+  @@index([entityType, createdAt])
+  @@index([status, createdAt])
+}
+
+model NativeCutoverOperationEntry {
+  id             String                 @id @default(cuid())
+  operationId    String
+  operation      NativeCutoverOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  reviewItemId   String?
+  entityType     String
+  sourceId       String
+  targetNativeId String?
+  action         String
+  matchingReason String?
+  beforeValue    Json?
+  afterValue     Json?
+  result         String
+  errorMessage   String?
+  reversible     Boolean                @default(true)
+  rolledBackAt   DateTime?
+  createdAt      DateTime               @default(now())
+
+  @@unique([operationId, entityType, sourceId, action])
+  @@index([reviewItemId])
+  @@index([sourceId, createdAt])
 }

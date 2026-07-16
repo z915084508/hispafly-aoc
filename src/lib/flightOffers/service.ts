@@ -40,9 +40,10 @@ function vamsysSafeDepartureAt(selectedDepartureAt: Date) {
 }
 
 async function releaseDispatchAircraft(
-  dispatch: { id: string; vamsysBookingId: string | null; flightOffer: { vamsysAircraftId: string } },
+  dispatch: { id: string; vamsysBookingId: string | null; flightOffer: { vamsysAircraftId: string | null } },
   reason: string,
 ) {
+  if (!dispatch.flightOffer.vamsysAircraftId) return false;
   try {
     return await releaseAircraftReservationFromDispatch({
       vamsysAircraftId: dispatch.flightOffer.vamsysAircraftId,
@@ -59,6 +60,7 @@ async function releaseDispatchAircraft(
 export async function prepareFlightOffer(offerId: string, pilotId: string, selectedDepartureAt: Date) {
   const offer = await prisma.flightOffer.findUnique({ where: { id: offerId } });
   if (!offer) throw new Error("La oferta de vuelo no existe.");
+  if (!offer.vamsysAircraftId || !offer.vamsysRouteId) throw new Error("Legacy flight offer identity is incomplete and cannot be used operationally.");
   if (offer.status !== "PUBLISHED") throw new Error("Esta oferta ya no está publicada.");
   if (offer.validUntil.getTime() <= Date.now()) {
     await prisma.flightOffer.update({ where: { id: offer.id }, data: { status: "EXPIRED" } });
@@ -140,8 +142,8 @@ export async function finalDispatchFlightOffer(dispatchId: string, pilotId: stri
   }
 
   const body: CreateVamsysBookingInput = {
-    route_id: numericId(offer.vamsysRouteId, "route_id"),
-    aircraft_id: numericId(offer.vamsysAircraftId, "aircraft_id"),
+    route_id: numericId(offer.vamsysRouteId!, "route_id"),
+    aircraft_id: numericId(offer.vamsysAircraftId!, "aircraft_id"),
     departure_time: vamsysDepartureAt.toISOString(),
     ...(offer.network ? { network: offer.network } : {}),
     ...(identity.atcCallsign ? { callsign: identity.atcCallsign } : {}),
@@ -171,7 +173,7 @@ export async function finalDispatchFlightOffer(dispatchId: string, pilotId: stri
     });
     try {
       await updateAircraftLocationFromDispatch({
-        vamsysAircraftId: offer.vamsysAircraftId,
+        vamsysAircraftId: offer.vamsysAircraftId!,
         registration: offer.aircraftRegistration,
         aircraftType: offer.aircraftType,
         departureIcao: offer.departureIcao,
