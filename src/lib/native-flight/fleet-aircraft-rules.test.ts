@@ -1,0 +1,16 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { ASSIGNABLE_AIRCRAFT_STATUSES, nonNegative, normalizeAircraftInput, normalizeFleetInput } from "./fleet-aircraft-rules.ts";
+assert.deepEqual(normalizeFleetInput({ code: " a32n ", type: "a20n", iataType: "32n" }), { code: "A32N", type: "A20N", iataType: "32N" });
+assert.deepEqual(normalizeAircraftInput({ registration: " ec hfa ", aircraftType: "a20n", selcal: "ab-cd" }), { registration: "ECHFA", aircraftType: "A20N", selcal: "AB-CD" });
+assert.throws(() => nonNegative(-1, "Capacity"), /non-negative/);
+assert.equal(ASSIGNABLE_AIRCRAFT_STATUSES.has("AVAILABLE"), true);
+for (const blocked of ["RESERVED", "IN_FLIGHT", "AOG", "RETIRED"]) assert.equal(ASSIGNABLE_AIRCRAFT_STATUSES.has(blocked), false);
+const availability = readFileSync(new URL("./availability.ts", import.meta.url), "utf8");
+for (const check of ["conditionSnapshot", "routeFleetCompatibility", "pilotBooking", "flightDispatch", "currentAirportId"]) assert.match(availability, new RegExp(check));
+assert.doesNotMatch(availability, /@\/lib\/vamsys|fetch\(/);
+const schema = readFileSync(new URL("../../../prisma/schema.prisma", import.meta.url), "utf8");
+assert.match(schema, /enum NativeAircraftStatus/);
+assert.match(schema, /aircraftId\s+String\?\s+@unique/);
+assert.match(schema, /model RouteFleetCompatibility/);
+console.log("Native Fleet and Aircraft management tests passed.");

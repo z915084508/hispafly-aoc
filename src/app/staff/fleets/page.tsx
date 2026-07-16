@@ -1,19 +1,2 @@
-import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import { requireStaffPermission } from "@/lib/staff/authorization";
-
-export default async function FleetsPage() {
-  await requireStaffPermission("FLEET_VIEW", { entityType: "Fleet", attemptedAction: "view fleets" });
-  const fleets = await prisma.fleet.findMany({
-    include: { _count: { select: { routeAssignments: true } } },
-    orderBy: [{ code: "asc" }, { name: "asc" }],
-  });
-  return <>
-    <div className="page-header"><div><div className="eyebrow">LOCAL LEGACY DATA</div><h1>Fleet management</h1><p>Stored fleet records remain read-only until TASK 5 provides native fleet management.</p></div><button className="button" type="button" disabled>vAMSYS sync disabled</button></div>
-    <div className="notice">No synchronize, publish, edit or delete request will be sent to vAMSYS.</div>
-    <div className="table-wrap"><table><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Passengers</th><th>Cargo</th><th>Routes</th><th>Origin</th><th>Legacy ID</th></tr></thead><tbody>
-      {fleets.map((fleet) => <tr key={fleet.id}><td><Link href={`/staff/fleets/${fleet.id}`}><strong>{fleet.code ?? "—"}</strong></Link></td><td>{fleet.name ?? "—"}</td><td>{fleet.type ?? "—"}</td><td>{fleet.maxPassengers ?? "—"}</td><td>{fleet.maxCargoKg === null ? "—" : `${fleet.maxCargoKg} kg`}</td><td>{fleet._count.routeAssignments}</td><td><span className="badge">{fleet.dataOrigin}</span></td><td>{fleet.vamsysFleetId ?? "—"}</td></tr>)}
-    </tbody></table></div>
-    {!fleets.length && <div className="empty-state">No local fleet records.</div>}
-  </>;
-}
+import Link from "next/link";import type{FleetOperationalStatus}from"@prisma/client";import{listFleets}from"@/lib/native-flight/fleet";import{getCurrentStaff}from"@/lib/staff/currentStaff";import{staffHasPermission}from"@/lib/staff/permissions";
+export default async function Page({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){const q=await searchParams,s=await getCurrentStaff(),r=await listFleets({search:q.search,status:q.status as FleetOperationalStatus|undefined,dataOrigin:q.source,manufacturer:q.manufacturer,family:q.family,page:Number(q.page)||1});return <><div className="page-header"><div><div className="eyebrow">FLEET CONTROL</div><h1>Fleet types</h1><p>HispaFly-owned aircraft families and operational capacity.</p></div>{staffHasPermission(s,"FLEET_CREATE")&&<Link className="button" href="/staff/fleets/new">New Fleet</Link>}</div><form className="audit-filters"><label>Search<input name="search" defaultValue={q.search}/></label><label>Status<select name="status" defaultValue={q.status??""}><option value="">All</option><option>DRAFT</option><option>ACTIVE</option><option>SUSPENDED</option><option>ARCHIVED</option></select></label><label>Source<select name="source" defaultValue={q.source??""}><option value="">All</option><option>HISPAFLY_NATIVE</option><option>IMPORTED</option><option>MANUAL</option><option>VAMSYS_LEGACY</option></select></label><label>Manufacturer<input name="manufacturer" defaultValue={q.manufacturer}/></label><label>Family<input name="family" defaultValue={q.family}/></label><button className="button secondary">Filter</button></form><div className="table-wrap"><table><thead><tr><th>Code</th><th>Name/type</th><th>Family</th><th>Capacity</th><th>Aircraft</th><th>Routes</th><th>Status</th><th>Source</th></tr></thead><tbody>{r.rows.map(x=><tr key={x.id}><td><Link href={`/staff/fleets/${x.id}`}><strong>{x.code??"—"}</strong></Link></td><td>{x.name??"—"}<br/>{x.type??"—"}</td><td>{[x.manufacturer,x.family,x.variant].filter(Boolean).join(" · ")||"—"}</td><td>{x.maxPassengers??"—"} pax / {x.maxCargoKg??"—"} kg</td><td>{x._count.nativeAircraft} total / {x.nativeAircraft.length} available</td><td>{x._count.defaultRoutes+x._count.routeAssignments}</td><td><span className="badge">{x.operationalStatus}</span></td><td><span className="badge">{x.dataOrigin}</span></td></tr>)}</tbody></table></div><div className="button-row"><span>{r.total} Fleet types</span>{r.page>1&&<Link href={`?page=${r.page-1}`}>Previous</Link>}{r.page*r.pageSize<r.total&&<Link href={`?page=${r.page+1}`}>Next</Link>}</div></>}

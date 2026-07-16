@@ -53,7 +53,7 @@ async function validateReferences(tx: Prisma.TransactionClient, input: NativeRou
   ]);
   if (!departure || !arrival) throw new Error("Route airports do not exist.");
   if (departure.status !== "ACTIVE" || arrival.status !== "ACTIVE") throw new Error("Archived or inactive airports cannot be assigned to a new route.");
-  if (input.defaultFleetId && (!fleet || !fleet.active || fleet.dataOrigin === "VAMSYS_LEGACY")) throw new Error("Default fleet must be an active Native fleet.");
+  if (input.defaultFleetId && (!fleet || fleet.operationalStatus !== "ACTIVE" || fleet.dataOrigin === "VAMSYS_LEGACY")) throw new Error("Default fleet must be an active Native fleet.");
   return { basics, departure, arrival, fleet };
 }
 
@@ -139,7 +139,7 @@ export async function changeRouteStatus(id: string, status: RouteOperationalStat
     if (!nativeOrigins.has(before.dataOrigin)) throw new Error("Legacy routes are read-only.");
     if (status === "ACTIVE") {
       if (!before.departureAirport || !before.arrivalAirport || before.departureAirport.status !== "ACTIVE" || before.arrivalAirport.status !== "ACTIVE") throw new Error("Both airports must be active before activating a route.");
-      if (before.defaultFleet && (!before.defaultFleet.active || before.defaultFleet.dataOrigin === "VAMSYS_LEGACY")) throw new Error("The default fleet must be an active Native fleet.");
+      if (before.defaultFleet && (before.defaultFleet.operationalStatus !== "ACTIVE" || before.defaultFleet.dataOrigin === "VAMSYS_LEGACY")) throw new Error("The default fleet must be an active Native fleet.");
     }
     const route = await tx.route.update({ where: { id }, data: {
       operationalStatus: status, active: status === "ACTIVE" || status === "DRAFT",

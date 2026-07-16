@@ -136,8 +136,38 @@ enum AircraftLocationSource {
   PIREP
   DISPATCH
   ACARS
+  NATIVE_DISPATCH
+  NATIVE_ACARS
+  NATIVE_PIREP
+  VAMSYS_LEGACY
   VAMSYS_EXTERNAL
   IMPORTED
+}
+
+enum FleetOperationalStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum NativeAircraftStatus {
+  AVAILABLE
+  RESERVED
+  DISPATCHED
+  IN_FLIGHT
+  TURNAROUND
+  MAINTENANCE
+  FERRY_ONLY
+  AOG
+  SUSPENDED
+  RETIRED
+  UNKNOWN
+}
+
+enum RouteFleetPolicy {
+  ALLOWED
+  FORBIDDEN
 }
 
 enum AocDataOrigin {
@@ -489,8 +519,20 @@ model Fleet {
   name                     String?
   code                     String?
   type                     String?
+  iataType                 String?
+  manufacturer             String?
+  family                   String?
+  variant                  String?
+  engineType               String?
+  typicalSeatCapacity      Int?
   maxPassengers            Int?
   maxCargoKg               Int?
+  rangeNm                  Int?
+  cruiseSpeedKts           Int?
+  defaultCruiseAltitudeFt  Int?
+  etopsMinutes             Int?
+  operationalStatus        FleetOperationalStatus @default(DRAFT)
+  archivedAt               DateTime?
   active                   Boolean                @default(true)
   containerUnits           Int?
   hiddenInPhoenix          Boolean                @default(false)
@@ -512,6 +554,7 @@ model Fleet {
   routeAssignments         RouteFleetAssignment[]
   nativeAircraft           Aircraft[]             @relation("NativeFleetAircraft")
   defaultRoutes            Route[]                @relation("RouteDefaultFleet")
+  routeCompatibility       RouteFleetCompatibility[]
   flightOffers             FlightOffer[]
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
@@ -521,6 +564,7 @@ model Fleet {
   @@index([syncStatus])
   @@index([hiddenInPhoenix])
   @@index([dataOrigin])
+  @@index([operationalStatus])
 }
 
 model Aircraft {
@@ -535,9 +579,16 @@ model Aircraft {
   nativeFleet           Fleet?                      @relation("NativeFleetAircraft", fields: [nativeFleetId], references: [id], onDelete: SetNull)
   fleetName             String?
   serialNumber          String?
+  deliveryDate          DateTime?                   @db.Date
+  inServiceDate         DateTime?                   @db.Date
+  cabinConfiguration    String?
   currentAirportId      String?
   currentAirport        Airport?                    @relation(fields: [currentAirportId], references: [id], onDelete: SetNull)
   status                String?
+  operationalStatus     NativeAircraftStatus        @default(UNKNOWN)
+  totalFlightMinutes    Int                         @default(0)
+  totalCycles           Int                         @default(0)
+  archivedAt            DateTime?
   seatCapacity          Int?
   cargoCapacityKg       Int?
   containerUnits        Int?
@@ -575,6 +626,9 @@ model Aircraft {
   nativeDispatches      FlightDispatch[]
   flightOffers          FlightOffer[]
   locationSnapshot      AircraftLocationSnapshot?
+  conditionSnapshot     AircraftConditionSnapshot?
+  maintenanceOrders     AircraftMaintenanceOrder[]
+  wearEvents            AircraftWearEvent[]
   createdAt             DateTime                    @default(now())
   updatedAt             DateTime                    @updatedAt
 
@@ -587,6 +641,7 @@ model Aircraft {
   @@index([hiddenInPhoenix])
   @@index([publicVisible, publicDisplayOrder])
   @@index([dataOrigin])
+  @@index([operationalStatus])
 }
 
 model AircraftProfile {
@@ -670,6 +725,7 @@ model Route {
   rawData                  Json?
   archivedAt               DateTime?
   fleetAssignments         RouteFleetAssignment[]
+  fleetCompatibility       RouteFleetCompatibility[]
   identityReservation      RouteIdentityReservation?
   schedules                FlightSchedule[]
   flights                  Flight[]
@@ -713,6 +769,21 @@ model RouteFleetAssignment {
   @@unique([routeId, fleetId])
   @@index([vamsysRouteId])
   @@index([vamsysFleetId])
+}
+
+model RouteFleetCompatibility {
+  id        String           @id @default(cuid())
+  routeId   String
+  route     Route            @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  fleetId   String
+  fleet     Fleet            @relation(fields: [fleetId], references: [id], onDelete: Restrict)
+  policy    RouteFleetPolicy @default(ALLOWED)
+  notes     String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([routeId, fleetId])
+  @@index([fleetId, policy])
 }
 
 model AirportCategoryChargeProfile {
@@ -1097,6 +1168,8 @@ model FlightOffer {
 
 model AircraftConditionSnapshot {
   id                           String                    @id @default(cuid())
+  aircraftId                   String?                   @unique
+  aircraft                     Aircraft?                 @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
   vamsysAircraftId             String                    @unique
   registration                 String?
   aircraftType                 String?
@@ -1116,6 +1189,8 @@ model AircraftConditionSnapshot {
 
 model AircraftWearEvent {
   id                String   @id @default(cuid())
+  aircraftId        String?
+  aircraft          Aircraft? @relation(fields: [aircraftId], references: [id], onDelete: SetNull)
   vamsysAircraftId  String
   localPirepId      String   @unique
   vamsysPirepId     String?
@@ -1130,10 +1205,13 @@ model AircraftWearEvent {
   createdAt         DateTime @default(now())
 
   @@index([vamsysAircraftId, createdAt])
+  @@index([aircraftId, createdAt])
 }
 
 model AircraftMaintenanceOrder {
   id                  String                    @id @default(cuid())
+  aircraftId          String?
+  aircraft            Aircraft?                 @relation(fields: [aircraftId], references: [id], onDelete: SetNull)
   vamsysAircraftId    String
   registration        String?
   aircraftType        String?
@@ -1154,6 +1232,7 @@ model AircraftMaintenanceOrder {
   updatedAt           DateTime                  @updatedAt
 
   @@index([vamsysAircraftId, status])
+  @@index([aircraftId, status])
 }
 
 model AircraftMaintenanceRule {

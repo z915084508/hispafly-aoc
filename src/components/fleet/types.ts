@@ -1,5 +1,5 @@
 export type AircraftLocationStatusValue = "AVAILABLE" | "RESERVED" | "IN_FLIGHT" | "MAINTENANCE" | "UNKNOWN";
-export type AircraftLocationSourceValue = "MANUAL" | "PIREP" | "DISPATCH" | "ACARS" | "VAMSYS_EXTERNAL" | "IMPORTED";
+export type AircraftLocationSourceValue = "MANUAL" | "PIREP" | "DISPATCH" | "ACARS" | "NATIVE_DISPATCH" | "NATIVE_ACARS" | "NATIVE_PIREP" | "VAMSYS_LEGACY" | "VAMSYS_EXTERNAL" | "IMPORTED";
 
 export type AircraftLocationMapItem = {
   id: string;
