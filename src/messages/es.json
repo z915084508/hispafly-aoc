@@ -111,6 +111,8 @@
                      "aircraft":  "Gestión de aeronaves",
                      "performance":  "Performance de flota",
         "routes":  "Rutas",
+        "schedules": "Programación",
+        "flights": "Vuelos",
         "airports":  "Aeropuertos",
                      "fleetOverview": "Resumen de flota", "aircraftLocations": "Ubicación de aeronaves", "economyOverview": "Resumen económico", "expensesShort": "Gastos", "staffPermissions": "Personal y permisos", "integrations": "Integraciones", "apiSync": "API y sincronización", "systemSettings": "Configuración del sistema",
                      "groups": { "overview": "Resumen", "operations": "Operaciones", "network": "Planificación de red", "fleetEngineering": "Flota e ingeniería", "crew": "Tripulaciones", "finance": "Finanzas", "administration": "Administración" }

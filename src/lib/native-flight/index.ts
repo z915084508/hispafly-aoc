@@ -6,3 +6,6 @@ export * from "./fleet";
 export * from "./flight";
 export * from "./normalize";
 export * from "./route";
+export * from "./schedule";
+export * from "./schedule-rules";
+export * from "./schedule-time";
