@@ -117,9 +117,17 @@ enum FlightOfferRewardType {
 }
 
 enum PilotBookingStatus {
+  PENDING
+  CONFIRMED
+  DISPATCH_PENDING
+  DISPATCHED
+  IN_PROGRESS
+  COMPLETED
   BOOKED
   FLOWN
   CANCELLED
+  EXPIRED
+  REJECTED
   FAILED
 }
 
@@ -563,6 +571,7 @@ model Fleet {
   routeCompatibility       RouteFleetCompatibility[]
   scheduleDefaults         FlightSchedule[]          @relation("ScheduleDefaultFleet")
   scheduledFlights         Flight[]                  @relation("FlightFleet")
+  pilotBookings            PilotBooking[]            @relation("BookingFleet")
   flightOffers             FlightOffer[]
   createdAt                DateTime                  @default(now())
   updatedAt                DateTime                  @updatedAt
@@ -1512,6 +1521,8 @@ model PilotBooking {
   flight                   Flight?            @relation(fields: [flightId], references: [id], onDelete: Restrict)
   routeId                  String?
   route                    Route?             @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  fleetId                  String?
+  fleet                    Fleet?             @relation("BookingFleet", fields: [fleetId], references: [id], onDelete: SetNull)
   aircraftId               String?
   aircraft                 Aircraft?          @relation(fields: [aircraftId], references: [id], onDelete: SetNull)
   dispatch                 FlightDispatch?
@@ -1534,6 +1545,12 @@ model PilotBooking {
   cargoKg                  Int?
   userRoute                String?
   status                   PilotBookingStatus @default(BOOKED)
+  bookedAt                 DateTime           @default(now())
+  expiresAt                DateTime?
+  cancellationReason       String?
+  legacyReference          String?
+  operationalNotes         String?
+  idempotencyKey           String?            @unique
   matchedPirepId           String?            @unique
   matchedPirep             Pirep?             @relation(fields: [matchedPirepId], references: [id], onDelete: Restrict)
   cancelledAt              DateTime?
@@ -1545,6 +1562,7 @@ model PilotBooking {
   @@index([pilotId, status])
   @@index([flightId])
   @@index([routeId])
+  @@index([fleetId, status])
   @@index([aircraftId, selectedDepartureAt, estimatedArrivalAt])
   @@index([dataOrigin])
   @@index([selectedDepartureAt])

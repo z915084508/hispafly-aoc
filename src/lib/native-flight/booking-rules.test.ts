@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";
+import { bookingWindowAllows, canPilotCancelBooking } from "./booking-rules.ts";
+const now = new Date("2026-07-16T10:00:00Z");
+assert.equal(bookingWindowAllows({ now, departure: new Date("2026-07-16T12:00:00Z"), opensAt: new Date("2026-07-15T00:00:00Z"), closesAt: new Date("2026-07-16T11:00:00Z") }).allowed, true);
+assert.equal(bookingWindowAllows({ now, departure: new Date("2026-07-16T12:00:00Z"), closesAt: now }).allowed, false);
+assert.equal(bookingWindowAllows({ now, departure: new Date("2026-07-16T09:00:00Z") }).allowed, false);
+assert.equal(canPilotCancelBooking("CONFIRMED", false, false), true);
+assert.equal(canPilotCancelBooking("DISPATCHED", true, false), false);
+assert.equal(canPilotCancelBooking("BOOKED", false, true), false);
+console.log("Native pilot booking rules passed.");

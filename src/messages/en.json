@@ -93,6 +93,7 @@
                      "pilots":  "Pilots",
                      "pireps":  "PIREPs",
                      "offers":  "Flight offers",
+                     "bookings": "Bookings",
                       "ofp":  "OFP control",
                       "fuelPolicy": "Fuel policy",
                      "payroll":  "Payroll",
