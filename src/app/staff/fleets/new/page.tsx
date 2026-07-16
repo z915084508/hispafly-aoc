@@ -1,2 +1,1 @@
-import { redirect } from "next/navigation";
-export default function NewFleet() { redirect("/staff/fleets?error=vAMSYS%20is%20disconnected.%20Fleet%20creation%20will%20be%20replaced%20in%20TASK%205."); }
+import{FleetManagementForm}from"@/components/fleet-management-form";import{requireStaffPermission}from"@/lib/staff/authorization";import{createFleetAction}from"../actions";export default async function Page({searchParams}:{searchParams:Promise<{error?:string}>}){await requireStaffPermission("FLEET_CREATE",{entityType:"Fleet",attemptedAction:"open Fleet creation"});const q=await searchParams;return <><h1>New Native Fleet</h1>{q.error&&<div className="notice">{q.error}</div>}<FleetManagementForm action={createFleetAction}/></>}

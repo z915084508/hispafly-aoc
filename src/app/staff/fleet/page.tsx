@@ -89,6 +89,10 @@ export default async function StaffFleetPage({
     PIREP: t("fleet.source.pirep"),
     DISPATCH: t("fleet.source.dispatch"),
     ACARS: t("fleet.source.acars"),
+    NATIVE_DISPATCH: "Native Dispatch",
+    NATIVE_ACARS: "Native ACARS",
+    NATIVE_PIREP: "Native PIREP",
+    VAMSYS_LEGACY: "vAMSYS Legacy",
     VAMSYS_EXTERNAL: t("fleet.source.vamsysExternal"),
     IMPORTED: t("fleet.source.imported"),
   };
