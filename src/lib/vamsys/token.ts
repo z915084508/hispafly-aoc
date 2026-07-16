@@ -2,10 +2,12 @@ import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { refreshVamsysToken, VamsysApiError } from "./client";
 import { decryptSecret, encryptSecret } from "@/lib/security/secretBox";
+import { assertVamsysNetworkDisabled } from "./legacy-policy";
 
 const EXPIRY_MARGIN_MS = 60_000;
 
 export async function getValidVamsysAccessToken(pilotId: string): Promise<string> {
+  assertVamsysNetworkDisabled();
   const stored = await prisma.vamsysOAuthToken.findUnique({ where: { pilotId }, include: { pilot: true } });
   if (!stored) throw new Error("El piloto no ha conectado su cuenta de vAMSYS.");
   if (stored.revokedAt) throw new Error("La conexión de vAMSYS está revocada.");

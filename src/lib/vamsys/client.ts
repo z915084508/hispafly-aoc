@@ -1,5 +1,6 @@
 import { getVamsysPilotConfig } from "./config";
 import type { VamsysApiRecord, VamsysTokenResponse } from "./types";
+import { assertVamsysNetworkDisabled } from "./legacy-policy";
 
 export class VamsysApiError extends Error {
   constructor(message: string, public status: number, public code?: string) {
@@ -8,6 +9,7 @@ export class VamsysApiError extends Error {
 }
 
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}) {
+  assertVamsysNetworkDisabled("Pilot API request");
   const configuredTimeout = Number(process.env.VAMSYS_PILOT_API_TIMEOUT_MS ?? "");
   const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? Math.max(5_000, configuredTimeout) : 25_000;
   const controller = new AbortController();

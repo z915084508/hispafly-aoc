@@ -1,2 +1,2 @@
-import { requireStaffPermission } from "@/lib/staff/authorization";import { FleetManagementForm } from "@/components/fleet-management-form";import { createFleetAction } from "../actions";
-export default async function NewFleet({searchParams}:{searchParams:Promise<{error?:string}>}){await requireStaffPermission("FLEET_CREATE",{entityType:"Fleet",attemptedAction:"create fleet"});const q=await searchParams;return <><div className="page-header"><div><div className="eyebrow">VAMSYS FLEET</div><h1>New fleet</h1><p>Create an aircraft category and publish it directly to vAMSYS.</p></div></div>{q.error&&<div className="notice error">{q.error}</div>}<FleetManagementForm action={createFleetAction}/></>}
+import { redirect } from "next/navigation";
+export default function NewFleet() { redirect("/staff/fleets?error=vAMSYS%20is%20disconnected.%20Fleet%20creation%20will%20be%20replaced%20in%20TASK%205."); }

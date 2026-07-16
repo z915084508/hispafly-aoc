@@ -42,7 +42,7 @@ export default async function StaffPirepDetailPage({ params, searchParams }: { p
     <PageHeading eyebrow="PIREP REPORT · STAFF" title={pirep.flightNumber ?? pirep.callsign ?? "Informe de vuelo"} copy="Detalle operativo y económico guardado en HISPAFLY AOC." />
     <div className="pirep-toolbar">
       <Link className="action-button" href="/staff/pireps">← Volver a PIREPs</Link>
-      <form action={refreshVamsysPirepDetail.bind(null, id)}><button className="action-button pay" type="submit">Refresh vAMSYS detail</button></form>
+      <button className="action-button pay" type="button" disabled title="vAMSYS is disconnected; historical PIREPs are read-only.">Legacy detail read-only</button>
       <form action={reprocessPirepEconomy.bind(null, id)}><button className="action-button recalculate" type="submit">Reprocess economy</button></form>
     </div>
     {feedback.success && <div className="feedback success">{feedback.success}</div>}

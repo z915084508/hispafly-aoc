@@ -1,2 +1,19 @@
-import Link from "next/link";import { prisma } from "@/lib/prisma";import { requireStaffPermission } from "@/lib/staff/authorization";import { syncFleetsAction } from "./actions";
-export default async function FleetsPage({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){await requireStaffPermission("FLEET_VIEW",{entityType:"Fleet",attemptedAction:"view fleets"});const q=await searchParams;const fleets=await prisma.fleet.findMany({include:{_count:{select:{routeAssignments:true}}},orderBy:[{code:"asc"},{name:"asc"}]});return <><div className="page-header"><div><div className="eyebrow">VAMSYS CONFIGURATION</div><h1>Fleet management</h1><p>Create and maintain official aircraft categories in vAMSYS.</p></div><div className="button-row"><form action={syncFleetsAction}><button className="button secondary">Synchronize fleets</button></form><Link className="button" href="/staff/fleets/new">Create fleet</Link></div></div>{q.success&&<div className="notice success">{q.success}</div>}{q.error&&<div className="notice error">{q.error}</div>}<div className="table-wrap"><table><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Passengers</th><th>Cargo</th><th>Routes</th><th>Phoenix</th><th>Sync</th><th>vAMSYS ID</th></tr></thead><tbody>{fleets.map(f=><tr key={f.id}><td><Link href={`/staff/fleets/${f.id}`}><strong>{f.code??"—"}</strong></Link></td><td>{f.name??"—"}</td><td>{f.type??"—"}</td><td>{f.maxPassengers??"—"}</td><td>{f.maxCargoKg===null?"—":`${f.maxCargoKg} kg`}</td><td>{f._count.routeAssignments}</td><td>{f.hiddenInPhoenix?"Hidden":"Visible"}</td><td><span className="badge">{f.syncStatus}</span></td><td>{f.vamsysFleetId??"—"}</td></tr>)}</tbody></table></div>{!fleets.length&&<div className="empty-state">No synchronized fleets.</div>}</>}
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { requireStaffPermission } from "@/lib/staff/authorization";
+
+export default async function FleetsPage() {
+  await requireStaffPermission("FLEET_VIEW", { entityType: "Fleet", attemptedAction: "view fleets" });
+  const fleets = await prisma.fleet.findMany({
+    include: { _count: { select: { routeAssignments: true } } },
+    orderBy: [{ code: "asc" }, { name: "asc" }],
+  });
+  return <>
+    <div className="page-header"><div><div className="eyebrow">LOCAL LEGACY DATA</div><h1>Fleet management</h1><p>Stored fleet records remain read-only until TASK 5 provides native fleet management.</p></div><button className="button" type="button" disabled>vAMSYS sync disabled</button></div>
+    <div className="notice">No synchronize, publish, edit or delete request will be sent to vAMSYS.</div>
+    <div className="table-wrap"><table><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Passengers</th><th>Cargo</th><th>Routes</th><th>Origin</th><th>Legacy ID</th></tr></thead><tbody>
+      {fleets.map((fleet) => <tr key={fleet.id}><td><Link href={`/staff/fleets/${fleet.id}`}><strong>{fleet.code ?? "—"}</strong></Link></td><td>{fleet.name ?? "—"}</td><td>{fleet.type ?? "—"}</td><td>{fleet.maxPassengers ?? "—"}</td><td>{fleet.maxCargoKg === null ? "—" : `${fleet.maxCargoKg} kg`}</td><td>{fleet._count.routeAssignments}</td><td><span className="badge">{fleet.dataOrigin}</span></td><td>{fleet.vamsysFleetId ?? "—"}</td></tr>)}
+    </tbody></table></div>
+    {!fleets.length && <div className="empty-state">No local fleet records.</div>}
+  </>;
+}

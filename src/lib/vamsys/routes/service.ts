@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { StaffIdentity } from "@/lib/staff/currentStaff";
 import { VamsysOperationsError } from "@/lib/vamsys/operations";
+import { assertVamsysNetworkDisabled } from "@/lib/vamsys/legacy-policy";
 import { createVamsysRoute, getVamsysRoute, listAllVamsysRoutes, updateVamsysRoute } from "./client";
 import { externalRouteToPrisma, formToVamsysPayload } from "./mapper";
 import type { RouteFormInput } from "./types";
@@ -26,6 +27,7 @@ async function replaceFleetAssignments(routeId: string, vamsysRouteId: string | 
 }
 
 export async function syncVamsysRoutes(staff: StaffIdentity) {
+  assertVamsysNetworkDisabled();
   const startedAt = new Date();
   await prisma.aocAuditLog.create({ data: { staffUserId: staff.id === "development-staff" ? null : staff.id, action: "VAMSYS_ROUTE_SYNC_STARTED", entityType: "Route", message: "Route synchronization started." } });
   let imported = 0, updated = 0, unchanged = 0, missing = 0, failed = 0;
@@ -67,6 +69,7 @@ async function validateReferences(input: RouteFormInput) {
 }
 
 export async function createAndPublishRoute(input: RouteFormInput, staff: StaffIdentity) {
+  assertVamsysNetworkDisabled();
   const { refs, departureId, arrivalId, fleetIds } = await validateReferences(input);
   const duplicate = await prisma.route.findFirst({ where: { OR: [{ flightNumber: input.flightNumber }, { callsign: input.callsign }] }, select: { id: true } });
   if (duplicate) throw new Error("Flight number or callsign is already in use. Generate another identity.");
@@ -91,6 +94,7 @@ export async function createAndPublishRoute(input: RouteFormInput, staff: StaffI
 }
 
 export async function updateAndPublishRoute(input: RouteFormInput, staff: StaffIdentity) {
+  assertVamsysNetworkDisabled();
   if (!input.localId) throw new Error("Missing local route ID.");
   const current = await prisma.route.findUnique({ where: { id: input.localId } });
   if (!current?.vamsysRouteId) throw new Error("Only published routes can be updated.");

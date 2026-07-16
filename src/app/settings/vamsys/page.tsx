@@ -1,64 +1,120 @@
-import { Badge, DataTable, Identity } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
 import { prisma } from "@/lib/prisma";
-import { databaseConfigured } from "@/lib/staff/currentStaff";
-import { isVamsysPilotConfigured } from "@/lib/vamsys/config";
+import {
+  VAMSYS_DISCONNECTED_AT,
+  VAMSYS_LEGACY_MESSAGE,
+} from "@/lib/vamsys/legacy-policy";
 
-type ConnectionRow = {
-  id: string;
-  name: string;
-  callsign: string | null;
-  username: string | null;
-  status: "connected" | "expired" | "revoked" | "disconnected";
-  expiresAt: Date | null;
-  updatedAt: Date;
-};
+const formatWhen = (value: Date | null | undefined) =>
+  value
+    ? new Intl.DateTimeFormat("es-ES", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "UTC",
+      }).format(value) + " UTC"
+    : "No recorded successful sync";
 
-async function getConnections(): Promise<ConnectionRow[]> {
-  if (!databaseConfigured) return [];
-  try {
-    const pilots = await prisma.pilot.findMany({
-      select: {
-        id: true, displayName: true, callsign: true, username: true, updatedAt: true,
-        vamsysOAuthToken: { select: { expiresAt: true, revokedAt: true, updatedAt: true } },
-      },
-      orderBy: { displayName: "asc" },
-    });
-    return pilots.map((pilot) => {
-      const token = pilot.vamsysOAuthToken;
-      const status = !token ? "disconnected" : token.revokedAt ? "revoked" : token.expiresAt <= new Date() ? "expired" : "connected";
-      return { id: pilot.id, name: pilot.displayName, callsign: pilot.callsign, username: pilot.username, status, expiresAt: token?.expiresAt ?? null, updatedAt: token?.updatedAt ?? pilot.updatedAt };
-    });
-  } catch (error) {
-    console.error("Unable to load vAMSYS connections.", error);
-    return [];
-  }
-}
+export default async function VamsysSettingsPage() {
+  const [
+    state,
+    legacyPilots,
+    legacyPireps,
+    legacyFleets,
+    legacyAircraft,
+    legacyRoutes,
+    nativePilots,
+    nativePireps,
+    nativeFleets,
+    nativeAircraft,
+    nativeRoutes,
+  ] = await Promise.all([
+    prisma.operationsApiState.findUnique({ where: { id: "vamsys" } }).catch(() => null),
+    prisma.pilot.count({ where: { dataOrigin: "VAMSYS_LEGACY" } }).catch(() => 0),
+    prisma.pirep.count({ where: { dataOrigin: "VAMSYS_LEGACY" } }).catch(() => 0),
+    prisma.fleet.count({ where: { dataOrigin: "VAMSYS_LEGACY" } }).catch(() => 0),
+    prisma.aircraft.count({ where: { dataOrigin: "VAMSYS_LEGACY" } }).catch(() => 0),
+    prisma.route.count({ where: { dataOrigin: "VAMSYS_LEGACY" } }).catch(() => 0),
+    prisma.pilot.count({ where: { dataOrigin: "HISPAFLY_NATIVE" } }).catch(() => 0),
+    prisma.pirep.count({ where: { dataOrigin: "HISPAFLY_NATIVE" } }).catch(() => 0),
+    prisma.fleet.count({ where: { dataOrigin: "HISPAFLY_NATIVE" } }).catch(() => 0),
+    prisma.aircraft.count({ where: { dataOrigin: "HISPAFLY_NATIVE" } }).catch(() => 0),
+    prisma.route.count({ where: { dataOrigin: "HISPAFLY_NATIVE" } }).catch(() => 0),
+  ]);
 
-const labels = { connected: "Conectado", expired: "Expirado", revoked: "Revocado", disconnected: "Sin conectar" };
-const tones = { connected: "green", expired: "amber", revoked: "red", disconnected: "gray" } as const;
+  const lastSuccess = [
+    state?.lastSuccessAt,
+    state?.lastPirepSyncAt,
+    state?.lastPilotSyncAt,
+    state?.lastRouteSyncAt,
+    state?.lastAirportSyncAt,
+  ].filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0];
 
-export default async function VamsysSettingsPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
-  const [connections, feedback] = await Promise.all([getConnections(), searchParams]);
-  const configured = isVamsysPilotConfigured();
-  return <>
-    <PageHeading eyebrow="INTEGRACIÓN DE PILOTOS" title="Conexión vAMSYS" copy="Consentimiento OAuth individual mediante Authorization Code + PKCE." />
-    {feedback.success && <div className="feedback success">{feedback.success}</div>}
-    {feedback.error && <div className="feedback error">{feedback.error}</div>}
-    {!configured && <div className="notice">Configura VAMSYS_PILOT_CLIENT_ID y VAMSYS_PILOT_REDIRECT_URI para activar la conexión.</div>}
-    <div className="oauth-connect-card card">
-      <div><h2 className="card-title">Conectar una cuenta de piloto</h2><p className="page-copy">El piloto será enviado a vAMSYS para autorizar el acceso. HISPAFLY nunca recibe su contraseña.</p></div>
-      {configured ? <a className="button" href="/api/vamsys/oauth/start">Conectar vAMSYS</a> : <span className="button disabled-button">Configuración pendiente</span>}
-    </div>
-    <div className="card"><DataTable
-      headers={["Piloto", "Usuario vAMSYS", "Estado del token", "Expira", "Última actualización"]}
-      rows={connections.map((row) => [
-        <Identity key="pilot" primary={row.name} secondary={row.callsign ?? row.id} />,
-        row.username ?? "—",
-        <Badge key="status" tone={tones[row.status]}>{labels[row.status]}</Badge>,
-        row.expiresAt ? new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "short", timeZone: "UTC" }).format(row.expiresAt) + " UTC" : "—",
-        new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "short", timeZone: "UTC" }).format(row.updatedAt) + " UTC",
-      ])}
-    /></div>
-  </>;
+  return (
+    <>
+      <PageHeading
+        eyebrow="SYSTEM INTEGRATION STATUS"
+        title="vAMSYS — Disconnected / Legacy"
+        copy="Historical vAMSYS data is retained locally. The AOC no longer sends requests or attempts automatic reconnection."
+      />
+
+      <div className="feedback error">{VAMSYS_LEGACY_MESSAGE}</div>
+
+      <section className="grid stats">
+        <div className="card">
+          <div className="stat-label">Connection</div>
+          <div className="stat-value">OFF</div>
+          <div className="stat-note">Frozen on {VAMSYS_DISCONNECTED_AT}</div>
+        </div>
+        <div className="card">
+          <div className="stat-label">Last successful sync</div>
+          <div className="stat-value">Legacy</div>
+          <div className="stat-note">{formatWhen(lastSuccess)}</div>
+        </div>
+        <div className="card">
+          <div className="stat-label">Legacy records</div>
+          <div className="stat-value">{legacyPilots + legacyPireps + legacyFleets + legacyAircraft + legacyRoutes}</div>
+          <div className="stat-note">Protected and read-only</div>
+        </div>
+        <div className="card">
+          <div className="stat-label">HispaFly Native</div>
+          <div className="stat-value">{nativePilots + nativePireps + nativeFleets + nativeAircraft + nativeRoutes}</div>
+          <div className="stat-note">Current primary-system records</div>
+        </div>
+      </section>
+
+      <div className="card settings-link">
+        <div className="card-header">
+          <h2 className="card-title">Disabled automatic tasks</h2>
+          <span className="meta">Fail closed</span>
+        </div>
+        <p className="page-copy">
+          PIREP cron, Pilot cron, Fleet/Aircraft/Route synchronization, webhook
+          processing, OAuth connection and token refresh are disabled. They do
+          not retry in the background and cannot block local AOC features.
+        </p>
+        <button className="button" type="button" disabled>
+          Automatic reconnection disabled
+        </button>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <h2 className="card-title">Retained data by source</h2>
+          <span className="meta">Migration evidence</span>
+        </div>
+        <div className="workflow-summary">
+          <div><strong>{legacyPilots}</strong><span>Legacy pilots</span></div>
+          <div><strong>{legacyPireps}</strong><span>Historical PIREPs</span></div>
+          <div><strong>{legacyFleets}</strong><span>Legacy fleets</span></div>
+          <div><strong>{legacyAircraft}</strong><span>Legacy aircraft</span></div>
+          <div><strong>{legacyRoutes}</strong><span>Legacy routes</span></div>
+        </div>
+        <p className="page-copy">
+          External IDs, raw payloads, payroll, wallet and audit records are
+          retained only for traceability and TASK 5 migration. They are not the
+          identity authority for new HispaFly records.
+        </p>
+      </div>
+    </>
+  );
 }
