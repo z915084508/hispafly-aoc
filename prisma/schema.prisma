@@ -102,6 +102,13 @@ enum FlightOfferStatus {
 }
 
 enum FlightDispatchStatus {
+  DRAFT
+  PREPARING
+  CHECK_REQUIRED
+  READY_FOR_RELEASE
+  RELEASED
+  SUPERSEDED
+  VOIDED
   DISPATCHING
   DISPATCHED
   FLOWN
@@ -572,6 +579,7 @@ model Fleet {
   scheduleDefaults         FlightSchedule[]          @relation("ScheduleDefaultFleet")
   scheduledFlights         Flight[]                  @relation("FlightFleet")
   pilotBookings            PilotBooking[]            @relation("BookingFleet")
+  flightDispatches         FlightDispatch[]
   flightOffers             FlightOffer[]
   createdAt                DateTime                  @default(now())
   updatedAt                DateTime                  @updatedAt
@@ -1325,8 +1333,24 @@ model FlightDispatch {
   route                   Route?               @relation(fields: [routeId], references: [id], onDelete: Restrict)
   aircraftId              String?
   aircraft                Aircraft?            @relation(fields: [aircraftId], references: [id], onDelete: SetNull)
+  fleetId                 String?
+  fleet                   Fleet?               @relation(fields: [fleetId], references: [id], onDelete: SetNull)
   acarsSessionId          String?
   status                  FlightDispatchStatus @default(DISPATCHED)
+  version                 Int                  @default(1)
+  isCurrent               Boolean              @default(true)
+  snapshot                Json?
+  releaseSnapshot         Json?
+  snapshotChecksum        String?
+  idempotencyKey          String?              @unique
+  expiresAt               DateTime?
+  voidedAt                DateTime?
+  voidReason              String?
+  supersededDispatchId    String?
+  supersededDispatch      FlightDispatch?      @relation("DispatchVersions", fields: [supersededDispatchId], references: [id], onDelete: SetNull)
+  newerVersions           FlightDispatch[]     @relation("DispatchVersions")
+  createdByPilotId        String?
+  createdByStaffId        String?
   vamsysBookingId         String?              @unique
   vamsysPirepId           String?
   matchedPirepId          String?              @unique
@@ -1348,6 +1372,9 @@ model FlightDispatch {
   @@index([flightId, status])
   @@index([routeId])
   @@index([aircraftId, status])
+  @@index([bookingId, isCurrent])
+  @@index([status, expiresAt])
+  @@index([fleetId])
   @@index([dataOrigin])
 }
 
@@ -1505,6 +1532,14 @@ model DispatchRelease {
   releasedAt               DateTime?
   releasedByPilotId        String?
   releasedByStaffId        String?
+  actorType                String?
+  actorDisplayName         String?
+  dispatchVersion          Int?
+  snapshotChecksum         String?
+  acknowledgedWarnings     Json?
+  signatureComment         String?
+  signedIpAddress          String?
+  signedUserAgent          String?
   createdAt                DateTime    @default(now())
   updatedAt                DateTime    @updatedAt
 

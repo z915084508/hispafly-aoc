@@ -1,0 +1,6 @@
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+export default async function StaffDispatchPage() {
+  const rows = await prisma.flightDispatch.findMany({ include: { pilot: true, flight: true, flightOffer: true, aircraft: true, ofpBriefing: { include: { dispatchRelease: true } } }, orderBy: { updatedAt: "desc" }, take: 250 });
+  return <><div className="page-header"><div><div className="eyebrow">FLIGHT OPERATIONS</div><h1>Native Dispatch</h1><p>Current and historical Dispatch versions, checks, OFP and release state.</p></div></div><div className="table-wrap"><table><thead><tr><th>Flight</th><th>Pilot</th><th>Aircraft</th><th>STD</th><th>Status</th><th>Risk</th><th>OFP</th><th>Version</th><th></th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td>{row.flight?.flightNumber ?? row.flightOffer.title}</td><td>{row.pilot.displayName}</td><td>{row.aircraft?.registration ?? "—"}</td><td>{row.selectedDepartureAt?.toISOString()}</td><td>{row.status}</td><td>{row.ofpBriefing?.dispatchRelease?.riskLevel ?? "UNKNOWN"}</td><td>{row.ofpBriefing?.status ?? "Missing"}</td><td>{row.version}{row.isCurrent ? " current" : ""}</td><td><Link href={`/staff/dispatch/${row.id}`}>Manage</Link></td></tr>)}</tbody></table></div></>;
+}
