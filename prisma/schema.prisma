@@ -1403,6 +1403,71 @@ model FlightDispatch {
   @@index([dataOrigin])
 }
 
+model AcarsSession {
+  id              String   @id @default(cuid())
+  localSessionId  String   @unique
+  pilotId         String
+  bookingId       String
+  flightId        String
+  dispatchId      String   @unique
+  dispatchVersion Int
+  aircraftId      String
+  simulatorName   String
+  acarsVersion    String
+  status          String   @default("ACTIVE")
+  currentPhase    String   @default("Preflight")
+  startedAt       DateTime
+  lastHeartbeatAt DateTime
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  positions       AcarsPosition[]
+  events          AcarsEvent[]
+  @@index([pilotId, status])
+  @@index([flightId, status])
+}
+
+model AcarsPosition {
+  id              String   @id @default(cuid())
+  sessionId       String
+  session         AcarsSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sequenceNumber  Int
+  recordedAt      DateTime
+  latitude        Float?
+  longitude       Float?
+  altitudeFeet    Float?
+  groundSpeedKnots Float?
+  headingDegrees  Float?
+  fuelKg          Float?
+  onGround        Boolean?
+  phase           String
+  createdAt       DateTime @default(now())
+  @@unique([sessionId, sequenceNumber])
+  @@index([recordedAt])
+}
+
+model AcarsEvent {
+  id              String   @id @default(cuid())
+  sessionId       String
+  session         AcarsSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sequenceNumber  Int
+  type            String
+  recordedAt      DateTime
+  phaseBefore     String?
+  phaseAfter      String?
+  message         String?
+  latitude        Float?
+  longitude       Float?
+  altitudeFeet    Float?
+  groundSpeedKnots Float?
+  fuelKg          Float?
+  numericValue    Float?
+  textValue       String?
+  createdAt       DateTime @default(now())
+  @@unique([sessionId, sequenceNumber])
+  @@index([recordedAt])
+}
+
 model OfpBriefing {
   id                      String                 @id @default(cuid())
   flightDispatchId        String                 @unique

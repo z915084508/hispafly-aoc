@@ -1,0 +1,2 @@
+import { currentAuthUser } from "@/lib/auth/session"; import { ingestTelemetry } from "@/lib/acars/service";
+export async function POST(r:Request,{params}:{params:Promise<{sessionId:string}>}){const u=await currentAuthUser();if(!u?.pilot)return Response.json({error:"unauthorized"},{status:401});try{return Response.json({contractVersion:"1.0",...(await ingestTelemetry(u.pilot.id,(await params).sessionId,await r.json()))})}catch(e){return Response.json({error:e instanceof Error?e.message:"invalid_request"},{status:404})}}

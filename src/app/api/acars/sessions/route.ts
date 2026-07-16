@@ -1,0 +1,2 @@
+import { currentAuthUser } from "@/lib/auth/session"; import { startAcarsSession } from "@/lib/acars/service";
+export async function POST(r:Request){const u=await currentAuthUser();if(!u?.pilot)return Response.json({error:"unauthorized"},{status:401});try{return Response.json({contractVersion:"1.0",session:await startAcarsSession(u.pilot.id,await r.json())})}catch(e){return Response.json({error:e instanceof Error?e.message:"invalid_request"},{status:409})}}
