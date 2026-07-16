@@ -35,6 +35,7 @@
     "test:vamsys": "node --experimental-strip-types src/lib/vamsys/pkce.test.ts && node --experimental-strip-types src/lib/vamsys/pilotMapper.test.ts && node --experimental-strip-types src/lib/vamsys/pireps.test.ts",
     "test:security": "node --experimental-strip-types src/lib/security/secretBox.test.ts",
     "test:identity": "node --experimental-strip-types src/lib/auth/password.test.ts",
+    "test:identity-email": "node --experimental-strip-types src/lib/auth/delivery.test.ts",
     "test:routes": "node --experimental-strip-types src/lib/vamsys/routes/routes.test.ts && node --experimental-strip-types src/lib/vamsys/routes/planning.test.ts",
     "test:fleets": "node --experimental-strip-types src/lib/vamsys/fleets/fleets.test.ts"
   },
@@ -42,6 +43,7 @@
     "@prisma/client": "^6.19.0",
     "leaflet": "^1.9.4",
     "next": "^16.0.0",
+    "nodemailer": "^9.0.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-leaflet": "^5.0.0"
@@ -50,6 +52,7 @@
     "@tailwindcss/postcss": "^4.0.0",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^22.0.0",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",

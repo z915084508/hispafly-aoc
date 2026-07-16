@@ -6,7 +6,7 @@ Pilot authentication and registration are fully local. Existing `Pilot` records 
 
 1. Configure the existing session and token secrets from `.env.example`.
 2. Run `pnpm db:deploy` once against the target database. Database migration and bootstrap are intentionally separate from the Vercel build to prevent concurrent deployment lock failures.
-3. Configure `AUTH_EMAIL_WEBHOOK` to deliver verification and password-reset links through the approved email service.
+3. Configure `SMTP_USER`, `SMTP_PASSWORD`, `AUTH_EMAIL_FROM` and `APP_BASE_URL`. For Gmail, `SMTP_PASSWORD` must be a Google App Password, never the normal account password.
 4. New Pilots register at `/register` and must verify their email before sign-in.
 5. Staff may also create or manage a local login for an existing Pilot profile.
 
