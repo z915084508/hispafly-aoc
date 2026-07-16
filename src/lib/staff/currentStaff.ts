@@ -1,6 +1,8 @@
 import type { StaffRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hasValidAdminSession } from "./adminSession";
+import { getCurrentStaffSession } from "./auth/session";
+import { getStaffCredential } from "./auth/credentials";
 
 export interface StaffIdentity {
   id: string;
@@ -13,6 +15,8 @@ export interface StaffIdentity {
   roleTemplateName?: string | null;
   isSystemOwner?: boolean;
   permissions?: readonly string[];
+  mustChangePassword?: boolean;
+  sessionId?: string | null;
 }
 
 const DEVELOPMENT_STAFF: Record<string, Omit<StaffIdentity, "id">> = {
@@ -27,21 +31,48 @@ export const adminStaffEmail = process.env.AOC_ADMIN_STAFF_EMAIL ?? "admin@hispa
 export const databaseConfigured = Boolean(process.env.DATABASE_URL);
 
 export async function getCurrentStaff(): Promise<StaffIdentity | null> {
-  if (!(await hasValidAdminSession())) return null;
-
   if (!databaseConfigured) {
-    const mock = DEVELOPMENT_STAFF[adminStaffEmail] ?? DEVELOPMENT_STAFF["admin@hispafly.local"];
+    if (!(await hasValidAdminSession())) return null;
+    const mock = DEVELOPMENT_STAFF[developmentStaffEmail] ?? DEVELOPMENT_STAFF["admin@hispafly.local"];
     return { id: "development-staff", ...mock };
   }
 
   try {
-    const staff = await prisma.staffUser.findUnique({
-      where: { email: adminStaffEmail },
-      include: { roleTemplate: { include: { permissions: { include: { permission: true } } } }, permissionOverrides: { include: { permission: true } } },
-    });
-    if (staff) { const {resolvePermissionCodes}=await import("./access/resolve");return {id:staff.id,name:staff.name,email:staff.email,role:staff.role,active:staff.active,staffCode:staff.staffCode,roleTemplateCode:staff.roleTemplate?.code,roleTemplateName:staff.roleTemplate?.name,isSystemOwner:staff.isSystemOwner,permissions:[...resolvePermissionCodes({legacyRole:staff.role,isSystemOwner:staff.isSystemOwner,rolePermissions:staff.roleTemplate?.permissions.map(x=>x.permission.code),overrides:staff.permissionOverrides.map(x=>({code:x.permission.code,effect:x.effect}))})]};}
-    const fallback = DEVELOPMENT_STAFF["admin@hispafly.local"];
-    return process.env.NODE_ENV === "production" ? null : { id: "development-staff", ...fallback };
+    const session = await getCurrentStaffSession();
+    if (!session) return null;
+    const [staff, credential] = await Promise.all([
+      prisma.staffUser.findUnique({
+        where: { id: session.staffUserId },
+        include: {
+          roleTemplate: { include: { permissions: { include: { permission: true } } } },
+          permissionOverrides: { include: { permission: true } },
+        },
+      }),
+      getStaffCredential(session.staffUserId),
+    ]);
+    if (!staff || !staff.active || staff.disabledAt || staff.roleTemplate?.active === false) return null;
+    const { resolvePermissionCodes } = await import("./access/resolve");
+    return {
+      id: staff.id,
+      name: staff.name,
+      email: staff.email,
+      role: staff.role,
+      active: staff.active,
+      staffCode: staff.staffCode,
+      roleTemplateCode: staff.roleTemplate?.code,
+      roleTemplateName: staff.roleTemplate?.name,
+      isSystemOwner: staff.isSystemOwner,
+      mustChangePassword: credential?.mustChangePassword ?? false,
+      sessionId: session.id,
+      permissions: [
+        ...resolvePermissionCodes({
+          legacyRole: staff.role,
+          isSystemOwner: staff.isSystemOwner,
+          rolePermissions: staff.roleTemplate?.permissions.map((item) => item.permission.code),
+          overrides: staff.permissionOverrides.map((item) => ({ code: item.permission.code, effect: item.effect })),
+        }),
+      ],
+    };
   } catch (error) {
     console.error("Unable to resolve the current AOC staff identity.", error);
     return null;

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { AircraftLocationStatus } from "@prisma/client";
 import { requireStaffPermission } from "@/lib/staff/authorization";
-import { setAircraftLocationManually, syncAircraftLocationsFromPireps } from "@/lib/aircraft-location/tracker";
+import { releaseStaleAircraftReservations, setAircraftLocationManually, syncAircraftLocationsFromPireps } from "@/lib/aircraft-location/tracker";
 import { prisma } from "@/lib/prisma";
 import { completeMaintenance, initializeAircraftConditions } from "@/lib/aircraft-maintenance/service";
 import { redirect } from "next/navigation";
@@ -22,9 +22,25 @@ export async function setAircraftLocationAction(formData: FormData) {
 }
 
 export async function syncAircraftLocationsAction() {
-  await requireStaffPermission("FLEET_LOCATION_SYNC", { entityType: "AircraftLocationSnapshot", attemptedAction: "sincronizar ubicaciones desde PIREPs" });
+  const staff = await requireStaffPermission("FLEET_LOCATION_SYNC", { entityType: "AircraftLocationSnapshot", attemptedAction: "sincronizar ubicaciones desde PIREPs" });
   await syncAircraftLocationsFromPireps();
+  await releaseStaleAircraftReservations({ staffUserId: staff.id, trigger: "PIREP_LOCATION_SYNC" });
   revalidatePath("/staff/fleet"); revalidatePath("/pilot/fleet");
+}
+
+export async function releaseStaleAircraftReservationsAction() {
+  const staff = await requireStaffPermission("FLEET_LOCATION_EDIT", { entityType: "AircraftLocationSnapshot", attemptedAction: "liberar reservas obsoletas de aeronaves" });
+  const result = await releaseStaleAircraftReservations({ staffUserId: staff.id, trigger: "STAFF_MANUAL_RECONCILIATION" });
+  revalidatePath("/staff/fleet");
+  revalidatePath("/pilot/fleet");
+  const query = new URLSearchParams({
+    staleScanned: String(result.scanned),
+    staleReleased: String(result.released),
+    staleActive: String(result.active),
+    staleMissing: String(result.missingDispatches),
+    staleErrors: String(result.errors.length),
+  });
+  redirect(`/staff/fleet?${query}`);
 }
 
 export async function maintenanceAction(formData: FormData) {

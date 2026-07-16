@@ -11,6 +11,7 @@ function requiredSecret(name: "AOC_ADMIN_PASSWORD" | "AOC_ADMIN_SESSION_SECRET")
 }
 
 export const adminUsername = process.env.AOC_ADMIN_USERNAME?.trim() || "Admin";
+export const legacyAdminLoginEnabled = process.env.AOC_LEGACY_ADMIN_LOGIN_ENABLED === "true";
 
 function safeEqual(left: string, right: string) {
   const leftBuffer = Buffer.from(left);
@@ -29,7 +30,7 @@ function sessionValue() {
 }
 
 function isValidSessionValue(value?: string) {
-  if (!value) return false;
+  if (!value || !process.env.AOC_ADMIN_SESSION_SECRET?.trim()) return false;
   const [username, issuedAt, signature] = value.split(":");
   if (!username || !issuedAt || !signature) return false;
   if (!safeEqual(username.toLowerCase(), adminUsername.toLowerCase())) return false;
@@ -40,6 +41,7 @@ function isValidSessionValue(value?: string) {
 }
 
 export function validateAdminCredentials(username: string, password: string) {
+  if (!legacyAdminLoginEnabled || !process.env.AOC_ADMIN_PASSWORD?.trim()) return false;
   return safeEqual(username.trim().toLowerCase(), adminUsername.toLowerCase()) && safeEqual(password, requiredSecret("AOC_ADMIN_PASSWORD"));
 }
 
