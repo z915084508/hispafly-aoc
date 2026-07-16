@@ -3,6 +3,7 @@ import { AocDataOrigin, FlightDispatchStatus, NativeFlightStatus, PilotBookingSt
 import { prisma } from "@/lib/prisma";
 import { checkPilotEligibility } from "./booking";
 import { writeAuditLogSafely } from "@/lib/audit/log";
+import { assertNativeIds, assertNativeOrigin } from "@/lib/native-cutover/write-gate";
 
 export type NativeDispatchCheck = { key: string; status: "PASS" | "WARNING" | "BLOCK" | "NOT_REQUIRED" | "UNKNOWN"; detail: string };
 export type NativeDispatchCheckResult = {
@@ -107,12 +108,16 @@ export async function createNativeDispatch(input: { bookingId: string; aircraftI
     const duplicate = await tx.flightDispatch.findFirst({ where: { OR: [{ idempotencyKey: input.idempotencyKey }, { bookingId: input.bookingId, isCurrent: true }] } });
     if (duplicate) return duplicate;
     const booking = await tx.pilotBooking.findUnique({ where: { id: input.bookingId }, include: { flight: true } });
-    if (!booking?.flight || !booking.routeId || booking.dataOrigin === AocDataOrigin.VAMSYS_LEGACY) throw new Error("A confirmed Native Booking with Flight identity is required.");
+    if (!booking?.flight || !booking.routeId) throw new Error("A confirmed Native Booking with Flight identity is required.");
+    assertNativeOrigin("Dispatch booking", booking.dataOrigin);
+    assertNativeOrigin("Dispatch flight", booking.flight.dataOrigin);
+    assertNativeIds("Dispatch", { bookingId: booking.id, flightId: booking.flight.id, routeId: booking.routeId, departureAirportId: booking.flight.departureAirportId, arrivalAirportId: booking.flight.arrivalAirportId });
     if (booking.status !== PilotBookingStatus.CONFIRMED) throw new Error("Booking is not eligible for Dispatch.");
     const aircraftId = booking.aircraftId ?? booking.flight.assignedAircraftId ?? input.aircraftId;
     if (!aircraftId) throw new Error("A concrete Aircraft is required at Dispatch.");
     const aircraft = await tx.aircraft.findUnique({ where: { id: aircraftId }, include: { conditionSnapshot: true } });
     if (!aircraft || !["AVAILABLE","FERRY_ONLY"].includes(aircraft.operationalStatus)) throw new Error("Aircraft is unavailable.");
+    assertNativeOrigin("Dispatch aircraft", aircraft.dataOrigin);
     if (aircraft.conditionSnapshot && ["AOG","IN_MAINTENANCE"].includes(aircraft.conditionSnapshot.operationalStatus)) throw new Error("Aircraft maintenance status blocks Dispatch.");
     if (booking.flight.departureAirportId && aircraft.currentAirportId !== booking.flight.departureAirportId) throw new Error("Aircraft is not at departure airport.");
     const offer = await tx.flightOffer.create({ data: {
@@ -120,7 +125,6 @@ export async function createNativeDispatch(input: { bookingId: string; aircraftI
       flightId: booking.flight.id, routeId: booking.routeId, aircraftId, fleetId: booking.fleetId,
       departureIcao: booking.flight.departureIcao, arrivalIcao: booking.flight.arrivalIcao,
       flightNumber: booking.flight.flightNumber, callsign: booking.flight.callsign,
-      vamsysRouteId: `native:${booking.routeId}`, vamsysAircraftId: `native:${aircraftId}`,
       availableFrom: new Date(), validUntil: booking.flight.scheduledDeparture,
       scheduledDeparture: booking.flight.scheduledDeparture, scheduledArrival: booking.flight.scheduledArrival,
       estimatedDurationMinutes: booking.flight.scheduledDurationMinutes,
@@ -165,7 +169,37 @@ export async function releaseNativeDispatch(input: { dispatchId: string; actorTy
 export async function getAcarsAssignment(pilotId: string) {
   const dispatch = await prisma.flightDispatch.findFirst({ where: { pilotId, isCurrent: true, status: FlightDispatchStatus.RELEASED, dataOrigin: AocDataOrigin.HISPAFLY_NATIVE }, include: { booking: true, flight: true, route: true, fleet: true, aircraft: true, ofpBriefing: true }, orderBy: { dispatchedAt: "desc" } });
   if (!dispatch?.booking || !dispatch.flight || !dispatch.aircraft) return null;
-  return { dispatchId: dispatch.id, dispatchVersion: dispatch.version, bookingId: dispatch.booking.id, flightId: dispatch.flight.id, pilotId, flightNumber: dispatch.flight.flightNumber, callsign: dispatch.flight.callsign, departure: dispatch.flight.departureIcao, arrival: dispatch.flight.arrivalIcao, scheduledDepartureUtc: dispatch.flight.scheduledDeparture, scheduledArrivalUtc: dispatch.flight.scheduledArrival, route: dispatch.route?.route, fleet: dispatch.fleet?.code, aircraftId: dispatch.aircraft.id, aircraftRegistration: dispatch.aircraft.registration, aircraftType: dispatch.aircraft.aircraftType, plannedBlockFuelKg: null, passengers: dispatch.booking.passengers, cargoKg: dispatch.booking.cargoKg, ofpReference: dispatch.ofpBriefing?.simbriefStaticId, releasedAt: dispatch.dispatchedAt, expiresAt: dispatch.expiresAt };
+  const ofp = dispatch.ofpBriefing?.ofpSnapshot && typeof dispatch.ofpBriefing.ofpSnapshot === "object" ? dispatch.ofpBriefing.ofpSnapshot as Record<string, unknown> : null;
+  const plannedBlockFuelKg = typeof ofp?.block_fuel === "number" ? ofp.block_fuel : null;
+  return {
+    contractVersion: "1.0",
+    dispatchId: dispatch.id,
+    dispatchVersion: dispatch.version,
+    bookingId: dispatch.booking.id,
+    flightId: dispatch.flight.id,
+    pilotId,
+    flightNumber: dispatch.flight.flightNumber,
+    callsign: dispatch.flight.callsign,
+    operatingDate: dispatch.flight.operatingDate.toISOString().slice(0, 10),
+    departureAirportId: dispatch.flight.departureAirportId,
+    departureIcao: dispatch.flight.departureIcao,
+    arrivalAirportId: dispatch.flight.arrivalAirportId,
+    arrivalIcao: dispatch.flight.arrivalIcao,
+    scheduledDepartureUtc: dispatch.flight.scheduledDeparture,
+    scheduledArrivalUtc: dispatch.flight.scheduledArrival,
+    route: dispatch.route?.route,
+    fleetId: dispatch.fleet?.id ?? null,
+    fleetCode: dispatch.fleet?.code ?? null,
+    aircraftId: dispatch.aircraft.id,
+    aircraftRegistration: dispatch.aircraft.registration,
+    aircraftType: dispatch.aircraft.aircraftType,
+    passengers: dispatch.booking.passengers,
+    cargoKg: dispatch.booking.cargoKg,
+    plannedBlockFuelKg,
+    ofpReference: dispatch.ofpBriefing?.simbriefStaticId,
+    releasedAt: dispatch.dispatchedAt,
+    expiresAt: dispatch.expiresAt,
+  };
 }
 
 export async function cancelOrVoidNativeDispatch(dispatchId: string, mode: "CANCEL" | "VOID", reason: string) {

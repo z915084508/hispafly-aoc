@@ -25,17 +25,16 @@ function previousSignedHash(checks: unknown) {
 export async function evaluateDispatchRelease(input: { ofpBriefingId: string; markSignature?: boolean; releasedByPilotId?: string | null; releasedByStaffId?: string | null }) {
   const ofp = await prisma.ofpBriefing.findUnique({
     where: { id: input.ofpBriefingId },
-    include: { flightDispatch: { include: { flightOffer: true } }, dispatchRelease: true },
+    include: { flightDispatch: { include: { flightOffer: true, aircraft: { include: { performanceProfile: true, locationSnapshot: true, conditionSnapshot: true, maintenanceOrders: true } } } }, dispatchRelease: true },
   });
   if (!ofp) throw new Error("OFP not found.");
   const dispatch = ofp.flightDispatch, offer = dispatch.flightOffer;
-  const [location, condition, aircraft, navigraph, maintenance] = await Promise.all([
-    prisma.aircraftLocationSnapshot.findUnique({ where: { vamsysAircraftId: offer.vamsysAircraftId } }),
-    prisma.aircraftConditionSnapshot.findUnique({ where: { vamsysAircraftId: offer.vamsysAircraftId } }),
-    prisma.aircraft.findUnique({ where: { vamsysAircraftId: offer.vamsysAircraftId }, include: { performanceProfile: true } }),
-    prisma.navigraphOAuthToken.findUnique({ where: { pilotId: dispatch.pilotId }, select: { revokedAt: true } }),
-    prisma.aircraftMaintenanceOrder.findFirst({ where: { vamsysAircraftId: offer.vamsysAircraftId, status: { in: ["REQUIRED", "FERRY_TO_BASE", "WAITING_MAINTENANCE", "IN_PROGRESS"] } } }),
-  ]);
+  const legacyAircraft = !dispatch.aircraft && offer.vamsysAircraftId ? await prisma.aircraft.findUnique({ where: { vamsysAircraftId: offer.vamsysAircraftId }, include: { performanceProfile: true, locationSnapshot: true, conditionSnapshot: true, maintenanceOrders: true } }) : null;
+  const aircraft = dispatch.aircraft ?? legacyAircraft;
+  const location = aircraft?.locationSnapshot;
+  const condition = aircraft?.conditionSnapshot;
+  const maintenance = aircraft?.maintenanceOrders.find((order) => ["REQUIRED", "FERRY_TO_BASE", "WAITING_MAINTENANCE", "IN_PROGRESS"].includes(order.status)) ?? null;
+  const navigraph = await prisma.navigraphOAuthToken.findUnique({ where: { pilotId: dispatch.pilotId }, select: { revokedAt: true } });
   const summary = summarizeSimbriefOfp(ofp.ofpSnapshot);
   const identity = normalizeFlightIdentity({ flightNumber: offer.flightNumber, callsign: offer.callsign });
   const formalOfpGenerated = Boolean(ofp.ofpSnapshot && ["AWAITING_SIGNATURE", "SIGNED"].includes(ofp.status));
@@ -48,7 +47,7 @@ export async function evaluateDispatchRelease(input: { ofpBriefingId: string; ma
   const checks: DispatchReleaseCheck[] = [
     { key: "ofpGenerated", label: "OFP generated", status: formalOfpGenerated ? "OK" : "BLOCKED", detail: formalOfpGenerated ? `SimBrief static ID ${ofp.simbriefStaticId}` : "Generate the SimBrief OFP." },
     { key: "flightIdentity", label: "Flight identity valid", status: identity.numericFlightNumber && identity.atcCallsign && !identity.atcCallsign.startsWith("HISPAFLY") ? "OK" : "BLOCKED", detail: `${identity.commercialFlightNumber || "—"} / ${identity.atcCallsign || "—"}` },
-    { key: "aircraftAssigned", label: "Aircraft assigned", status: offer.vamsysAircraftId && (aircraft || offer.aircraftRegistration || offer.aircraftType) ? "OK" : "BLOCKED", detail: offer.aircraftRegistration ?? offer.aircraftType ?? offer.vamsysAircraftId ?? "Missing aircraft" },
+    { key: "aircraftAssigned", label: "Aircraft assigned", status: aircraft || offer.aircraftRegistration || offer.aircraftType ? "OK" : "BLOCKED", detail: aircraft?.registration ?? offer.aircraftRegistration ?? offer.aircraftType ?? offer.vamsysAircraftId ?? "Missing aircraft" },
     { key: "aircraftLocation", label: "Aircraft location valid", status: !location?.currentAirportIcao ? "BLOCKED" : location.currentAirportIcao === offer.departureIcao && (location.status === "AVAILABLE" || (location.status === "RESERVED" && location.reservedByDispatchId === dispatch.id)) ? "OK" : "BLOCKED", detail: location?.currentAirportIcao ? `${location.currentAirportIcao} / required ${offer.departureIcao}` : "Aircraft location is not available." },
     { key: "aircraftCondition", label: "Aircraft condition allows dispatch", status: conditionStatus, detail: condition ? `${condition.operationalStatus} · ${Number(condition.conditionPercent)}%` : "Aircraft condition is not initialized." },
     { key: "fuelPolicy", label: "Fuel policy available", status: hasFuelPlan(ofp.ofpSnapshot) || summary.blockFuel ? "OK" : aircraft?.performanceProfile?.maxFuelKg ? "WARNING" : "BLOCKED", detail: summary.blockFuel ? `Block fuel ${summary.blockFuel} kg` : aircraft?.performanceProfile?.maxFuelKg ? "Aircraft fuel limits available; SimBrief fuel summary was not recognized." : "No OFP fuel plan or aircraft fuel profile." },

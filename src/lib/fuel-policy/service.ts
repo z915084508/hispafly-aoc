@@ -49,7 +49,8 @@ export async function resolveFuelPolicy(input: { estimatedDurationMinutes: numbe
 export async function buildAppliedFuelPolicy(input: {
   pilotId: string;
   ofpBriefingId: string;
-  vamsysAircraftId: string;
+  aircraftId?: string | null;
+  vamsysAircraftId?: string | null;
   aircraftType: string | null;
   departureIcao: string;
   arrivalIcao: string;
@@ -59,8 +60,16 @@ export async function buildAppliedFuelPolicy(input: {
 }) {
   const [{ profile, routeType, region, category }, aircraft, condition, departurePrice, arrivalPrice] = await Promise.all([
     resolveFuelPolicy(input),
-    prisma.aircraft.findUnique({ where: { vamsysAircraftId: input.vamsysAircraftId }, include: { performanceProfile: true } }),
-    prisma.aircraftConditionSnapshot.findUnique({ where: { vamsysAircraftId: input.vamsysAircraftId } }),
+    input.aircraftId
+      ? prisma.aircraft.findUnique({ where: { id: input.aircraftId }, include: { performanceProfile: true } })
+      : input.vamsysAircraftId
+        ? prisma.aircraft.findUnique({ where: { vamsysAircraftId: input.vamsysAircraftId }, include: { performanceProfile: true } })
+        : null,
+    input.aircraftId
+      ? prisma.aircraftConditionSnapshot.findUnique({ where: { aircraftId: input.aircraftId } })
+      : input.vamsysAircraftId
+        ? prisma.aircraftConditionSnapshot.findUnique({ where: { vamsysAircraftId: input.vamsysAircraftId } })
+        : null,
     latestFuelPrice(regionFromIcao(input.departureIcao)),
     latestFuelPrice(regionFromIcao(input.arrivalIcao)),
   ]);

@@ -263,7 +263,7 @@ export async function getAircraftLocationList() {
 
 export async function getRepositionCandidates() {
   const active = await prisma.flightDispatch.findMany({ where: { status: { in: ["DISPATCHING", "DISPATCHED"] } }, select: { flightOffer: { select: { vamsysAircraftId: true } } } });
-  return prisma.aircraftLocationSnapshot.findMany({ where: { status: "AVAILABLE", currentAirportIcao: { not: null }, vamsysAircraftId: { notIn: active.map((d) => d.flightOffer.vamsysAircraftId) } }, orderBy: { currentAirportIcao: "asc" } });
+  return prisma.aircraftLocationSnapshot.findMany({ where: { status: "AVAILABLE", currentAirportIcao: { not: null }, vamsysAircraftId: { notIn: active.flatMap((d) => d.flightOffer.vamsysAircraftId ? [d.flightOffer.vamsysAircraftId] : []) } }, orderBy: { currentAirportIcao: "asc" } });
 }
 
 export async function setAircraftLocationManually(params: { vamsysAircraftId: string; registration?: string | null; aircraftType?: string | null; airportIcao?: string | null; status: AircraftLocationStatus; notes?: string | null; staffUserId?: string | null }) {

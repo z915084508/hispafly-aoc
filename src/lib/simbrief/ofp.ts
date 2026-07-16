@@ -46,7 +46,7 @@ export async function createDispatchOfpBriefing(dispatchId: string) {
     include: { flightOffer: true, pilot: true, aircraft: { include: { performanceProfile: true } } },
   });
   if (!dispatch) throw new Error("Dispatch not found.");
-  const aircraft = dispatch.aircraft ?? await prisma.aircraft.findUnique({ where: { vamsysAircraftId: dispatch.flightOffer.vamsysAircraftId }, include: { performanceProfile: true } });
+  const aircraft = dispatch.aircraft ?? (dispatch.flightOffer.vamsysAircraftId ? await prisma.aircraft.findUnique({ where: { vamsysAircraftId: dispatch.flightOffer.vamsysAircraftId }, include: { performanceProfile: true } }) : null);
   const performance = aircraft?.performanceProfile;
   const identity = normalizeFlightIdentity({ flightNumber: dispatch.flightOffer.flightNumber, callsign: dispatch.flightOffer.callsign });
   const staticId = `HISPAFLY_${dispatch.id.replace(/[^a-zA-Z0-9]/g, "_")}`;
@@ -93,6 +93,7 @@ export async function generateDispatchSimBriefOfp(input: { ofpId: string; pilotI
   if (dispatch.dataOrigin === "HISPAFLY_NATIVE" && dispatch.aircraft) {
     if (["AOG", "IN_MAINTENANCE"].includes(dispatch.aircraft.conditionSnapshot?.operationalStatus ?? "")) throw new Error("Aircraft is AOG or in maintenance.");
   } else {
+    if (!offer.vamsysAircraftId) throw new Error("Legacy aircraft identity is missing.");
     await assertAircraftDispatchAllowed({ vamsysAircraftId: offer.vamsysAircraftId, offerType: offer.offerType, arrivalIcao: offer.arrivalIcao });
   }
   const alternateIcao = normalizeAlternateIcao(input.alternateIcao);
@@ -118,6 +119,7 @@ export async function generateDispatchSimBriefOfp(input: { ofpId: string; pilotI
     const fuelPolicy = await buildAppliedFuelPolicy({
       pilotId: input.pilotId,
       ofpBriefingId: ofp.id,
+      aircraftId: dispatch.aircraft?.id,
       vamsysAircraftId: dispatch.aircraft?.vamsysAircraftId ?? offer.vamsysAircraftId,
       aircraftType: offer.aircraftType,
       departureIcao: offer.departureIcao,
