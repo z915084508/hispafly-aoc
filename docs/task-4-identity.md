@@ -5,7 +5,7 @@ Pilot authentication and registration are fully local. Existing `Pilot` records 
 ## Deployment
 
 1. Configure the existing session and token secrets from `.env.example`.
-2. Deploy migration `20260716100000_identity_service`.
+2. Run `pnpm db:deploy` once against the target database. Database migration and bootstrap are intentionally separate from the Vercel build to prevent concurrent deployment lock failures.
 3. Configure `AUTH_EMAIL_WEBHOOK` to deliver verification and password-reset links through the approved email service.
 4. New Pilots register at `/register` and must verify their email before sign-in.
 5. Staff may also create or manage a local login for an existing Pilot profile.
