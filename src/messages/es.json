@@ -95,6 +95,7 @@
                      "offers":  "Ofertas de vuelo",
                      "bookings": "Reservas",
     "dispatch": "Despacho",
+    "liveFlights": "Vuelos en vivo",
     "nativeCutover": "Migración Native",
                       "ofp":  "Control OFP",
                       "fuelPolicy": "Política de combustible",

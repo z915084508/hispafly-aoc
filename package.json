@@ -43,6 +43,7 @@
     "test:native-cutover": "node --experimental-strip-types src/lib/native-cutover/classification.test.ts",
     "test:security": "node --experimental-strip-types src/lib/security/secretBox.test.ts",
     "test:identity": "node --experimental-strip-types src/lib/auth/password.test.ts",
+    "test:live-tracking": "node --experimental-strip-types src/lib/acars/live-tracking.test.ts",
     "test:identity-email": "node --experimental-strip-types src/lib/auth/delivery.test.ts",
     "test:routes": "node --experimental-strip-types src/lib/vamsys/routes/routes.test.ts && node --experimental-strip-types src/lib/vamsys/routes/planning.test.ts",
     "test:fleets": "node --experimental-strip-types src/lib/vamsys/fleets/fleets.test.ts"
