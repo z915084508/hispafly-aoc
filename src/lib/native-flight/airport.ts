@@ -6,7 +6,6 @@ import { normalizeIcao } from "./normalize";
 
 export type NativeOrigin = "HISPAFLY_NATIVE" | "IMPORTED" | "MANUAL";
 const actorId = (actor: StaffIdentity) => actor.id === "development-staff" ? null : actor.id;
-const editableOrigins = new Set(["HISPAFLY_NATIVE", "IMPORTED", "MANUAL"]);
 
 export const findAirportById = (id: string) => prisma.airport.findUnique({
   where: { id },
@@ -76,7 +75,6 @@ export async function updateAirport(id: string, input: AirportInput, actor: Staf
   return prisma.$transaction(async (tx) => {
     const before = await tx.airport.findUnique({ where: { id } });
     if (!before) throw new Error("Airport not found.");
-    if (!editableOrigins.has(before.dataOrigin)) throw new Error("Legacy airports are read-only.");
     const duplicate = await tx.airport.findFirst({ where: { icao: data.icao, id: { not: id } } });
     if (duplicate) throw new Error("An airport with this ICAO already exists.");
     const airport = await tx.airport.update({ where: { id }, data });
@@ -95,7 +93,6 @@ export async function changeAirportStatus(id: string, status: AirportStatus, act
   return prisma.$transaction(async (tx) => {
     const before = await tx.airport.findUnique({ where: { id }, include: { _count: { select: { departureRoutes: true, arrivalRoutes: true, currentAircraft: true } } } });
     if (!before) throw new Error("Airport not found.");
-    if (!editableOrigins.has(before.dataOrigin)) throw new Error("Legacy airports are read-only.");
     const airport = await tx.airport.update({ where: { id }, data: { status, archivedAt: status === "ARCHIVED" ? new Date() : null } });
     await tx.aocAuditLog.create({ data: {
       staffUserId: actorId(actor), action: status === "ARCHIVED" ? "AIRPORT_ARCHIVED" : "AIRPORT_STATUS_CHANGED",

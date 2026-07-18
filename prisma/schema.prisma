@@ -718,7 +718,9 @@ model Airport {
   latitude            Float?
   longitude           Float?
   status              AirportStatus              @default(ACTIVE)
+  /// Import provenance only. Operational code must not use this field for eligibility.
   dataOrigin          AocDataOrigin              @default(HISPAFLY_NATIVE)
+  /// Free-form source/provenance metadata; never an airport business type.
   source              String                     @default("hispafly_native")
   legacyVamsysId      String?                    @unique
   rawData             Json?
