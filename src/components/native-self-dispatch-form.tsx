@@ -3,24 +3,67 @@
 import { useMemo, useState } from "react";
 import { createNativeSelfDispatchAction } from "@/app/pilot/flight-offers/self-dispatch/actions";
 
-type RouteOption = { id: string; flightNumber: string | null; departure: string; arrival: string; departureAirportId: string; duration: number; fleetIds: string[] };
-type AircraftOption = { id: string; registration: string | null; aircraftType: string | null; airportId: string; airportIcao: string; fleetId: string };
+type RouteOption = { id: string; flightNumber: string | null; callsign: string | null; departure: string; arrival: string; departureAirportId: string; duration: number; fleetIds: string[]; altitude: number | null; userRoute: string | null };
+type AircraftOption = { id: string; registration: string | null; aircraftType: string | null; airportId: string; airportIcao: string; fleetId: string; seatCapacity: number };
 
-export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey }: { routes: RouteOption[]; aircraft: AircraftOption[]; idempotencyKey: string }) {
+export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbriefConnected }: { routes: RouteOption[]; aircraft: AircraftOption[]; idempotencyKey: string; simbriefConnected: boolean }) {
+  const [departure, setDeparture] = useState("");
+  const [arrival, setArrival] = useState("");
   const [routeId, setRouteId] = useState("");
   const [aircraftId, setAircraftId] = useState("");
+  const [departureAt, setDepartureAt] = useState("");
+  const [loadFactor, setLoadFactor] = useState(80);
+  const [baggagePerPassenger, setBaggagePerPassenger] = useState(23);
+  const [freightKg, setFreightKg] = useState(0);
+  const [altitude, setAltitude] = useState("");
+  const [userRoute, setUserRoute] = useState("");
   const route = routes.find((item) => item.id === routeId) ?? null;
-  const compatibleAircraft = useMemo(() => route ? aircraft.filter((item) => item.airportId === route.departureAirportId && (!route.fleetIds.length || route.fleetIds.includes(item.fleetId))) : [], [aircraft, route]);
+  const aircraftAtDeparture = useMemo(() => aircraft.filter((item) => item.airportIcao === departure), [aircraft, departure]);
+  const departureChoices = useMemo(() => [...new Set(aircraft.map((item) => item.airportIcao).filter((icao) => routes.some((routeItem) => routeItem.departure === icao && (!routeItem.fleetIds.length || aircraft.some((plane) => plane.airportIcao === icao && routeItem.fleetIds.includes(plane.fleetId))))))].sort(), [aircraft, routes]);
+  const arrivalChoices = useMemo(() => [...new Set(routes.filter((item) => item.departure === departure && aircraftAtDeparture.some((plane) => !item.fleetIds.length || item.fleetIds.includes(plane.fleetId))).map((item) => item.arrival))].sort(), [aircraftAtDeparture, departure, routes]);
+  const routeChoices = routes.filter((item) => item.departure === departure && item.arrival === arrival && aircraftAtDeparture.some((plane) => !item.fleetIds.length || item.fleetIds.includes(plane.fleetId)));
+  const compatibleAircraft = route ? aircraftAtDeparture.filter((item) => !route.fleetIds.length || route.fleetIds.includes(item.fleetId)) : [];
+  const selectedAircraft = aircraft.find((item) => item.id === aircraftId) ?? null;
+  const passengers = selectedAircraft ? Math.max(1, Math.min(selectedAircraft.seatCapacity, Math.round(selectedAircraft.seatCapacity * loadFactor / 100))) : 0;
+  const luggageKg = Math.round(passengers * baggagePerPassenger);
+  const totalCargoKg = luggageKg + freightKg;
+  const arrivalAt = route && departureAt ? new Date(new Date(`${departureAt}:00Z`).getTime() + route.duration * 60_000) : null;
+
+  function chooseDeparture(value: string) {
+    setDeparture(value); setArrival(""); setRouteId(""); setAircraftId(""); setAltitude(""); setUserRoute("");
+  }
+  function applyRoute(nextRoute: RouteOption | null) {
+    setRouteId(nextRoute?.id ?? ""); setAircraftId(""); setAltitude(nextRoute?.altitude ? String(nextRoute.altitude) : ""); setUserRoute(nextRoute?.userRoute ?? "");
+  }
+  function chooseArrival(value: string) {
+    setArrival(value); const matches = routes.filter((item) => item.departure === departure && item.arrival === value && aircraftAtDeparture.some((plane) => !item.fleetIds.length || item.fleetIds.includes(plane.fleetId))); applyRoute(matches.length === 1 ? matches[0] : null);
+  }
+
   return <form className="pilot-booking-form native-self-dispatch" action={createNativeSelfDispatchAction}>
     <input type="hidden" name="idempotencyKey" value={idempotencyKey}/>
-    <fieldset><legend><span>01</span> Choose operation</legend><div className="pilot-booking-grid">
-      <label className="span-2">Route<select name="routeId" value={routeId} onChange={(event) => { setRouteId(event.target.value); setAircraftId(""); }} required><option value="">Select an active route</option>{routes.map((item) => <option value={item.id} key={item.id}>{item.flightNumber ?? "Route"} · {item.departure} → {item.arrival} · {item.duration} min</option>)}</select></label>
-      <label className="span-2">Aircraft<select name="aircraftId" value={aircraftId} onChange={(event) => setAircraftId(event.target.value)} disabled={!route} required><option value="">{route ? compatibleAircraft.length ? "Select an available aircraft" : `No compatible aircraft at ${route.departure}` : "Select a route first"}</option>{compatibleAircraft.map((item) => <option value={item.id} key={item.id}>{item.registration ?? item.id} · {item.aircraftType ?? "Type pending"} · at {item.airportIcao}</option>)}</select></label>
+    <fieldset><legend><span>01</span> Route and aircraft</legend><div className="pilot-booking-grid">
+      <label>Departure airport<select value={departure} onChange={(event) => chooseDeparture(event.target.value)} required><option value="">Select aircraft location</option>{departureChoices.map((icao) => <option key={icao}>{icao}</option>)}</select></label>
+      <label>Available arrival airport<select value={arrival} onChange={(event) => chooseArrival(event.target.value)} disabled={!departure} required><option value="">{departure ? "Select destination" : "Select departure first"}</option>{arrivalChoices.map((icao) => <option key={icao}>{icao}</option>)}</select></label>
+      <label>Matched route<select name="routeId" value={routeId} onChange={(event) => applyRoute(routes.find((item) => item.id === event.target.value) ?? null)} disabled={!arrival} required><option value="">{routeChoices.length === 1 ? "Route matched automatically" : "Select matching route"}</option>{routeChoices.map((item) => <option value={item.id} key={item.id}>{item.flightNumber ?? "Route"} · {item.departure} → {item.arrival} · {item.duration} min</option>)}</select></label>
+      <label>Available aircraft<select name="aircraftId" value={aircraftId} onChange={(event) => setAircraftId(event.target.value)} disabled={!route} required><option value="">{route ? compatibleAircraft.length ? "Select aircraft" : `No compatible aircraft at ${departure}` : "Match route first"}</option>{compatibleAircraft.map((item) => <option value={item.id} key={item.id}>{item.registration ?? item.id} · {item.aircraftType ?? "Type pending"} · {item.seatCapacity} seats</option>)}</select></label>
     </div></fieldset>
-    <fieldset><legend><span>02</span> Choose departure</legend><div className="pilot-booking-grid">
-      <label className="span-2">Departure date and time (UTC)<input type="datetime-local" name="departureAt" required/></label>
-      <div className="booking-time-note span-2"><strong>UTC time</strong><br/>The operation must start at least 15 minutes from now and no more than 30 days ahead. Arrival is calculated from the selected route.</div>
+    <fieldset><legend><span>02</span> Schedule</legend><div className="pilot-booking-grid">
+      <label className="span-2">Departure date and time (UTC)<input type="datetime-local" name="departureAt" value={departureAt} onChange={(event) => setDepartureAt(event.target.value)} required/></label>
+      <label className="span-2">Calculated arrival (UTC)<input value={arrivalAt && !Number.isNaN(arrivalAt.getTime()) ? `${arrivalAt.toISOString().slice(0, 16).replace("T", " ")} UTC` : "Calculated from route duration"} readOnly/></label>
     </div></fieldset>
-    <div className="pilot-booking-submit"><div><strong>Create my HispaFly operation</strong><span>This creates a concrete Flight and your Booking. Dispatch, OFP and ACARS remain separate controlled steps.</span></div><button className="button" disabled={!routeId || !aircraftId}>Create booking</button></div>
+    <fieldset><legend><span>03</span> Payload and flight plan</legend><div className="pilot-booking-grid">
+      <label>Load factor %<input name="loadFactorPercent" type="number" min="25" max="100" step="1" value={loadFactor} onChange={(event) => setLoadFactor(Number(event.target.value))} required/></label>
+      <label>Passengers<input value={passengers || ""} readOnly/></label>
+      <label>Baggage per passenger kg<input name="baggageKgPerPassenger" type="number" min="0" max="100" step="0.1" value={baggagePerPassenger} onChange={(event) => setBaggagePerPassenger(Number(event.target.value))} required/></label>
+      <label>Passenger luggage kg<input value={luggageKg || ""} readOnly/></label>
+      <label>Commercial freight kg<input name="freightKg" type="number" min="0" step="1" value={freightKg} onChange={(event) => setFreightKg(Math.max(0, Number(event.target.value)))} required/></label>
+      <label>Total cargo kg<input value={totalCargoKg || ""} readOnly/></label>
+      <label>Cruise altitude ft<input name="altitude" type="number" min="1000" max="70000" step="100" value={altitude} onChange={(event) => setAltitude(event.target.value)}/></label>
+      <label>Network<select name="network" defaultValue="vatsim"><option value="vatsim">VATSIM</option><option value="ivao">IVAO</option><option value="poscon">POSCON</option><option value="offline">Offline</option></select></label>
+      <label className="span-2">Callsign<input value={route?.callsign ?? route?.flightNumber ?? ""} readOnly/></label>
+      <label className="span-2">Operational route<textarea name="userRoute" value={userRoute} onChange={(event) => setUserRoute(event.target.value)} placeholder="Leave blank to let SimBrief calculate the route"/></label>
+    </div></fieldset>
+    {!simbriefConnected && <div className="notice"><strong>Connect Navigraph / SimBrief before continuing.</strong> The booking workflow will use the existing SimBrief API to generate, store and sign the OFP. <a href="/api/auth/navigraph/start">Connect now</a></div>}
+    <div className="pilot-booking-submit"><div><strong>Ready for SimBrief planning</strong><span>Creates the Flight, Booking and Dispatch, then opens the existing SimBrief OFP workflow.</span></div><button className="button" disabled={!departure || !arrival || !routeId || !aircraftId || !departureAt || !simbriefConnected}>Prepare SimBrief OFP</button></div>
   </form>;
 }

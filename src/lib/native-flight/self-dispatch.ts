@@ -9,10 +9,12 @@ const ACTIVE_BOOKING_STATUSES: PilotBookingStatus[] = ["PENDING", "CONFIRMED", "
 const ACTIVE_FLIGHT_STATUSES: NativeFlightStatus[] = ["SCHEDULED", "OPEN", "OPEN_FOR_BOOKING", "BOOKED", "DISPATCH_PENDING", "DISPATCHED", "BOARDING", "IN_PROGRESS", "DEPARTED", "AIRBORNE", "LANDED"];
 const localParts = (value: Date, timezone: string) => Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(value).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
 
-export async function createNativeSelfDispatch(input: { pilotId: string; routeId: string; aircraftId: string; departureAt: Date; idempotencyKey: string }) {
+export async function createNativeSelfDispatch(input: { pilotId: string; routeId: string; aircraftId: string; departureAt: Date; idempotencyKey: string; network: string; altitude?: number | null; loadFactorPercent: number; baggageKgPerPassenger: number; freightKg: number; userRoute?: string | null }) {
   const windowError = validateSelfDispatchWindow(input.departureAt);
   if (windowError) throw new Error(windowError);
   if (!input.idempotencyKey) throw new Error("Self-dispatch request identity is missing.");
+  if (!["vatsim", "ivao", "poscon", "offline"].includes(input.network)) throw new Error("Select a supported flight network.");
+  if ((input.userRoute?.length ?? 0) > 2_000) throw new Error("Operational route is too long.");
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`self-dispatch:${input.aircraftId}`}))`;
     const duplicate = await tx.pilotBooking.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
@@ -32,6 +34,7 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
     assertNativeOrigin("Self-dispatch aircraft", aircraft.dataOrigin);
     if (aircraft.operationalStatus !== "AVAILABLE") throw new Error("The selected aircraft is not available.");
     if (!aircraft.nativeFleetId || aircraft.nativeFleet?.operationalStatus !== "ACTIVE") throw new Error("The selected aircraft Fleet is not active.");
+    if (!aircraft.seatCapacity || aircraft.seatCapacity <= 0) throw new Error("Aircraft seat capacity must be configured before self-dispatch.");
     if (aircraft.currentAirportId !== route.departureAirportId) throw new Error("The selected aircraft is not at the route departure airport.");
     if (aircraft.conditionSnapshot && (["AOG", "IN_MAINTENANCE"].includes(aircraft.conditionSnapshot.operationalStatus) || ["REQUIRED", "IN_PROGRESS", "WAITING_MAINTENANCE"].includes(aircraft.conditionSnapshot.maintenanceStatus))) throw new Error("Aircraft maintenance status blocks self-dispatch.");
     const assignedFleetIds = route.fleetAssignments.map((row) => row.fleetId);
@@ -57,10 +60,18 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
       fleetId: aircraft.nativeFleetId, assignedAircraftId: aircraft.id, status: NativeFlightStatus.BOOKED, bookingOpenAt: new Date(), bookingCloseAt: input.departureAt,
       generationKey, operatingType: "PILOT_SELF_DISPATCH", notes: "Pilot-created HispaFly Native self-dispatch operation.",
     } });
+    if (!Number.isFinite(input.loadFactorPercent) || input.loadFactorPercent < 25 || input.loadFactorPercent > 100) throw new Error("Load factor must be between 25% and 100%.");
+    if (!Number.isFinite(input.baggageKgPerPassenger) || input.baggageKgPerPassenger < 0 || input.baggageKgPerPassenger > 100) throw new Error("Baggage per passenger is invalid.");
+    if (!Number.isInteger(input.freightKg) || input.freightKg < 0) throw new Error("Freight must be a non-negative whole number of kilograms.");
+    const passengers = Math.max(1, Math.min(aircraft.seatCapacity, Math.round(aircraft.seatCapacity * input.loadFactorPercent / 100)));
+    const luggageKg = Math.round(passengers * input.baggageKgPerPassenger);
+    const cargoKg = luggageKg + input.freightKg;
     const booking = await tx.pilotBooking.create({ data: {
       dataOrigin: AocDataOrigin.HISPAFLY_NATIVE, pilotId: input.pilotId, flightId: flight.id, routeId: route.id, fleetId: aircraft.nativeFleetId, aircraftId: aircraft.id,
       departureIcao: flight.departureIcao, arrivalIcao: flight.arrivalIcao, flightNumber, callsign, aircraftType: aircraft.aircraftType, aircraftRegistration: aircraft.registration,
       selectedDepartureAt: input.departureAt, estimatedArrivalAt: arrivalAt, estimatedDurationMinutes: duration, status: PilotBookingStatus.CONFIRMED,
+      network: input.network || "vatsim", altitude: input.altitude || route.cruiseAltitude, passengers, cargoKg, loadFactorPercent: input.loadFactorPercent,
+      baggageKgPerPassenger: input.baggageKgPerPassenger, luggageKg, freightKg: input.freightKg, userRoute: input.userRoute || route.route,
       expiresAt: input.departureAt, idempotencyKey: input.idempotencyKey, operationalNotes: "Created through HispaFly Native pilot self-dispatch.",
     } });
     await tx.aocAuditLog.create({ data: { action: "PILOT_NATIVE_SELF_DISPATCH_CREATED", entityType: "PilotBooking", entityId: booking.id, message: `Pilot created self-dispatch ${flightNumber} ${flight.departureIcao}-${flight.arrivalIcao}.`, metadata: { pilotId: input.pilotId, flightId: flight.id, routeId: route.id, aircraftId: aircraft.id, departureAt: input.departureAt.toISOString() } as Prisma.InputJsonValue } });

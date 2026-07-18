@@ -129,6 +129,9 @@ export async function createNativeDispatch(input: { bookingId: string; aircraftI
       scheduledDeparture: booking.flight.scheduledDeparture, scheduledArrival: booking.flight.scheduledArrival,
       estimatedDurationMinutes: booking.flight.scheduledDurationMinutes,
       aircraftType: aircraft.aircraftType, aircraftRegistration: aircraft.registration,
+      passengers: booking.passengers, cargoKg: booking.cargoKg, loadFactorPercent: booking.loadFactorPercent,
+      baggageKgPerPassenger: booking.baggageKgPerPassenger, luggageKg: booking.luggageKg, freightKg: booking.freightKg,
+      altitude: booking.altitude, network: booking.network, userRoute: booking.userRoute,
       status: "DISPATCHED",
     } });
     const dispatch = await tx.flightDispatch.create({ data: {

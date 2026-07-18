@@ -1670,6 +1670,10 @@ model PilotBooking {
   altitude                 Int?
   passengers               Int?
   cargoKg                  Int?
+  loadFactorPercent        Float?
+  baggageKgPerPassenger    Float?
+  luggageKg                Int?
+  freightKg                Int?
   userRoute                String?
   status                   PilotBookingStatus @default(BOOKED)
   bookedAt                 DateTime           @default(now())
