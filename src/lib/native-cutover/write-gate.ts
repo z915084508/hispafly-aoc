@@ -8,7 +8,9 @@ export class NativeWriteGateError extends Error {
 }
 
 export function assertNativeOrigin(entity: string, origin: AocDataOrigin | string | null | undefined) {
-  if (origin !== AocDataOrigin.HISPAFLY_NATIVE) throw new NativeWriteGateError(entity, "Legacy-only identity is read-only.");
+  if (!origin || origin === AocDataOrigin.VAMSYS_LEGACY) {
+    throw new NativeWriteGateError(entity, "Legacy-only identity is read-only.");
+  }
 }
 
 export function assertNativeIds(entity: string, ids: Record<string, string | null | undefined>) {

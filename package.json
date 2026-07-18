@@ -40,7 +40,7 @@
     "test:native-schedule-flight": "node --experimental-strip-types src/lib/native-flight/schedule-rules.test.ts",
     "test:native-pilot-booking": "node --experimental-strip-types src/lib/native-flight/booking-rules.test.ts",
     "test:native-dispatch": "node --experimental-strip-types src/lib/native-flight/dispatch-rules.test.ts",
-    "test:native-cutover": "node --experimental-strip-types src/lib/native-cutover/classification.test.ts",
+    "test:native-cutover": "node --experimental-strip-types src/lib/native-cutover/classification.test.ts && node --experimental-strip-types src/lib/native-cutover/write-gate.test.ts",
     "test:security": "node --experimental-strip-types src/lib/security/secretBox.test.ts",
     "test:identity": "node --experimental-strip-types src/lib/auth/password.test.ts",
     "test:live-tracking": "node --experimental-strip-types src/lib/acars/live-tracking.test.ts",
