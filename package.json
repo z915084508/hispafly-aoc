@@ -38,7 +38,7 @@
     "test:native-airport-route": "node --experimental-strip-types src/lib/native-flight/management-rules.test.ts && node --experimental-strip-types src/lib/native-flight/unified-airport.test.ts && node --experimental-strip-types src/lib/native-flight/legacy-route-csv.test.ts",
     "test:native-fleet-aircraft": "node --experimental-strip-types src/lib/native-flight/fleet-aircraft-rules.test.ts",
     "test:native-schedule-flight": "node --experimental-strip-types src/lib/native-flight/schedule-rules.test.ts",
-    "test:native-pilot-booking": "node --experimental-strip-types src/lib/native-flight/booking-rules.test.ts",
+    "test:native-pilot-booking": "node --experimental-strip-types src/lib/native-flight/booking-rules.test.ts && node --experimental-strip-types src/lib/native-flight/self-dispatch-rules.test.ts",
     "test:native-dispatch": "node --experimental-strip-types src/lib/native-flight/dispatch-rules.test.ts",
     "test:native-cutover": "node --experimental-strip-types src/lib/native-cutover/classification.test.ts && node --experimental-strip-types src/lib/native-cutover/write-gate.test.ts",
     "test:security": "node --experimental-strip-types src/lib/security/secretBox.test.ts",
