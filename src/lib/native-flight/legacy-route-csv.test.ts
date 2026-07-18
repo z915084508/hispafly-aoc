@@ -7,7 +7,7 @@ assert.deepEqual(parseVamsysRouteCsv(sample), [{ ID: "5844567", "Departure Airpo
 
 const service = readFileSync(new URL("./legacy-route-csv.ts", import.meta.url), "utf8");
 assert.match(service, /upsert\(\{ where: \{ vamsysRouteId:/);
-assert.match(service, /dataOrigin: "VAMSYS_LEGACY"/);
+assert.match(service, /dataOrigin: "IMPORTED"/);
 assert.match(service, /LEGACY_ROUTE_CSV_IMPORTED/);
 assert.doesNotMatch(service, /fetch\(|@\/lib\/vamsys\/routes\/client/);
 console.log("Legacy Route CSV parsing and safety tests passed.");
