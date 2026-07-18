@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { changeRouteStatus, copyRouteToNativeDraft, createNativeRoute, updateNativeRoute } from "@/lib/native-flight/route";
 import { requireStaffPermission } from "@/lib/staff/authorization";
+import { importLegacyRouteCsv } from "@/lib/native-flight/legacy-route-csv";
 
 const value = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 const optionalNumber = (form: FormData, key: string) => value(form, key) === "" ? null : Number(value(form, key));
@@ -57,4 +58,16 @@ export async function copyRouteAction(form: FormData) {
     target = `/staff/routes/${copy.id}?success=Native%20draft%20created.`;
   } catch (error) { target += `?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to copy route.")}`; }
   redirect(target);
+}
+
+export async function importLegacyRouteCsvAction(form: FormData) {
+  const preview = value(form, "mode") === "preview"; let target = "/staff/routes";
+  try {
+    const staff = await requireStaffPermission("ROUTE_SYNC", { entityType: "Route", attemptedAction: preview ? "preview Legacy Route CSV" : "import Legacy Route CSV" });
+    const file = form.get("routeCsv"); if (!(file instanceof File)) throw new Error("Choose a vAMSYS Route CSV file.");
+    const result = await importLegacyRouteCsv(file, staff, preview);
+    const summary = `${preview ? "Preview" : "Imported"}: ${result.rows} rows, ${result.create} new, ${result.update} updates, ${result.duplicateFlightNumbers} duplicated flight-number groups, ${result.duplicateCallsigns} duplicated callsign groups.`;
+    target += `?success=${encodeURIComponent(summary)}`;
+  } catch (error) { target += `?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to process Route CSV.")}`; }
+  revalidatePath("/staff/routes"); redirect(target);
 }
