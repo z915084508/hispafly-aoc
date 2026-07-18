@@ -43,10 +43,15 @@ export function simbriefResponseUserId(snapshot: unknown): string | null {
 
 export function summarizeSimbriefOfp(snapshot: unknown) {
   const root = record(snapshot);
+  const alternateCandidates = [root?.alternates, root?.alternate].find(Array.isArray) as unknown[] | undefined;
+  const firstAlternate = alternateCandidates?.map(record).find(Boolean) ?? null;
   return {
     requestId: valueAt(root, ["request_id"], ["params", "request_id"], ["general", "request_id"]),
     route: valueAt(root, ["general", "route"], ["general", "route_ifps"], ["params", "route"]),
-    alternate: valueAt(root, ["general", "alternate_icao"], ["general", "alternate"], ["params", "altn"]),
+    alternate: valueAt(root,
+      ["alternate", "icao_code"], ["alternate", "icao"], ["alternate", "ident"],
+      ["general", "alternate_icao"], ["general", "altn_icao"], ["general", "alternate"], ["params", "altn"])
+      ?? valueAt(firstAlternate, ["icao_code"], ["icao"], ["ident"], ["airport", "icao_code"]),
     blockTime: valueAt(root, ["times", "est_block"], ["times", "block"], ["general", "block_time"]),
     airTime: valueAt(root, ["times", "est_time_enroute"], ["times", "air_time"], ["general", "air_time"]),
     zfw: valueAt(root, ["weights", "est_zfw"], ["weights", "zfw"], ["general", "zfw"]),

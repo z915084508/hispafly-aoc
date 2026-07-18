@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentPilot } from "@/lib/pilot/session";
 import { prisma } from "@/lib/prisma";
 import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
-import { buildVatsimPrefile } from "@/lib/vatsim/prefile";
+import { buildVatsimPrefile, vatsimPrefileUnlocked } from "@/lib/vatsim/prefile";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 
 export async function GET(request: NextRequest) {
@@ -11,10 +11,10 @@ export async function GET(request: NextRequest) {
   const ofpId = request.nextUrl.searchParams.get("ofpId")?.trim();
   if (!ofpId) return NextResponse.redirect(new URL("/pilot/ofp?error=Missing%20OFP", request.url));
   const ofp = await prisma.ofpBriefing.findFirst({
-    where: { id: ofpId, status: "SIGNED", flightDispatch: { pilotId: pilot.id, status: "DISPATCHED" } },
-    include: { flightDispatch: { include: { flightOffer: true } } },
+    where: { id: ofpId, status: "SIGNED", flightDispatch: { pilotId: pilot.id } },
+    include: { flightDispatch: { include: { flightOffer: true } }, dispatchRelease: true },
   });
-  if (!ofp) return NextResponse.redirect(new URL(`/pilot/ofp/${encodeURIComponent(ofpId)}?error=${encodeURIComponent("Final Dispatch must be completed before VATSIM prefiling.")}`, request.url));
+  if (!ofp || !vatsimPrefileUnlocked(ofp.flightDispatch.dataOrigin, ofp.flightDispatch.status, ofp.dispatchRelease?.status)) return NextResponse.redirect(new URL(`/pilot/ofp/${encodeURIComponent(ofpId)}?error=${encodeURIComponent("Dispatch Release must be completed before VATSIM prefiling.")}`, request.url));
   const dispatch = ofp.flightDispatch;
   const offer = dispatch.flightOffer;
   const identity = normalizeFlightIdentity({ flightNumber: offer.flightNumber, callsign: offer.callsign });

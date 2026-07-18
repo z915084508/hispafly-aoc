@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildVatsimPrefile } from "./prefile.ts";
+import { buildVatsimPrefile, vatsimPrefileUnlocked } from "./prefile.ts";
 
 const completeSnapshot = {
   general: { callsign: "HPF200", route: "NANDO DCT CLS", cruise_tas: "450", initial_altitude: "35000", alternate_icao: "LEVC", dx_rmk: "PBN/B2 DOF/260712" },
@@ -25,6 +25,31 @@ assert.equal(result.fields["12b"], "30");
 assert.match(result.fields["11"], /REG\/ECABC/);
 assert.match(result.icaoText, /^\(FPL-HPF200-I/m);
 assert.match(result.icaoText, /-LEMD1430/);
+assert.equal(result.fields["3"], "A320/SDE2E3FGHIRWY/LB1");
+
+const splitEquipment = buildVatsimPrefile({
+  ...completeSnapshot,
+  aircraft: { icao_code: "A321", equip: "SDE2E3FGHIRWY", transponder: "LB1", reg: "EC-GRR" },
+  times: { est_time_enroute: "00:35", endurance: "01:58" },
+}, {});
+assert.equal(splitEquipment.fields["3"], "A321/SDE2E3FGHIRWY/LB1");
+assert.ok(!splitEquipment.missing.includes("aircraft type and equipment"));
+
+const alternateArray = buildVatsimPrefile({
+  ...completeSnapshot,
+  general: { ...completeSnapshot.general, alternate_icao: "" },
+  alternate: [{ airport: { icao_code: "LEAL" } }],
+  times: { est_time_enroute: "00:35", endurance: "01:58" },
+}, {});
+assert.equal(alternateArray.fields["13"], "LEAL");
+
+const typeOnly = buildVatsimPrefile({ ...completeSnapshot, aircraft: { icao_code: "A321" }, times: { est_time_enroute: "00:35", endurance: "01:58" } }, {});
+assert.ok(typeOnly.missing.includes("aircraft type and equipment"));
+
+assert.equal(vatsimPrefileUnlocked("HISPAFLY_NATIVE", "CHECK_REQUIRED", "SIGNED"), true);
+assert.equal(vatsimPrefileUnlocked("HISPAFLY_NATIVE", "RELEASED"), true);
+assert.equal(vatsimPrefileUnlocked("HISPAFLY_NATIVE", "DISPATCHED"), false);
+assert.equal(vatsimPrefileUnlocked("VAMSYS_LEGACY", "DISPATCHED"), true);
 
 const hhmmss = buildVatsimPrefile({
   ...completeSnapshot,

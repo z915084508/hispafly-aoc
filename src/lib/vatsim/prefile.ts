@@ -43,6 +43,23 @@ function upper(value: string | null | undefined) {
   return value?.trim().toUpperCase() || null;
 }
 
+function alternateIcao(root: JsonRecord | null) {
+  const direct = upper(valueAt(root,
+    ["alternate", "icao_code"], ["alternate", "icao"], ["alternate", "ident"],
+    ["general", "alternate_icao"], ["general", "altn_icao"], ["general", "alternate"], ["params", "altn"]));
+  if (direct) return direct;
+  for (const key of ["alternates", "alternate"]) {
+    const candidates = root?.[key];
+    if (!Array.isArray(candidates)) continue;
+    for (const candidate of candidates) {
+      const item = record(candidate);
+      const value = upper(valueAt(item, ["icao_code"], ["icao"], ["ident"], ["airport", "icao_code"]));
+      if (value) return value;
+    }
+  }
+  return null;
+}
+
 function hhmmFromDate(value: Date | null | undefined) {
   if (!value || Number.isNaN(value.getTime())) return null;
   return `${String(value.getUTCHours()).padStart(2, "0")}${String(value.getUTCMinutes()).padStart(2, "0")}`;
@@ -142,12 +159,18 @@ function fuelEndurance(root: JsonRecord | null) {
 }
 
 function aircraftField(root: JsonRecord | null, fallback: VatsimPrefileFallbacks) {
-  const complete = upper(valueAt(root, ["aircraft", "icao_code"], ["aircraft", "icao_equipment"]));
-  if (complete) return complete;
-  const type = upper(valueAt(root, ["aircraft", "icaocode"], ["aircraft", "type"]) ?? fallback.aircraftType);
+  const complete = upper(valueAt(root, ["aircraft", "icao_equipment"]));
+  if (complete?.includes("/")) return complete;
+  const icaoCode = upper(valueAt(root, ["aircraft", "icao_code"]));
+  if (icaoCode?.includes("/")) return icaoCode;
+  const type = upper(icaoCode ?? valueAt(root, ["aircraft", "icaocode"], ["aircraft", "type"]) ?? fallback.aircraftType);
   const equipment = upper(valueAt(root, ["aircraft", "equip"], ["aircraft", "equipment"]));
   const transponder = upper(valueAt(root, ["aircraft", "transponder"]));
   return type ? `${type}${equipment ? `/${equipment}${transponder ? `/${transponder}` : ""}` : ""}` : null;
+}
+
+export function vatsimPrefileUnlocked(dataOrigin: string | null | undefined, dispatchStatus: string | null | undefined, releaseStatus?: string | null) {
+  return dataOrigin === "HISPAFLY_NATIVE" ? dispatchStatus === "RELEASED" || releaseStatus === "SIGNED" : dispatchStatus === "DISPATCHED";
 }
 
 /** Builds VATSIM's documented backwards-compatible prefile form URL. */
@@ -157,7 +180,7 @@ export function buildVatsimPrefile(snapshot: unknown, fallback: VatsimPrefileFal
   const aircraft = aircraftField(root, fallback);
   const departure = upper(valueAt(root, ["origin", "icao_code"], ["params", "orig"]) ?? fallback.departureIcao);
   const arrival = upper(valueAt(root, ["destination", "icao_code"], ["params", "dest"]) ?? fallback.arrivalIcao);
-  const alternate = upper(valueAt(root, ["alternate", "icao_code"], ["general", "alternate_icao"], ["params", "altn"]));
+  const alternate = alternateIcao(root);
   const route = upper(valueAt(root, ["general", "route_ifps"], ["general", "route"], ["params", "route"]) ?? fallback.route);
   const speed = valueAt(root, ["general", "cruise_tas"], ["general", "avg_tas"], ["params", "cruise_speed"]);
   const altitude = valueAt(root, ["general", "initial_altitude"], ["params", "fl"], ["params", "altitude"]) ?? (fallback.altitude ? String(fallback.altitude < 1000 ? fallback.altitude * 100 : fallback.altitude) : null);
@@ -174,7 +197,7 @@ export function buildVatsimPrefile(snapshot: unknown, fallback: VatsimPrefileFal
   const remarks = [remarksBase, registration && !remarksBase.toUpperCase().includes("REG/") ? `REG/${registration.replace(/[^A-Z0-9]/g, "")}` : null, "OPR/HISPAFLY"].filter(Boolean).join(" ").trim();
 
   const required: Array<[string, string | null | undefined]> = [
-    ["callsign", callsign], ["aircraft", aircraft], ["departure airport", departure], ["arrival airport", arrival],
+    ["callsign", callsign], ["aircraft type and equipment", aircraft?.includes("/") ? aircraft : null], ["departure airport", departure], ["arrival airport", arrival],
     ["departure time", departureTime], ["cruise speed", speed], ["cruise altitude", altitude], ["route", route],
     ["estimated en-route time", enroute ? "ok" : null], ["fuel endurance", endurance ? "ok" : null],
   ];

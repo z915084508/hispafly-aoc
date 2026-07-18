@@ -20,7 +20,7 @@ export function VatsimFlightPlanPanel({ ofpId, fields, icaoText, missing, unlock
   return <section className="card vatsim-plan-card">
     <div className="card-header"><div><h2 className="card-title">VATSIM flight plan</h2><p className="meta">Generated from the signed SimBrief OFP</p></div><span className={`badge ${ready ? "" : "amber"}`}>{ready ? "READY" : "CHECK REQUIRED"}</span></div>
     <div className="vatsim-plan-grid">
-      {Object.entries(fieldLabels).map(([key, label]) => <div className={key === "8" || key === "11" ? "wide" : ""} key={key}><span>{label}</span><strong>{fields[key] || "Missing"}</strong></div>)}
+      {Object.entries(fieldLabels).map(([key, label]) => <div className={key === "8" || key === "11" ? "wide" : ""} key={key}><span>{label}</span><strong>{fields[key] || (key === "13" ? "Not specified (optional)" : "Missing")}</strong></div>)}
     </div>
     {missing.length > 0 && <div className="notice vatsim-missing"><strong>Complete these items before filing:</strong> {missing.join(", ")}.</div>}
     <div className="vatsim-icao-preview"><div><strong>ICAO flight plan copy</strong><span>Backup for pilot clients or manual filing</span></div><pre>{icaoText}</pre></div>
