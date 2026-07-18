@@ -39,6 +39,7 @@
     "test:native-fleet-aircraft": "node --experimental-strip-types src/lib/native-flight/fleet-aircraft-rules.test.ts && node --experimental-strip-types src/lib/native-flight/aircraft-state.test.ts",
     "test:native-schedule-flight": "node --experimental-strip-types src/lib/native-flight/schedule-rules.test.ts",
     "test:native-pilot-booking": "node --experimental-strip-types src/lib/native-flight/booking-rules.test.ts && node --experimental-strip-types src/lib/native-flight/self-dispatch-rules.test.ts",
+    "test:pilot-position": "node --experimental-strip-types src/lib/pilot/position.test.ts",
     "test:native-dispatch": "node --experimental-strip-types src/lib/native-flight/dispatch-rules.test.ts",
     "test:native-cutover": "node --experimental-strip-types src/lib/native-cutover/classification.test.ts && node --experimental-strip-types src/lib/native-cutover/write-gate.test.ts",
     "test:security": "node --experimental-strip-types src/lib/security/secretBox.test.ts",

@@ -49,6 +49,7 @@ enum WalletTransactionType {
   bonus
   penalty
   manual_adjustment
+  jumpseat
 }
 
 enum CompanyExpenseType {
@@ -395,9 +396,14 @@ model Pilot {
   base                       String?
   status                     PilotStatus                 @default(active)
   walletBalanceCents         Int                         @default(0)
+  currentAirportId           String?
+  currentAirport             Airport?                    @relation("PilotCurrentAirport", fields: [currentAirportId], references: [id], onDelete: SetNull)
+  positionUpdatedAt          DateTime?
+  positionSource             String?
   pireps                     Pirep[]
   payrollRecords             PayrollRecord[]
   walletTransactions         WalletTransaction[]
+  jumpseatTrips              PilotJumpseat[]
   vamsysOAuthToken           VamsysOAuthToken?
   navigraphOAuthToken        NavigraphOAuthToken?
   lastPirepSyncAt            DateTime?
@@ -415,6 +421,7 @@ model Pilot {
   @@index([status])
   @@index([base])
   @@index([dataOrigin])
+  @@index([currentAirportId])
 }
 
 model AuthUser {
@@ -731,6 +738,9 @@ model Airport {
   scheduledArrivals   Flight[]                   @relation("FlightArrivalAirport")
   currentAircraft     Aircraft[]
   locationSnapshots   AircraftLocationSnapshot[]
+  currentPilots       Pilot[]                    @relation("PilotCurrentAirport")
+  jumpseatDepartures  PilotJumpseat[]            @relation("JumpseatDepartureAirport")
+  jumpseatArrivals    PilotJumpseat[]            @relation("JumpseatArrivalAirport")
   createdAt           DateTime                   @default(now())
   updatedAt           DateTime                   @updatedAt
 
@@ -1043,6 +1053,7 @@ model WalletTransaction {
   payrollRecord    PayrollRecord?        @relation(fields: [payrollRecordId], references: [id], onDelete: Restrict)
   flightDispatchId String?               @unique
   flightDispatch   FlightDispatch?       @relation(fields: [flightDispatchId], references: [id], onDelete: Restrict)
+  jumpseatTrip     PilotJumpseat?
   type             WalletTransactionType
   amountCents      Int
   currency         String                @default("EUR")
@@ -1052,6 +1063,23 @@ model WalletTransaction {
 
   @@index([pilotId, createdAt])
   @@index([type])
+}
+
+model PilotJumpseat {
+  id                  String            @id @default(cuid())
+  pilotId             String
+  pilot               Pilot             @relation(fields: [pilotId], references: [id], onDelete: Restrict)
+  departureAirportId  String
+  departureAirport    Airport           @relation("JumpseatDepartureAirport", fields: [departureAirportId], references: [id], onDelete: Restrict)
+  arrivalAirportId    String
+  arrivalAirport      Airport           @relation("JumpseatArrivalAirport", fields: [arrivalAirportId], references: [id], onDelete: Restrict)
+  distanceKm          Int
+  costCents           Int
+  walletTransactionId String            @unique
+  walletTransaction   WalletTransaction @relation(fields: [walletTransactionId], references: [id], onDelete: Restrict)
+  createdAt           DateTime          @default(now())
+
+  @@index([pilotId, createdAt])
 }
 
 model AircraftPerformanceProfile {
@@ -1406,66 +1434,69 @@ model FlightDispatch {
 }
 
 model AcarsSession {
-  id              String   @id @default(cuid())
-  localSessionId  String   @unique
+  id              String          @id @default(cuid())
+  localSessionId  String          @unique
   pilotId         String
   bookingId       String
   flightId        String
-  dispatchId      String   @unique
+  dispatchId      String          @unique
   dispatchVersion Int
   aircraftId      String
   simulatorName   String
   acarsVersion    String
-  status          String   @default("ACTIVE")
-  currentPhase    String   @default("Preflight")
+  status          String          @default("ACTIVE")
+  currentPhase    String          @default("Preflight")
   startedAt       DateTime
   lastHeartbeatAt DateTime
   completedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
   positions       AcarsPosition[]
   events          AcarsEvent[]
+
   @@index([pilotId, status])
   @@index([flightId, status])
 }
 
 model AcarsPosition {
-  id              String   @id @default(cuid())
-  sessionId       String
-  session         AcarsSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  sequenceNumber  Int
-  recordedAt      DateTime
-  latitude        Float?
-  longitude       Float?
-  altitudeFeet    Float?
+  id               String       @id @default(cuid())
+  sessionId        String
+  session          AcarsSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sequenceNumber   Int
+  recordedAt       DateTime
+  latitude         Float?
+  longitude        Float?
+  altitudeFeet     Float?
   groundSpeedKnots Float?
-  headingDegrees  Float?
-  fuelKg          Float?
-  onGround        Boolean?
-  phase           String
-  createdAt       DateTime @default(now())
+  headingDegrees   Float?
+  fuelKg           Float?
+  onGround         Boolean?
+  phase            String
+  createdAt        DateTime     @default(now())
+
   @@unique([sessionId, sequenceNumber])
   @@index([recordedAt])
 }
 
 model AcarsEvent {
-  id              String   @id @default(cuid())
-  sessionId       String
-  session         AcarsSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  sequenceNumber  Int
-  type            String
-  recordedAt      DateTime
-  phaseBefore     String?
-  phaseAfter      String?
-  message         String?
-  latitude        Float?
-  longitude       Float?
-  altitudeFeet    Float?
+  id               String       @id @default(cuid())
+  sessionId        String
+  session          AcarsSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sequenceNumber   Int
+  type             String
+  recordedAt       DateTime
+  phaseBefore      String?
+  phaseAfter       String?
+  message          String?
+  latitude         Float?
+  longitude        Float?
+  altitudeFeet     Float?
   groundSpeedKnots Float?
-  fuelKg          Float?
-  numericValue    Float?
-  textValue       String?
-  createdAt       DateTime @default(now())
+  fuelKg           Float?
+  numericValue     Float?
+  textValue        String?
+  createdAt        DateTime     @default(now())
+
   @@unique([sessionId, sequenceNumber])
   @@index([recordedAt])
 }

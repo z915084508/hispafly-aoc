@@ -25,6 +25,16 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
     assertNativeOrigin("Self-dispatch route", route.dataOrigin);
     assertNativeIds("Self-dispatch route", { routeId: route.id, departureAirportId: route.departureAirportId, arrivalAirportId: route.arrivalAirportId });
     if (!route.departureAirport || !route.arrivalAirport) throw new Error("The route airport identity is incomplete.");
+    const pilot = await tx.pilot.findUnique({ where: { id: input.pilotId }, select: { currentAirportId: true, base: true } });
+    if (!pilot) throw new Error("Pilot not found.");
+    let pilotAirportId = pilot.currentAirportId;
+    if (!pilotAirportId) {
+      const latest = await tx.pirep.findFirst({ where: { pilotId: input.pilotId, status: "accepted", arrival: { not: "" } }, orderBy: [{ acceptedAt: "desc" }, { flownAt: "desc" }, { createdAt: "desc" }], select: { arrival: true } });
+      const fallbackIcao = latest?.arrival || pilot.base;
+      pilotAirportId = fallbackIcao ? (await tx.airport.findUnique({ where: { icao: fallbackIcao.toUpperCase() }, select: { id: true } }))?.id ?? null : null;
+    }
+    if (!pilotAirportId) throw new Error("Your crew position is unknown. Set it before self-dispatch.");
+    if (pilotAirportId !== route.departureAirportId) throw new Error(`Your crew is not at ${route.departureAirport.icao}. Use Jumpseat first.`);
     const duration = route.scheduledDurationMinutes;
     if (!duration || duration <= 0) throw new Error("The route has no valid scheduled duration.");
     const arrivalAt = new Date(input.departureAt.getTime() + duration * 60_000);

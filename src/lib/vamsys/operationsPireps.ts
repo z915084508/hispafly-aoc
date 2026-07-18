@@ -277,6 +277,14 @@ export async function processAcceptedOperationsPirep(pirepSummaryOrId: Row | str
   });
   await createOrUpdateFlightAnalysis(stored.id).catch((error) => console.error(`[Flight analysis] failed pirep=${stored.id}`, error));
   await completePilotBookingFromPirep({ pirepId: stored.id, vamsysBookingId: stored.vamsysBookingId });
+  if (stored.status === "accepted" && stored.arrival) {
+    const arrivalAirport = await prisma.airport.findUnique({ where: { icao: stored.arrival.toUpperCase() }, select: { id: true } });
+    const positionAt = stored.flownAt ?? stored.acceptedAt ?? stored.updatedAt;
+    if (arrivalAirport) await prisma.pilot.updateMany({
+      where: { id: pilot.id, OR: [{ positionUpdatedAt: null }, { positionUpdatedAt: { lte: positionAt } }] },
+      data: { currentAirportId: arrivalAirport.id, positionUpdatedAt: positionAt, positionSource: "ACCEPTED_PIREP" },
+    });
+  }
   try {
     const location = extractAircraftLocationData(stored.rawData, { arrival: stored.arrival, aircraftType: stored.aircraftType });
     if (location.vamsysAircraftId && location.arrivalIcao) {

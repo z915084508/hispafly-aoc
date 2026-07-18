@@ -6,8 +6,8 @@ import { createNativeSelfDispatchAction } from "@/app/pilot/flight-offers/self-d
 type RouteOption = { id: string; flightNumber: string | null; callsign: string | null; departure: string; arrival: string; departureAirportId: string; duration: number; fleetIds: string[]; altitude: number | null; userRoute: string | null };
 type AircraftOption = { id: string; registration: string | null; aircraftType: string | null; airportId: string; airportIcao: string; fleetId: string; seatCapacity: number; source: string; updatedAt: string; stale: boolean; external: boolean };
 
-export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbriefConnected }: { routes: RouteOption[]; aircraft: AircraftOption[]; idempotencyKey: string; simbriefConnected: boolean }) {
-  const [departure, setDeparture] = useState("");
+export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbriefConnected, pilotAirportIcao }: { routes: RouteOption[]; aircraft: AircraftOption[]; idempotencyKey: string; simbriefConnected: boolean; pilotAirportIcao: string }) {
+  const [departure] = useState(pilotAirportIcao);
   const [arrival, setArrival] = useState("");
   const [routeId, setRouteId] = useState("");
   const [aircraftId, setAircraftId] = useState("");
@@ -19,7 +19,6 @@ export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbr
   const [userRoute, setUserRoute] = useState("");
   const route = routes.find((item) => item.id === routeId) ?? null;
   const aircraftAtDeparture = useMemo(() => aircraft.filter((item) => item.airportIcao === departure), [aircraft, departure]);
-  const departureChoices = useMemo(() => [...new Set(aircraft.map((item) => item.airportIcao).filter((icao) => routes.some((routeItem) => routeItem.departure === icao && (!routeItem.fleetIds.length || aircraft.some((plane) => plane.airportIcao === icao && routeItem.fleetIds.includes(plane.fleetId))))))].sort(), [aircraft, routes]);
   const arrivalChoices = useMemo(() => [...new Set(routes.filter((item) => item.departure === departure && aircraftAtDeparture.some((plane) => !item.fleetIds.length || item.fleetIds.includes(plane.fleetId))).map((item) => item.arrival))].sort(), [aircraftAtDeparture, departure, routes]);
   const routeChoices = routes.filter((item) => item.departure === departure && item.arrival === arrival && aircraftAtDeparture.some((plane) => !item.fleetIds.length || item.fleetIds.includes(plane.fleetId)));
   const compatibleAircraft = route ? aircraftAtDeparture.filter((item) => !route.fleetIds.length || route.fleetIds.includes(item.fleetId)) : [];
@@ -29,9 +28,6 @@ export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbr
   const totalCargoKg = luggageKg + freightKg;
   const arrivalAt = route && departureAt ? new Date(new Date(`${departureAt}:00Z`).getTime() + route.duration * 60_000) : null;
 
-  function chooseDeparture(value: string) {
-    setDeparture(value); setArrival(""); setRouteId(""); setAircraftId(""); setAltitude(""); setUserRoute("");
-  }
   function applyRoute(nextRoute: RouteOption | null) {
     setRouteId(nextRoute?.id ?? ""); setAircraftId(""); setAltitude(nextRoute?.altitude ? String(nextRoute.altitude) : ""); setUserRoute(nextRoute?.userRoute ?? "");
   }
@@ -42,7 +38,7 @@ export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbr
   return <form className="pilot-booking-form native-self-dispatch" action={createNativeSelfDispatchAction}>
     <input type="hidden" name="idempotencyKey" value={idempotencyKey}/>
     <fieldset><legend><span>01</span> Route and aircraft</legend><div className="pilot-booking-grid">
-      <label>Departure airport<select value={departure} onChange={(event) => chooseDeparture(event.target.value)} required><option value="">Select aircraft location</option>{departureChoices.map((icao) => <option key={icao}>{icao}</option>)}</select></label>
+      <label>Departure airport<input value={departure} readOnly aria-readonly="true"/><span className="meta">Automatically matched to your crew position.</span></label>
       <label>Available arrival airport<select value={arrival} onChange={(event) => chooseArrival(event.target.value)} disabled={!departure} required><option value="">{departure ? "Select destination" : "Select departure first"}</option>{arrivalChoices.map((icao) => <option key={icao}>{icao}</option>)}</select></label>
       <label>Matched route<select name="routeId" value={routeId} onChange={(event) => applyRoute(routes.find((item) => item.id === event.target.value) ?? null)} disabled={!arrival} required><option value="">{routeChoices.length === 1 ? "Route matched automatically" : "Select matching route"}</option>{routeChoices.map((item) => <option value={item.id} key={item.id}>{item.flightNumber ?? "Route"} · {item.departure} → {item.arrival} · {item.duration} min</option>)}</select></label>
       <label>Available aircraft<select name="aircraftId" value={aircraftId} onChange={(event) => setAircraftId(event.target.value)} disabled={!route} required><option value="">{route ? compatibleAircraft.length ? "Select aircraft" : `No compatible aircraft at ${departure}` : "Match route first"}</option>{compatibleAircraft.map((item) => <option value={item.id} key={item.id}>{item.registration ?? item.id} · {item.aircraftType ?? "Type pending"} · {item.seatCapacity} seats{item.stale ? " · stale position" : ""}{item.external ? " · external source" : ""}</option>)}</select></label>

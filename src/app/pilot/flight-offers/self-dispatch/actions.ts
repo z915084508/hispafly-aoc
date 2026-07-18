@@ -6,6 +6,19 @@ import { createNativeSelfDispatch } from "@/lib/native-flight/self-dispatch";
 import { createNativeDispatch } from "@/lib/native-flight/dispatch";
 import { createDispatchOfpBriefing } from "@/lib/simbrief/ofp";
 import { assertNavigraphConnected } from "@/lib/navigraph/token";
+import { purchaseJumpseat } from "@/lib/pilot/position";
+
+export async function purchaseJumpseatAction(formData: FormData) {
+  const pilot = await requirePilotSession();
+  try {
+    const result = await purchaseJumpseat(pilot.id, String(formData.get("arrivalAirportId") ?? ""));
+    revalidatePath("/pilot/flight-offers/self-dispatch"); revalidatePath("/pilot/dashboard"); revalidatePath("/pilot/wallet");
+    redirect(`/pilot/flight-offers/self-dispatch?success=${encodeURIComponent(`Jumpseat complete. Crew position is now ${result.arrival.icao}.`)}`);
+  } catch (error) {
+    if (error && typeof error === "object" && "digest" in error) throw error;
+    redirect(`/pilot/flight-offers/self-dispatch?error=${encodeURIComponent(error instanceof Error ? error.message : "Jumpseat failed")}`);
+  }
+}
 
 export async function createNativeSelfDispatchAction(formData: FormData) {
   const pilot = await requirePilotSession();
