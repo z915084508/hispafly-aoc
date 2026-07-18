@@ -122,7 +122,9 @@ export async function previewReviewResolution(reviewItemId: string, targetNative
 }
 
 async function validateNativeTarget(entityType: string, targetNativeId: string) {
-  const found = entityType === "Airport" ? await prisma.airport.findFirst({ where: { id: targetNativeId, dataOrigin: "HISPAFLY_NATIVE" }, select: { id: true } })
+  // Airport provenance never determines operational eligibility. A historical
+  // Airport ID is already the canonical Airport ID and must remain linkable.
+  const found = entityType === "Airport" ? await prisma.airport.findFirst({ where: { id: targetNativeId }, select: { id: true } })
     : entityType === "Route" ? await prisma.route.findFirst({ where: { id: targetNativeId, dataOrigin: "HISPAFLY_NATIVE" }, select: { id: true } })
     : entityType === "Fleet" ? await prisma.fleet.findFirst({ where: { id: targetNativeId, dataOrigin: "HISPAFLY_NATIVE" }, select: { id: true } })
     : ["Aircraft", "AircraftLocation"].includes(entityType) ? await prisma.aircraft.findFirst({ where: { id: targetNativeId, dataOrigin: "HISPAFLY_NATIVE" }, select: { id: true } })

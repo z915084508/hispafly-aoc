@@ -10,7 +10,7 @@ export default async function EditRoute({ params, searchParams }: { params: Prom
   await requireStaffPermission("ROUTE_EDIT", { entityType: "Route", entityId: id, attemptedAction: "open route editor" });
   const [query, route, airports, fleets] = await Promise.all([
     searchParams, findRouteById(id),
-    prisma.airport.findMany({ where: { status: "ACTIVE", dataOrigin: { not: "VAMSYS_LEGACY" } }, orderBy: { icao: "asc" }, select: { id: true, icao: true, name: true } }),
+    prisma.airport.findMany({ where: { status: "ACTIVE" }, orderBy: { icao: "asc" }, select: { id: true, icao: true, name: true } }),
     prisma.fleet.findMany({ where: { active: true, dataOrigin: { not: "VAMSYS_LEGACY" } }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true } }),
   ]);
   if (!route) notFound();
