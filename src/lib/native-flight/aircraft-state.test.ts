@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import { resolveAircraftState } from "./aircraft-state.ts";
+const now = new Date("2026-07-19T12:00:00Z");
+const imported = resolveAircraftState({ operationalStatus: "UNKNOWN", currentAirportId: null, locationSnapshot: { status: "AVAILABLE", currentAirportId: "LEMD-ID", source: "VAMSYS_EXTERNAL", updatedAt: new Date("2026-07-01T12:00:00Z") } }, now);
+assert.equal(imported.available, true);
+assert.equal(imported.currentAirportId, "LEMD-ID");
+assert.equal(imported.stale, true);
+assert.equal(imported.external, true);
+assert.equal(resolveAircraftState({ operationalStatus: "AOG", currentAirportId: null, locationSnapshot: { status: "AVAILABLE", currentAirportId: "LEMD-ID", source: "MANUAL", updatedAt: now } }, now).available, false);
+assert.equal(resolveAircraftState({ operationalStatus: "AVAILABLE", currentAirportId: "LEMD-ID", locationSnapshot: { status: "RESERVED", currentAirportId: "LEMD-ID", source: "NATIVE_DISPATCH", updatedAt: now } }, now).available, false);
+console.log("Unified aircraft operational state rules passed.");

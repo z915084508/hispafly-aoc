@@ -2,6 +2,7 @@ import { AocDataOrigin, NativeFlightStatus, PilotBookingStatus, Prisma } from "@
 import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { assertNativeIds, assertNativeOrigin } from "@/lib/native-cutover/write-gate";
+import { resolveAircraftState } from "./aircraft-state";
 
 const ACTIVE_BOOKING_STATUSES: PilotBookingStatus[] = [
   PilotBookingStatus.PENDING,
@@ -120,7 +121,7 @@ export async function createNativeBooking(input: {
 
     const flight = await tx.flight.findUnique({
       where: { id: input.flightId },
-      include: { route: true, assignedAircraft: { include: { nativeFleet: true, conditionSnapshot: true } } },
+      include: { route: true, assignedAircraft: { include: { nativeFleet: true, conditionSnapshot: true, locationSnapshot: true } } },
     });
     if (!flight) throw new Error("Flight does not exist.");
     assertNativeOrigin("Flight booking", flight.dataOrigin);
@@ -139,13 +140,14 @@ export async function createNativeBooking(input: {
       throw new Error("This flight has a fixed aircraft assignment.");
     }
     if (aircraftId) {
-      const aircraft = await tx.aircraft.findUnique({ where: { id: aircraftId }, include: { nativeFleet: true, conditionSnapshot: true } });
+      const aircraft = await tx.aircraft.findUnique({ where: { id: aircraftId }, include: { nativeFleet: true, conditionSnapshot: true, locationSnapshot: true } });
       if (!aircraft) throw new Error("Aircraft does not exist.");
       assertNativeOrigin("Flight booking aircraft", aircraft.dataOrigin);
-      if (!["AVAILABLE", "FERRY_ONLY"].includes(aircraft.operationalStatus)) throw new Error("Aircraft is not operationally available.");
+      const aircraftState = resolveAircraftState(aircraft);
+      if (!aircraftState.available) throw new Error("Aircraft is not operationally available.");
       if (aircraft.conditionSnapshot && ["AOG", "IN_MAINTENANCE"].includes(aircraft.conditionSnapshot.operationalStatus)) throw new Error("Aircraft maintenance status blocks booking.");
       if (flight.fleetId && aircraft.nativeFleetId !== flight.fleetId) throw new Error("Aircraft does not belong to the required fleet.");
-      if (aircraft.currentAirportId && flight.departureAirportId && aircraft.currentAirportId !== flight.departureAirportId) throw new Error("Aircraft is not at the departure airport.");
+      if (aircraftState.currentAirportId && flight.departureAirportId && aircraftState.currentAirportId !== flight.departureAirportId) throw new Error("Aircraft is not at the departure airport.");
       const conflict = await tx.pilotBooking.findFirst({
         where: {
           aircraftId,

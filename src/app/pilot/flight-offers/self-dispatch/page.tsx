@@ -5,16 +5,17 @@ import { PageHeading } from "@/components/page-heading";
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { prisma } from "@/lib/prisma";
+import { resolveAircraftState } from "@/lib/native-flight/aircraft-state";
 
 export const dynamic = "force-dynamic";
 export default async function NativeSelfDispatchPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const [pilot, query, routes, aircraft] = await Promise.all([
     requirePilotSession(), searchParams,
     prisma.route.findMany({ where: { active: true, operationalStatus: "ACTIVE", archivedAt: null, dataOrigin: { not: "VAMSYS_LEGACY" }, departureAirportId: { not: null }, arrivalAirportId: { not: null }, scheduledDurationMinutes: { gt: 0 } }, include: { fleetAssignments: true }, orderBy: [{ departure: "asc" }, { arrival: "asc" }, { flightNumber: "asc" }] }),
-    prisma.aircraft.findMany({ where: { operationalStatus: "AVAILABLE", archivedAt: null, dataOrigin: { not: "VAMSYS_LEGACY" }, currentAirportId: { not: null }, nativeFleetId: { not: null }, nativeFleet: { operationalStatus: "ACTIVE" }, OR: [{ conditionSnapshot: null }, { conditionSnapshot: { operationalStatus: { notIn: ["AOG", "IN_MAINTENANCE"] }, maintenanceStatus: { notIn: ["REQUIRED", "IN_PROGRESS", "WAITING_MAINTENANCE"] } } }] }, include: { currentAirport: true }, orderBy: { registration: "asc" } }),
+    prisma.aircraftLocationSnapshot.findMany({ where: { status: "AVAILABLE", currentAirportId: { not: null }, aircraftId: { not: null }, aircraft: { archivedAt: null, dataOrigin: { not: "VAMSYS_LEGACY" }, nativeFleetId: { not: null }, nativeFleet: { operationalStatus: "ACTIVE" }, OR: [{ conditionSnapshot: null }, { conditionSnapshot: { operationalStatus: { notIn: ["AOG", "IN_MAINTENANCE"] }, maintenanceStatus: { notIn: ["REQUIRED", "IN_PROGRESS", "WAITING_MAINTENANCE"] } } }] } }, include: { currentAirport: true, aircraft: true }, orderBy: { registration: "asc" } }),
   ]);
   const routeOptions = routes.map((route) => ({ id: route.id, flightNumber: route.flightNumber, callsign: route.callsign, departure: route.departure, arrival: route.arrival, departureAirportId: route.departureAirportId!, duration: route.scheduledDurationMinutes!, fleetIds: route.fleetAssignments.map((item) => item.fleetId), altitude: route.cruiseAltitude, userRoute: route.route }));
-  const aircraftOptions = aircraft.filter((item) => (item.seatCapacity ?? 0) > 0).map((item) => ({ id: item.id, registration: item.registration, aircraftType: item.aircraftType, airportId: item.currentAirportId!, airportIcao: item.currentAirport?.icao ?? "Unknown", fleetId: item.nativeFleetId!, seatCapacity: item.seatCapacity! }));
+  const aircraftOptions = aircraft.filter((item) => item.aircraft && (item.aircraft.seatCapacity ?? 0) > 0 && item.aircraft.nativeFleetId).map((item) => { const state = resolveAircraftState({ operationalStatus: item.aircraft!.operationalStatus, currentAirportId: item.aircraft!.currentAirportId, locationSnapshot: item }); return { id: item.aircraft!.id, registration: item.registration ?? item.aircraft!.registration, aircraftType: item.aircraftType ?? item.aircraft!.aircraftType, airportId: item.currentAirportId!, airportIcao: item.currentAirport?.icao ?? item.currentAirportIcao ?? "Unknown", fleetId: item.aircraft!.nativeFleetId!, seatCapacity: item.aircraft!.seatCapacity!, source: item.source, updatedAt: item.updatedAt.toISOString(), stale: state.stale, external: state.external }; });
   const navigraph = await prisma.navigraphOAuthToken.findUnique({ where: { pilotId: pilot.id }, select: { revokedAt: true } });
   return <PilotPortalShell>
     <div className="booking-detail-back"><Link href="/pilot/flight-offers">← Available flights</Link></div>

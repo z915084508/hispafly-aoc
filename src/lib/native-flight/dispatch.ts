@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { checkPilotEligibility } from "./booking";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { assertNativeIds, assertNativeOrigin } from "@/lib/native-cutover/write-gate";
+import { resolveAircraftState } from "./aircraft-state";
 
 export type NativeDispatchCheck = { key: string; status: "PASS" | "WARNING" | "BLOCK" | "NOT_REQUIRED" | "UNKNOWN"; detail: string };
 export type NativeDispatchCheckResult = {
@@ -23,7 +24,7 @@ async function buildSnapshot(dispatchId: string, db: Prisma.TransactionClient | 
     where: { id: dispatchId },
     include: {
       booking: true, flight: true, route: true, fleet: true,
-      aircraft: { include: { currentAirport: true, conditionSnapshot: true, performanceProfile: true } },
+      aircraft: { include: { currentAirport: true, conditionSnapshot: true, performanceProfile: true, locationSnapshot: { include: { currentAirport: true } } } },
       ofpBriefing: true,
     },
   });
@@ -43,7 +44,7 @@ async function buildSnapshot(dispatchId: string, db: Prisma.TransactionClient | 
     route: { id: dispatch.route.id, plannedRoute: dispatch.route.route, notes: dispatch.route.internalNotes },
     aircraft: {
       id: dispatch.aircraft.id, registration: dispatch.aircraft.registration, type: dispatch.aircraft.aircraftType,
-      fleetId: dispatch.aircraft.nativeFleetId, currentAirport: dispatch.aircraft.currentAirport?.icao,
+      fleetId: dispatch.aircraft.nativeFleetId, currentAirport: dispatch.aircraft.locationSnapshot?.currentAirport?.icao ?? dispatch.aircraft.currentAirport?.icao,
       operationalStatus: dispatch.aircraft.operationalStatus,
       condition: dispatch.aircraft.conditionSnapshot?.operationalStatus,
       totalFlightMinutes: dispatch.aircraft.totalFlightMinutes, totalCycles: dispatch.aircraft.totalCycles,
@@ -68,6 +69,7 @@ async function buildSnapshot(dispatchId: string, db: Prisma.TransactionClient | 
 export async function runNativeDispatchChecks(dispatchId: string): Promise<NativeDispatchCheckResult> {
   const { dispatch } = await buildSnapshot(dispatchId);
   const booking = dispatch.booking!, flight = dispatch.flight!, aircraft = dispatch.aircraft!;
+  const aircraftState = resolveAircraftState(aircraft);
   const eligibility = await checkPilotEligibility(dispatch.pilotId, flight);
   const condition = aircraft.conditionSnapshot;
   const performance = await prisma.efbPerformanceCalculation.findMany({ where: { flightDispatchId: dispatch.id, mode: "OFFICIAL", status: { in: ["OK", "WARNING"] } }, select: { type: true } });
@@ -77,7 +79,7 @@ export async function runNativeDispatchChecks(dispatchId: string): Promise<Nativ
     { key: "pilot", status: eligibility.allowed ? "PASS" : "BLOCK", detail: eligibility.blockingReasons.join(" ") || "Pilot eligible" },
     { key: "flight", status: ["SCHEDULED", "OPEN", "OPEN_FOR_BOOKING", "BOOKED", "DISPATCH_PENDING"].includes(flight.status) ? "PASS" : "BLOCK", detail: `Flight ${flight.status}` },
     { key: "aircraft", status: aircraft ? "PASS" : "BLOCK", detail: aircraft.registration ?? "Aircraft missing" },
-    { key: "aircraftLocation", status: !flight.departureAirportId || aircraft.currentAirportId === flight.departureAirportId ? "PASS" : "BLOCK", detail: aircraft.currentAirport?.icao ?? "Unknown location" },
+    { key: "aircraftLocation", status: !flight.departureAirportId || aircraftState.currentAirportId === flight.departureAirportId ? "PASS" : "BLOCK", detail: aircraft.locationSnapshot?.currentAirport?.icao ?? aircraft.currentAirport?.icao ?? "Unknown location" },
     { key: "maintenance", status: condition && ["AOG", "IN_MAINTENANCE"].includes(condition.operationalStatus) ? "BLOCK" : condition ? "PASS" : "UNKNOWN", detail: condition?.operationalStatus ?? "Condition not initialized" },
     { key: "ofp", status: dispatch.ofpBriefing?.ofpSnapshot && ["AWAITING_SIGNATURE", "SIGNED"].includes(dispatch.ofpBriefing.status) ? "PASS" : "BLOCK", detail: dispatch.ofpBriefing ? `OFP ${dispatch.ofpBriefing.status}` : "OFP is required" },
     { key: "fuel", status: dispatch.ofpBriefing?.fuelPolicySnapshot || dispatch.ofpBriefing?.ofpSnapshot ? "PASS" : "BLOCK", detail: dispatch.ofpBriefing?.fuelPolicySnapshot ? "Fuel policy snapshot stored" : "Fuel plan required" },
@@ -115,11 +117,11 @@ export async function createNativeDispatch(input: { bookingId: string; aircraftI
     if (booking.status !== PilotBookingStatus.CONFIRMED) throw new Error("Booking is not eligible for Dispatch.");
     const aircraftId = booking.aircraftId ?? booking.flight.assignedAircraftId ?? input.aircraftId;
     if (!aircraftId) throw new Error("A concrete Aircraft is required at Dispatch.");
-    const aircraft = await tx.aircraft.findUnique({ where: { id: aircraftId }, include: { conditionSnapshot: true } });
-    if (!aircraft || !["AVAILABLE","FERRY_ONLY"].includes(aircraft.operationalStatus)) throw new Error("Aircraft is unavailable.");
+    const aircraft = await tx.aircraft.findUnique({ where: { id: aircraftId }, include: { conditionSnapshot: true, locationSnapshot: true } });
+    if (!aircraft || !resolveAircraftState(aircraft).available) throw new Error("Aircraft is unavailable.");
     assertNativeOrigin("Dispatch aircraft", aircraft.dataOrigin);
     if (aircraft.conditionSnapshot && ["AOG","IN_MAINTENANCE"].includes(aircraft.conditionSnapshot.operationalStatus)) throw new Error("Aircraft maintenance status blocks Dispatch.");
-    if (booking.flight.departureAirportId && aircraft.currentAirportId !== booking.flight.departureAirportId) throw new Error("Aircraft is not at departure airport.");
+    if (booking.flight.departureAirportId && resolveAircraftState(aircraft).currentAirportId !== booking.flight.departureAirportId) throw new Error("Aircraft is not at departure airport.");
     const offer = await tx.flightOffer.create({ data: {
       dataOrigin: AocDataOrigin.HISPAFLY_NATIVE, title: `${booking.flight.flightNumber} Native Dispatch`,
       flightId: booking.flight.id, routeId: booking.routeId, aircraftId, fleetId: booking.fleetId,
@@ -143,6 +145,8 @@ export async function createNativeDispatch(input: { bookingId: string; aircraftI
     } });
     await tx.pilotBooking.update({ where: { id: booking.id }, data: { status: PilotBookingStatus.DISPATCH_PENDING, aircraftId } });
     await tx.flight.update({ where: { id: booking.flight.id }, data: { status: NativeFlightStatus.DISPATCH_PENDING, assignedAircraftId: aircraftId } });
+    await tx.aircraft.update({ where: { id: aircraftId }, data: { operationalStatus: "RESERVED", currentAirportId: booking.flight.departureAirportId } });
+    if (aircraft.locationSnapshot) await tx.aircraftLocationSnapshot.update({ where: { id: aircraft.locationSnapshot.id }, data: { status: "RESERVED", source: "NATIVE_DISPATCH", reservedByDispatchId: dispatch.id, lastBookingId: booking.id, lastReportAt: new Date() } });
     return dispatch;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }

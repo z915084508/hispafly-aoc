@@ -4,12 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { assertNativeIds, assertNativeOrigin } from "@/lib/native-cutover/write-gate";
 import { checkPilotEligibility } from "./booking";
 import { fleetIsAuthorized, validateSelfDispatchWindow } from "./self-dispatch-rules";
+import { resolveAircraftState } from "./aircraft-state";
 
 const ACTIVE_BOOKING_STATUSES: PilotBookingStatus[] = ["PENDING", "CONFIRMED", "DISPATCH_PENDING", "DISPATCHED", "IN_PROGRESS", "BOOKED"];
 const ACTIVE_FLIGHT_STATUSES: NativeFlightStatus[] = ["SCHEDULED", "OPEN", "OPEN_FOR_BOOKING", "BOOKED", "DISPATCH_PENDING", "DISPATCHED", "BOARDING", "IN_PROGRESS", "DEPARTED", "AIRBORNE", "LANDED"];
 const localParts = (value: Date, timezone: string) => Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(value).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
 
-export async function createNativeSelfDispatch(input: { pilotId: string; routeId: string; aircraftId: string; departureAt: Date; idempotencyKey: string; network: string; altitude?: number | null; loadFactorPercent: number; baggageKgPerPassenger: number; freightKg: number; userRoute?: string | null }) {
+export async function createNativeSelfDispatch(input: { pilotId: string; routeId: string; aircraftId: string; departureAt: Date; idempotencyKey: string; network: string; altitude?: number | null; loadFactorPercent: number; baggageKgPerPassenger: number; freightKg: number; userRoute?: string | null; acknowledgeLocationWarning?: boolean }) {
   const windowError = validateSelfDispatchWindow(input.departureAt);
   if (windowError) throw new Error(windowError);
   if (!input.idempotencyKey) throw new Error("Self-dispatch request identity is missing.");
@@ -29,13 +30,15 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
     const arrivalAt = new Date(input.departureAt.getTime() + duration * 60_000);
     const eligibility = await checkPilotEligibility(input.pilotId, { id: `self:${input.idempotencyKey}`, scheduledDeparture: input.departureAt, scheduledArrival: arrivalAt }, tx);
     if (!eligibility.allowed) throw new Error(eligibility.blockingReasons.join(" "));
-    const aircraft = await tx.aircraft.findUnique({ where: { id: input.aircraftId }, include: { nativeFleet: true, conditionSnapshot: true } });
+    const aircraft = await tx.aircraft.findUnique({ where: { id: input.aircraftId }, include: { nativeFleet: true, conditionSnapshot: true, locationSnapshot: true } });
     if (!aircraft) throw new Error("The selected aircraft does not exist.");
     assertNativeOrigin("Self-dispatch aircraft", aircraft.dataOrigin);
-    if (aircraft.operationalStatus !== "AVAILABLE") throw new Error("The selected aircraft is not available.");
+    const aircraftState = resolveAircraftState(aircraft);
+    if (!aircraftState.available) throw new Error("The selected aircraft is not available.");
     if (!aircraft.nativeFleetId || aircraft.nativeFleet?.operationalStatus !== "ACTIVE") throw new Error("The selected aircraft Fleet is not active.");
     if (!aircraft.seatCapacity || aircraft.seatCapacity <= 0) throw new Error("Aircraft seat capacity must be configured before self-dispatch.");
-    if (aircraft.currentAirportId !== route.departureAirportId) throw new Error("The selected aircraft is not at the route departure airport.");
+    if (aircraftState.currentAirportId !== route.departureAirportId) throw new Error("The selected aircraft is not at the route departure airport.");
+    if ((aircraftState.stale || aircraftState.external) && !input.acknowledgeLocationWarning) throw new Error("Confirm the stale or externally sourced aircraft location before self-dispatch.");
     if (aircraft.conditionSnapshot && (["AOG", "IN_MAINTENANCE"].includes(aircraft.conditionSnapshot.operationalStatus) || ["REQUIRED", "IN_PROGRESS", "WAITING_MAINTENANCE"].includes(aircraft.conditionSnapshot.maintenanceStatus))) throw new Error("Aircraft maintenance status blocks self-dispatch.");
     const assignedFleetIds = route.fleetAssignments.map((row) => row.fleetId);
     if (!fleetIsAuthorized(assignedFleetIds, aircraft.nativeFleetId)) throw new Error("The aircraft Fleet is not authorized for this route.");

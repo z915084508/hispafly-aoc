@@ -36,7 +36,7 @@
     "test:vamsys-freeze": "node --experimental-strip-types src/lib/vamsys/legacy-policy.test.ts",
     "test:native-flight-identity": "node --experimental-strip-types src/lib/native-flight/identity.test.ts",
     "test:native-airport-route": "node --experimental-strip-types src/lib/native-flight/management-rules.test.ts && node --experimental-strip-types src/lib/native-flight/unified-airport.test.ts && node --experimental-strip-types src/lib/native-flight/legacy-route-csv.test.ts",
-    "test:native-fleet-aircraft": "node --experimental-strip-types src/lib/native-flight/fleet-aircraft-rules.test.ts",
+    "test:native-fleet-aircraft": "node --experimental-strip-types src/lib/native-flight/fleet-aircraft-rules.test.ts && node --experimental-strip-types src/lib/native-flight/aircraft-state.test.ts",
     "test:native-schedule-flight": "node --experimental-strip-types src/lib/native-flight/schedule-rules.test.ts",
     "test:native-pilot-booking": "node --experimental-strip-types src/lib/native-flight/booking-rules.test.ts && node --experimental-strip-types src/lib/native-flight/self-dispatch-rules.test.ts",
     "test:native-dispatch": "node --experimental-strip-types src/lib/native-flight/dispatch-rules.test.ts",

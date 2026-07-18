@@ -19,6 +19,7 @@ export async function createNativeSelfDispatchAction(formData: FormData) {
       network: String(formData.get("network") ?? "vatsim"), altitude: Number(formData.get("altitude")) || null,
       loadFactorPercent: Number(formData.get("loadFactorPercent")), baggageKgPerPassenger: Number(formData.get("baggageKgPerPassenger")),
       freightKg: Math.round(Number(formData.get("freightKg")) || 0), userRoute: String(formData.get("userRoute") ?? "").trim() || null,
+      acknowledgeLocationWarning: formData.get("acknowledgeLocationWarning") === "yes",
     });
     bookingId = booking.id;
     const dispatch = await createNativeDispatch({ bookingId: booking.id, aircraftId: booking.aircraftId, actorPilotId: pilot.id, idempotencyKey: `self-dispatch:${booking.id}` });
