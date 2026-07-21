@@ -5,6 +5,7 @@ import { checkPilotEligibility } from "./booking";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { assertNativeIds, assertNativeOrigin } from "@/lib/native-cutover/write-gate";
 import { resolveAircraftState } from "./aircraft-state";
+import { nativeDispatchExpiresAt, optionalPerformanceCheck } from "./dispatch-rules";
 
 export type NativeDispatchCheck = { key: string; status: "PASS" | "WARNING" | "BLOCK" | "NOT_REQUIRED" | "UNKNOWN"; detail: string };
 export type NativeDispatchCheckResult = {
@@ -74,6 +75,8 @@ export async function runNativeDispatchChecks(dispatchId: string): Promise<Nativ
   const condition = aircraft.conditionSnapshot;
   const performance = await prisma.efbPerformanceCalculation.findMany({ where: { flightDispatchId: dispatch.id, mode: "OFFICIAL", status: { in: ["OK", "WARNING"] } }, select: { type: true } });
   const performanceTypes = new Set(performance.map(({ type }) => type));
+  const takeoffPerformance = optionalPerformanceCheck(performanceTypes.has("TAKEOFF"));
+  const landingPerformance = optionalPerformanceCheck(performanceTypes.has("LANDING"));
   const checks: NativeDispatchCheck[] = [
     { key: "booking", status: ["DISPATCH_PENDING", "CONFIRMED"].includes(booking.status) ? "PASS" : "BLOCK", detail: `Booking ${booking.status}` },
     { key: "pilot", status: eligibility.allowed ? "PASS" : "BLOCK", detail: eligibility.blockingReasons.join(" ") || "Pilot eligible" },
@@ -84,8 +87,8 @@ export async function runNativeDispatchChecks(dispatchId: string): Promise<Nativ
     { key: "ofp", status: dispatch.ofpBriefing?.ofpSnapshot && ["AWAITING_SIGNATURE", "SIGNED"].includes(dispatch.ofpBriefing.status) ? "PASS" : "BLOCK", detail: dispatch.ofpBriefing ? `OFP ${dispatch.ofpBriefing.status}` : "OFP is required" },
     { key: "fuel", status: dispatch.ofpBriefing?.fuelPolicySnapshot || dispatch.ofpBriefing?.ofpSnapshot ? "PASS" : "BLOCK", detail: dispatch.ofpBriefing?.fuelPolicySnapshot ? "Fuel policy snapshot stored" : "Fuel plan required" },
     { key: "weather", status: "WARNING", detail: "Weather reference must be reviewed before release." },
-    { key: "takeoffPerformance", status: performanceTypes.has("TAKEOFF") ? "PASS" : "BLOCK", detail: performanceTypes.has("TAKEOFF") ? "Official takeoff performance available." : "Official takeoff performance is required." },
-    { key: "landingPerformance", status: performanceTypes.has("LANDING") ? "PASS" : "BLOCK", detail: performanceTypes.has("LANDING") ? "Official landing performance available." : "Official landing performance is required." },
+    { key: "takeoffPerformance", status: takeoffPerformance.status, detail: performanceTypes.has("TAKEOFF") ? takeoffPerformance.detail : "Optional; calculate before departure when operationally useful." },
+    { key: "landingPerformance", status: landingPerformance.status, detail: performanceTypes.has("LANDING") ? landingPerformance.detail : "Optional; calculate before arrival when operationally useful." },
   ];
   const blockingItems = checks.filter((item) => item.status === "BLOCK" || (item.status === "UNKNOWN" && item.key === "maintenance")).map((item) => item.detail);
   const warnings = [...eligibility.warnings, ...checks.filter((item) => item.status === "WARNING").map((item) => item.detail)];
@@ -165,7 +168,8 @@ export async function releaseNativeDispatch(input: { dispatchId: string; actorTy
       create: { ofpBriefingId: dispatch.ofpBriefing.id, status: "RELEASED", riskLevel: checks.riskLevel, checks: checks.checks as unknown as Prisma.InputJsonValue, warnings: checks.warnings, blockingItems: [], releasedAt: new Date(), actorType: input.actorType, actorDisplayName: input.actorName, dispatchVersion: dispatch.version, snapshotChecksum, acknowledgedWarnings: input.acknowledgedWarnings, signatureComment: input.comment, ...(input.actorType === "PILOT" ? { releasedByPilotId: input.actorId } : { releasedByStaffId: input.actorId }) },
       update: { status: "RELEASED", releasedAt: new Date(), actorType: input.actorType, actorDisplayName: input.actorName, dispatchVersion: dispatch.version, snapshotChecksum, acknowledgedWarnings: input.acknowledgedWarnings, signatureComment: input.comment, ...(input.actorType === "PILOT" ? { releasedByPilotId: input.actorId } : { releasedByStaffId: input.actorId }) },
     });
-    await tx.flightDispatch.update({ where: { id: dispatch.id }, data: { status: FlightDispatchStatus.RELEASED, dispatchedAt: new Date(), releaseSnapshot: snapshot as Prisma.InputJsonValue, snapshotChecksum } });
+    const releasedAt = new Date();
+    await tx.flightDispatch.update({ where: { id: dispatch.id }, data: { status: FlightDispatchStatus.RELEASED, dispatchedAt: releasedAt, expiresAt: nativeDispatchExpiresAt(releasedAt), releaseSnapshot: snapshot as Prisma.InputJsonValue, snapshotChecksum } });
     await tx.pilotBooking.update({ where: { id: dispatch.bookingId }, data: { status: PilotBookingStatus.DISPATCHED } });
     await tx.flight.update({ where: { id: dispatch.flightId }, data: { status: NativeFlightStatus.DISPATCHED } });
     await tx.aircraft.update({ where: { id: dispatch.aircraftId }, data: { operationalStatus: "DISPATCHED" } });
@@ -174,7 +178,7 @@ export async function releaseNativeDispatch(input: { dispatchId: string; actorTy
 }
 
 export async function getAcarsAssignment(pilotId: string) {
-  const dispatch = await prisma.flightDispatch.findFirst({ where: { pilotId, isCurrent: true, status: FlightDispatchStatus.RELEASED, dataOrigin: AocDataOrigin.HISPAFLY_NATIVE }, include: { booking: true, flight: true, route: true, fleet: true, aircraft: true, ofpBriefing: true }, orderBy: { dispatchedAt: "desc" } });
+  const dispatch = await prisma.flightDispatch.findFirst({ where: { pilotId, isCurrent: true, status: FlightDispatchStatus.RELEASED, dataOrigin: AocDataOrigin.HISPAFLY_NATIVE, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }, include: { booking: true, flight: true, route: true, fleet: true, aircraft: true, ofpBriefing: true }, orderBy: { dispatchedAt: "desc" } });
   if (!dispatch?.booking || !dispatch.flight || !dispatch.aircraft) return null;
   const ofp = dispatch.ofpBriefing?.ofpSnapshot && typeof dispatch.ofpBriefing.ofpSnapshot === "object" ? dispatch.ofpBriefing.ofpSnapshot as Record<string, unknown> : null;
   const plannedBlockFuelKg = typeof ofp?.block_fuel === "number" ? ofp.block_fuel : null;
@@ -221,17 +225,22 @@ export async function cancelOrVoidNativeDispatch(dispatchId: string, mode: "CANC
     await tx.pilotBooking.update({ where: { id: dispatch.bookingId }, data: { status: PilotBookingStatus.CONFIRMED } });
     await tx.flight.update({ where: { id: dispatch.flightId }, data: { status: NativeFlightStatus.OPEN_FOR_BOOKING } });
     await tx.aircraft.update({ where: { id: dispatch.aircraftId }, data: { operationalStatus: "AVAILABLE" } });
+    await tx.aircraftLocationSnapshot.updateMany({ where: { aircraftId: dispatch.aircraftId, reservedByDispatchId: dispatch.id }, data: { status: "AVAILABLE", reservedByDispatchId: null, lastReportAt: new Date() } });
   });
 }
 
 export async function expireNativeDispatches() {
-  const rows = await prisma.flightDispatch.findMany({ where: { dataOrigin: AocDataOrigin.HISPAFLY_NATIVE, isCurrent: true, status: { in: [FlightDispatchStatus.DRAFT, FlightDispatchStatus.PREPARING, FlightDispatchStatus.CHECK_REQUIRED, FlightDispatchStatus.READY_FOR_RELEASE] }, expiresAt: { lt: new Date() } }, select: { id: true, bookingId: true, flightId: true, aircraftId: true } });
-  for (const row of rows) await prisma.$transaction([
-    prisma.flightDispatch.update({ where: { id: row.id }, data: { status: FlightDispatchStatus.EXPIRED } }),
-    ...(row.bookingId ? [prisma.pilotBooking.update({ where: { id: row.bookingId }, data: { status: PilotBookingStatus.EXPIRED } })] : []),
-    ...(row.flightId ? [prisma.flight.update({ where: { id: row.flightId }, data: { status: NativeFlightStatus.EXPIRED } })] : []),
-    ...(row.aircraftId ? [prisma.aircraft.update({ where: { id: row.aircraftId }, data: { operationalStatus: "AVAILABLE" } })] : []),
-  ]);
+  const rows = await prisma.flightDispatch.findMany({ where: { dataOrigin: AocDataOrigin.HISPAFLY_NATIVE, isCurrent: true, status: { in: [FlightDispatchStatus.DRAFT, FlightDispatchStatus.PREPARING, FlightDispatchStatus.CHECK_REQUIRED, FlightDispatchStatus.READY_FOR_RELEASE, FlightDispatchStatus.RELEASED] }, expiresAt: { lt: new Date() } }, select: { id: true, bookingId: true, flightId: true, aircraftId: true } });
+  for (const row of rows) await prisma.$transaction(async (tx) => {
+    const claimed = await tx.flightDispatch.updateMany({ where: { id: row.id, status: { in: [FlightDispatchStatus.DRAFT, FlightDispatchStatus.PREPARING, FlightDispatchStatus.CHECK_REQUIRED, FlightDispatchStatus.READY_FOR_RELEASE, FlightDispatchStatus.RELEASED] }, expiresAt: { lt: new Date() } }, data: { status: FlightDispatchStatus.EXPIRED, cancelledAt: new Date(), errorMessage: "Native Dispatch automatically expired after its validity window." } });
+    if (!claimed.count) return;
+    if (row.bookingId) await tx.pilotBooking.update({ where: { id: row.bookingId }, data: { status: PilotBookingStatus.EXPIRED } });
+    if (row.flightId) await tx.flight.update({ where: { id: row.flightId }, data: { status: NativeFlightStatus.EXPIRED } });
+    if (row.aircraftId) {
+      await tx.aircraft.update({ where: { id: row.aircraftId }, data: { operationalStatus: "AVAILABLE" } });
+      await tx.aircraftLocationSnapshot.updateMany({ where: { aircraftId: row.aircraftId, reservedByDispatchId: row.id }, data: { status: "AVAILABLE", reservedByDispatchId: null, lastReportAt: new Date() } });
+    }
+  });
   if (rows.length) await writeAuditLogSafely({ action: "NATIVE_DISPATCHES_EXPIRED", entityType: "FlightDispatch", message: `${rows.length} Native Dispatch record(s) expired automatically.`, metadata: { dispatchIds: rows.map(({ id }) => id) } });
   return { expired: rows.length };
 }

@@ -1,3 +1,5 @@
 {
-  "crons": []
+  "crons": [
+    { "path": "/api/cron/native-dispatch-expiry", "schedule": "0 3 * * *" }
+  ]
 }

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     where: { id: ofpId, status: "SIGNED", flightDispatch: { pilotId: pilot.id } },
     include: { flightDispatch: { include: { flightOffer: true } }, dispatchRelease: true },
   });
-  if (!ofp || !vatsimPrefileUnlocked(ofp.flightDispatch.dataOrigin, ofp.flightDispatch.status, ofp.dispatchRelease?.status)) return NextResponse.redirect(new URL(`/pilot/ofp/${encodeURIComponent(ofpId)}?error=${encodeURIComponent("Dispatch Release must be completed before VATSIM prefiling.")}`, request.url));
+  if (!ofp || (ofp.flightDispatch.expiresAt && ofp.flightDispatch.expiresAt <= new Date()) || !vatsimPrefileUnlocked(ofp.flightDispatch.dataOrigin, ofp.flightDispatch.status, ofp.dispatchRelease?.status)) return NextResponse.redirect(new URL(`/pilot/ofp/${encodeURIComponent(ofpId)}?error=${encodeURIComponent("A current Dispatch Release is required before VATSIM prefiling.")}`, request.url));
   const dispatch = ofp.flightDispatch;
   const offer = dispatch.flightOffer;
   const identity = normalizeFlightIdentity({ flightNumber: offer.flightNumber, callsign: offer.callsign });

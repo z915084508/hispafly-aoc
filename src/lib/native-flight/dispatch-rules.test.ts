@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
-import{canChangeReleasedDispatch,summarizeDispatchChecks}from"./dispatch-rules.ts";
+import{canChangeReleasedDispatch,nativeDispatchExpiresAt,optionalPerformanceCheck,summarizeDispatchChecks}from"./dispatch-rules.ts";
 assert.equal(summarizeDispatchChecks([{key:"aircraft",status:"PASS"},{key:"weather",status:"WARNING"}]).releasable,true);
 assert.equal(summarizeDispatchChecks([{key:"maintenance",status:"UNKNOWN",critical:true}]).releasable,false);
 assert.equal(summarizeDispatchChecks([{key:"ofp",status:"BLOCK"}]).riskLevel,"BLOCKED");
 assert.equal(canChangeReleasedDispatch("RELEASED"),false);
+const releasedAt=new Date("2026-07-21T10:00:00.000Z");
+assert.equal(nativeDispatchExpiresAt(releasedAt).toISOString(),"2026-07-22T10:00:00.000Z");
+assert.equal(optionalPerformanceCheck(false).status,"NOT_REQUIRED");
+assert.equal(optionalPerformanceCheck(true).status,"PASS");
 console.log("Native Dispatch rules passed.");

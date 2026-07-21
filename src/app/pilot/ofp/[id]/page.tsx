@@ -47,7 +47,8 @@ export default async function PilotOfpPage({ params, searchParams }: { params: P
     estimatedArrivalAt: dispatch.estimatedArrivalAt,
     estimatedDurationMinutes: offer.estimatedDurationMinutes,
   });
-  const vatsimUnlocked = ofp.status === "SIGNED" && vatsimPrefileUnlocked(dispatch.dataOrigin, dispatch.status, ofp.dispatchRelease?.status);
+  const dispatchExpired = Boolean(dispatch.expiresAt && dispatch.expiresAt <= new Date());
+  const vatsimUnlocked = !dispatchExpired && ofp.status === "SIGNED" && vatsimPrefileUnlocked(dispatch.dataOrigin, dispatch.status, ofp.dispatchRelease?.status);
   const nativeDispatch = dispatch.dataOrigin === "HISPAFLY_NATIVE";
 
   return <PilotPortalShell>
@@ -90,7 +91,7 @@ export default async function PilotOfpPage({ params, searchParams }: { params: P
       </> : ofp.status === "AWAITING_SIGNATURE" ? <OfpSignaturePad ofpId={ofp.id}/> : <div className="notice">{t("ofp.generateBeforeSigning")}</div>}
       {dispatch.status === "DISPATCHING" && <form action={cancelFlightDispatchAction}><input type="hidden" name="dispatchId" value={ofp.flightDispatchId}/><button className="action-button reject" type="submit">Cancel pre-dispatch</button></form>}
     </section>
-    {!vatsimUnlocked && <div className="notice">{ofp.status !== "SIGNED" ? "Review and sign the OFP before VATSIM prefiling." : nativeDispatch ? "Complete the Native Dispatch Release before opening the VATSIM prefile form." : "Complete Final Dispatch to vAMSYS before opening the VATSIM prefile form."}</div>}
+    {!vatsimUnlocked && <div className="notice">{dispatchExpired ? "This Dispatch plan has expired and can no longer be imported into VATSIM." : ofp.status !== "SIGNED" ? "Review and sign the OFP before VATSIM prefiling." : nativeDispatch ? "Complete the Native Dispatch Release before opening the VATSIM prefile form." : "Complete Final Dispatch to vAMSYS before opening the VATSIM prefile form."}</div>}
     <VatsimFlightPlanPanel ofpId={ofp.id} fields={vatsimPrefile.fields} icaoText={vatsimPrefile.icaoText} missing={vatsimPrefile.missing} unlocked={vatsimUnlocked}/>
   </PilotPortalShell>;
 }
