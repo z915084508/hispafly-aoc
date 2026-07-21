@@ -906,7 +906,9 @@ model VamsysOAuthToken {
 model Pirep {
   id                     String                @id @default(cuid())
   dataOrigin             AocDataOrigin         @default(HISPAFLY_NATIVE)
-  vamsysPirepId          String                @unique
+  vamsysPirepId          String?               @unique
+  acarsSessionId         String?               @unique
+  acarsSession           AcarsSession?         @relation(fields: [acarsSessionId], references: [id], onDelete: Restrict)
   vamsysBookingId        String?
   pilotId                String
   pilot                  Pilot                 @relation(fields: [pilotId], references: [id], onDelete: Restrict)
@@ -1453,6 +1455,7 @@ model AcarsSession {
   updatedAt       DateTime        @updatedAt
   positions       AcarsPosition[]
   events          AcarsEvent[]
+  pirep           Pirep?
 
   @@index([pilotId, status])
   @@index([flightId, status])

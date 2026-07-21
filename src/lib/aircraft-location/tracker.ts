@@ -226,6 +226,7 @@ export async function syncAircraftLocationsFromPireps() {
     for (const pirep of pireps) {
       if (seen.size >= 100) break;
       result.processed++;
+      if (!pirep.vamsysPirepId) { result.skipped++; continue; }
       const data = extractAircraftLocationData(pirep.rawData, pirep);
       if (!data.vamsysAircraftId || !data.arrivalIcao || seen.has(data.vamsysAircraftId)) { result.skipped++; continue; }
       seen.add(data.vamsysAircraftId);

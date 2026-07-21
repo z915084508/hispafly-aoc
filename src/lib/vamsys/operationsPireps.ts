@@ -272,7 +272,7 @@ export async function processAcceptedOperationsPirep(pirepSummaryOrId: Row | str
   await applyAircraftWearFromAcceptedPirep(stored).catch((error) => console.error(`[Aircraft maintenance] wear failed pirep=${stored.id}`, error));
   const dispatchResult = await completeFlightDispatchFromPirep({
     pirepId: stored.id,
-    vamsysPirepId: stored.vamsysPirepId,
+    vamsysPirepId: mapped.data.vamsysPirepId,
     vamsysBookingId: stored.vamsysBookingId,
   });
   await createOrUpdateFlightAnalysis(stored.id).catch((error) => console.error(`[Flight analysis] failed pirep=${stored.id}`, error));
@@ -293,7 +293,7 @@ export async function processAcceptedOperationsPirep(pirepSummaryOrId: Row | str
         vamsysAircraftId: location.vamsysAircraftId,
         arrivalIcao: location.arrivalIcao,
         pirepId: stored.id,
-        vamsysPirepId: stored.vamsysPirepId,
+        vamsysPirepId: mapped.data.vamsysPirepId,
         matchedDispatchId: dispatchResult.matched && stored.vamsysBookingId
           ? (await prisma.flightDispatch.findUnique({ where: { vamsysBookingId: stored.vamsysBookingId }, select: { id: true } }))?.id
           : null,
