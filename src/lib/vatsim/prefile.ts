@@ -169,6 +169,22 @@ function aircraftField(root: JsonRecord | null, fallback: VatsimPrefileFallbacks
   return type ? `${type}${equipment ? `/${equipment}${transponder ? `/${transponder}` : ""}` : ""}` : null;
 }
 
+function officialSimbriefVatsimUrl(root: JsonRecord | null) {
+  const candidate = valueAt(root,
+    ["prefile", "vatsim", "link"],
+    ["prefile", "vatsim", "url"],
+    ["prefile", "vatsim"]);
+  if (!candidate) return null;
+  try {
+    const url = new URL(candidate);
+    const raw = url.searchParams.get("raw")?.trim();
+    if (url.protocol !== "https:" || url.hostname !== "my.vatsim.net" || url.pathname !== "/pilots/flightplan" || !raw?.startsWith("(FPL-")) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function vatsimPrefileUnlocked(dataOrigin: string | null | undefined, dispatchStatus: string | null | undefined, releaseStatus?: string | null) {
   return dataOrigin === "HISPAFLY_NATIVE" ? dispatchStatus === "RELEASED" || releaseStatus === "SIGNED" : dispatchStatus === "DISPATCHED";
 }
@@ -215,12 +231,15 @@ export function buildVatsimPrefile(snapshot: unknown, fallback: VatsimPrefileFal
   fields["11"] = remarks;
   if (endurance) { fields["12a"] = String(endurance.hours).padStart(2, "0"); fields["12b"] = String(endurance.minutes).padStart(2, "0"); }
   if (alternate) fields["13"] = alternate;
-  fields["1"] = "I";
+  fields["1"] = "IS";
   fields.voice = "/V/";
 
   const icaoText = formatVatsimIcaoPlan(fields);
   if (missing.length) return { url: null, missing, fields, icaoText };
-  const query = new URLSearchParams({ raw: "?1=I", ...fields });
+  const officialUrl = officialSimbriefVatsimUrl(root);
+  if (officialUrl) return { url: officialUrl, missing, fields, icaoText };
+  const query = new URLSearchParams({ raw: icaoText });
+  if (endurance) query.set("fuel_time", `${String(endurance.hours).padStart(2, "0")}${String(endurance.minutes).padStart(2, "0")}`);
   return { url: `https://my.vatsim.net/pilots/flightplan?${query}`, missing, fields, icaoText };
 }
 

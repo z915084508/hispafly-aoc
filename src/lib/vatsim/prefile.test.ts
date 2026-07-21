@@ -16,6 +16,10 @@ const result = buildVatsimPrefile({
 
 assert.deepEqual(result.missing, []);
 assert.ok(result.url?.startsWith("https://my.vatsim.net/pilots/flightplan?"));
+const resultUrl = new URL(result.url!);
+assert.equal(resultUrl.searchParams.get("raw"), result.icaoText);
+assert.equal(resultUrl.searchParams.get("fuel_time"), "0230");
+assert.equal(resultUrl.searchParams.has("2"), false);
 assert.equal(result.fields["2"], "HPF200");
 assert.equal(result.fields["6"], "1430");
 assert.equal(result.fields["10a"], "01");
@@ -34,6 +38,22 @@ const splitEquipment = buildVatsimPrefile({
 }, {});
 assert.equal(splitEquipment.fields["3"], "A321/SDE2E3FGHIRWY/LB1");
 assert.ok(!splitEquipment.missing.includes("aircraft type and equipment"));
+
+const officialVatsimUrl = "https://my.vatsim.net/pilots/flightplan?raw=%28FPL-HPF200-IS%0A-A320%2FM-SDE2E3FGHIRWY%2FLB1%0A-LEMD1430%0A-N0450F350+NANDO+DCT+CLS%0A-LEBL0115+LEVC%0A-E%2F0230+OPR%2FHISPAFLY%29&fuel_time=0230";
+const officialPrefile = buildVatsimPrefile({
+  ...completeSnapshot,
+  prefile: { vatsim: { link: officialVatsimUrl } },
+  times: { est_time_enroute: "01:15", endurance: "02:30" },
+}, { departureAt: new Date("2026-07-12T14:30:00Z") });
+assert.equal(officialPrefile.url, new URL(officialVatsimUrl).toString());
+
+const untrustedPrefile = buildVatsimPrefile({
+  ...completeSnapshot,
+  prefile: { vatsim: { link: "https://example.com/pilots/flightplan?raw=(FPL-BAD)" } },
+  times: { est_time_enroute: "01:15", endurance: "02:30" },
+}, { departureAt: new Date("2026-07-12T14:30:00Z") });
+assert.equal(new URL(untrustedPrefile.url!).hostname, "my.vatsim.net");
+assert.equal(new URL(untrustedPrefile.url!).searchParams.get("raw"), untrustedPrefile.icaoText);
 
 const alternateArray = buildVatsimPrefile({
   ...completeSnapshot,
