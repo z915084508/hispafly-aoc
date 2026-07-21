@@ -8,7 +8,7 @@ import {
 } from "./condition";
 type PirepInput = {
   id: string;
-  vamsysPirepId: string;
+  vamsysPirepId: string | null;
   vamsysAircraftId: string | null;
   aircraftRegistration: string | null;
   aircraftType: string | null;
