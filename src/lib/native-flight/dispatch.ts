@@ -5,7 +5,7 @@ import { checkPilotEligibility } from "./booking";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { assertNativeIds, assertNativeOrigin } from "@/lib/native-cutover/write-gate";
 import { resolveAircraftState } from "./aircraft-state";
-import { nativeDispatchExpiresAt, optionalPerformanceCheck } from "./dispatch-rules";
+import { isCompletedReleaseState, nativeDispatchExpiresAt, optionalPerformanceCheck } from "./dispatch-rules";
 
 export type NativeDispatchCheck = { key: string; status: "PASS" | "WARNING" | "BLOCK" | "NOT_REQUIRED" | "UNKNOWN"; detail: string };
 export type NativeDispatchCheckResult = {
@@ -68,6 +68,8 @@ async function buildSnapshot(dispatchId: string, db: Prisma.TransactionClient | 
 }
 
 export async function runNativeDispatchChecks(dispatchId: string): Promise<NativeDispatchCheckResult> {
+  const recovered = await recoverNativeReleaseState(dispatchId);
+  if (recovered) return { status: "READY_FOR_RELEASE", riskLevel: "LOW", checks: [{ key: "release", status: "PASS", detail: "Dispatch already released." }], blockingItems: [], warnings: [], checkedAt: new Date(), inputVersions: { dispatchVersion: recovered.version, ofpVersion: recovered.ofpVersion, aircraftUpdatedAt: null } };
   const { dispatch } = await buildSnapshot(dispatchId);
   const booking = dispatch.booking!, flight = dispatch.flight!, aircraft = dispatch.aircraft!;
   const aircraftState = resolveAircraftState(aircraft);
@@ -105,6 +107,16 @@ export async function runNativeDispatchChecks(dispatchId: string): Promise<Nativ
     update: { status: result.status, riskLevel: result.riskLevel, checks: result.checks as unknown as Prisma.InputJsonValue, blockingItems: result.blockingItems, warnings: result.warnings },
   });
   return result;
+}
+
+export async function recoverNativeReleaseState(dispatchId: string) {
+  const current = await prisma.flightDispatch.findUnique({ where: { id: dispatchId }, include: { booking: true, flight: true, ofpBriefing: true } });
+  if (!current || !isCompletedReleaseState({ dispatchStatus: current.status, bookingStatus: current.booking?.status, flightStatus: current.flight?.status, dispatchedAt: current.dispatchedAt })) return null;
+  if (current.status !== FlightDispatchStatus.RELEASED) await prisma.$transaction(async (tx) => {
+    await tx.flightDispatch.update({ where: { id: current.id }, data: { status: FlightDispatchStatus.RELEASED } });
+    if (current.ofpBriefing) await tx.dispatchRelease.updateMany({ where: { ofpBriefingId: current.ofpBriefing.id }, data: { status: "RELEASED", riskLevel: "MEDIUM", blockingItems: [], releasedAt: current.dispatchedAt ?? new Date() } });
+  });
+  return { id: current.id, version: current.version, ofpVersion: current.ofpBriefing?.version ?? null, ofpId: current.ofpBriefing?.id ?? null };
 }
 
 export async function createNativeDispatch(input: { bookingId: string; aircraftId?: string | null; actorPilotId?: string | null; actorStaffId?: string | null; idempotencyKey: string }) {

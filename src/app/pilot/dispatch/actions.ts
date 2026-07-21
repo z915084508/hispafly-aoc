@@ -11,9 +11,10 @@ import { prisma } from "@/lib/prisma";
 async function requireOwnedDispatch(dispatchId: string, pilotId: string) {
   const dispatch = await prisma.flightDispatch.findFirst({
     where: { id: dispatchId, pilotId, dataOrigin: "HISPAFLY_NATIVE" },
-    select: { id: true },
+    select: { id: true, ofpBriefing: { select: { id: true } } },
   });
   if (!dispatch) throw new Error("Dispatch not found or is not assigned to this Pilot.");
+  return dispatch;
 }
 export async function createPilotDispatchAction(formData: FormData) {
   const pilot = await requirePilotSession();
@@ -33,6 +34,6 @@ export async function runPilotDispatchChecksAction(formData: FormData) {
 }
 export async function releasePilotDispatchAction(formData: FormData) {
   const pilot = await requirePilotSession(), id = String(formData.get("dispatchId"));
-  try { await requireOwnedDispatch(id, pilot.id); await releaseNativeDispatch({ dispatchId: id, actorType: "PILOT", actorId: pilot.id, actorName: pilot.displayName, acknowledgedWarnings: formData.getAll("warning").map(String), comment: String(formData.get("comment") ?? "") }); await writeAuditLogSafely({ action: "NATIVE_DISPATCH_RELEASED", entityType: "FlightDispatch", entityId: id, message: `${pilot.displayName} released Native Dispatch.` }); revalidatePath(`/pilot/dispatch/${id}`); redirect(`/pilot/dispatch/${id}?success=Dispatch+released`); }
+  try { const owned = await requireOwnedDispatch(id, pilot.id); await releaseNativeDispatch({ dispatchId: id, actorType: "PILOT", actorId: pilot.id, actorName: pilot.displayName, acknowledgedWarnings: formData.getAll("warning").map(String), comment: String(formData.get("comment") ?? "") }); await writeAuditLogSafely({ action: "NATIVE_DISPATCH_RELEASED", entityType: "FlightDispatch", entityId: id, message: `${pilot.displayName} released Native Dispatch.` }); revalidatePath(`/pilot/dispatch/${id}`); revalidatePath("/pilot/ofp"); redirect(owned.ofpBriefing ? `/pilot/ofp/${owned.ofpBriefing.id}?success=Dispatch+released.+Continue+with+VATSIM+plan+import.` : `/pilot/dispatch/${id}?success=Dispatch+released`); }
   catch (error) { if (error && typeof error === "object" && "digest" in error) throw error; redirect(`/pilot/dispatch/${id}?error=${encodeURIComponent(error instanceof Error ? error.message : "Release failed")}`); }
 }
