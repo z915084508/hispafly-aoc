@@ -6,6 +6,7 @@ import { writeAuditLogSafely } from "@/lib/audit/log";
 import { assertNativeIds, assertNativeOrigin } from "@/lib/native-cutover/write-gate";
 import { resolveAircraftState } from "./aircraft-state";
 import { isCompletedReleaseState, nativeDispatchExpiresAt, optionalPerformanceCheck } from "./dispatch-rules";
+import { summarizeSimbriefOfp } from "@/lib/simbrief/response";
 
 export type NativeDispatchCheck = { key: string; status: "PASS" | "WARNING" | "BLOCK" | "NOT_REQUIRED" | "UNKNOWN"; detail: string };
 export type NativeDispatchCheckResult = {
@@ -192,8 +193,8 @@ export async function releaseNativeDispatch(input: { dispatchId: string; actorTy
 export async function getAcarsAssignment(pilotId: string) {
   const dispatch = await prisma.flightDispatch.findFirst({ where: { pilotId, isCurrent: true, status: FlightDispatchStatus.RELEASED, dataOrigin: AocDataOrigin.HISPAFLY_NATIVE, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }, include: { booking: true, flight: true, route: true, fleet: true, aircraft: true, ofpBriefing: true }, orderBy: { dispatchedAt: "desc" } });
   if (!dispatch?.booking || !dispatch.flight || !dispatch.aircraft) return null;
-  const ofp = dispatch.ofpBriefing?.ofpSnapshot && typeof dispatch.ofpBriefing.ofpSnapshot === "object" ? dispatch.ofpBriefing.ofpSnapshot as Record<string, unknown> : null;
-  const plannedBlockFuelKg = typeof ofp?.block_fuel === "number" ? ofp.block_fuel : null;
+  const blockFuel = Number(summarizeSimbriefOfp(dispatch.ofpBriefing?.ofpSnapshot).blockFuel);
+  const plannedBlockFuelKg = Number.isFinite(blockFuel) && blockFuel > 0 ? blockFuel : null;
   return {
     contractVersion: "1.0",
     dispatchId: dispatch.id,
