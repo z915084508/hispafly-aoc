@@ -7,7 +7,6 @@ import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
 import { prisma } from "@/lib/prisma";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
 import { requireStaffPermission } from "@/lib/staff/authorization";
-import { processAcceptedOperationsPirep } from "@/lib/vamsys/operationsPireps";
 
 function finish(id: string, type: "success" | "error", message: string): never {
   revalidatePath(`/staff/pireps/${id}`);
@@ -25,25 +24,8 @@ async function authorize(id: string, action: string) {
 }
 
 export async function refreshVamsysPirepDetail(id: string) {
-  try {
-    const staff = await authorize(id, "actualizar el detalle vAMSYS del PIREP");
-    const pirep = await prisma.pirep.findUnique({ where: { id }, select: { vamsysPirepId: true } });
-    if (!pirep) throw new Error("PIREP no encontrado.");
-    const result = await processAcceptedOperationsPirep(pirep.vamsysPirepId);
-    await prisma.aocAuditLog.create({
-      data: {
-        staffUserId: staff.id,
-        action: "PIREP_VAMSYS_DETAIL_REFRESHED",
-        entityType: "Pirep",
-        entityId: id,
-        message: `${staff.name} refreshed vAMSYS detail for PIREP ${pirep.vamsysPirepId}.`,
-        metadata: { updated: result.updatedCount, payrollGenerated: result.payrollGeneratedCount, expensesGenerated: result.expensesGeneratedCount },
-      },
-    });
-    finish(id, "success", "Detalle vAMSYS actualizado correctamente.");
-  } catch (error) {
-    finish(id, "error", error instanceof Error ? error.message : "No se pudo actualizar el detalle vAMSYS.");
-  }
+  await authorize(id, "attempt disabled historical PIREP refresh");
+  finish(id, "error", "External PIREP refresh is permanently disabled.");
 }
 
 export async function reprocessPirepEconomy(id: string) {

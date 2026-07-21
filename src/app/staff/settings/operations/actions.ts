@@ -6,24 +6,13 @@ import { prisma } from "@/lib/prisma";
 import { backfillCompanyEconomy } from "@/lib/economy/backfill";
 import { IATA_JET_FUEL_PRICE_SOURCE, IATA_JET_FUEL_PRICE_URL, FUEL_REGIONS } from "@/lib/economy/fuel";
 import { requireStaffPermission } from "@/lib/staff/authorization";
-import { syncOperationsFleetData } from "@/lib/vamsys/fleetSync";
 
 const readableError = (error: unknown) => error instanceof Error ? error.message : "No se pudo completar la acción.";
 const COMPANY_ECONOMY_BACKFILL_BATCH_SIZE = 10;
 
 export async function syncFleetDataAction() {
-  let feedback: { type: "success" | "error"; message: string };
-  try {
-    const staff = await requireStaffPermission("OPERATIONS_API_MANAGE", { entityType: "Aircraft", entityId: "fleet", attemptedAction: "sync vAMSYS fleet, aircraft and airports" });
-    const result = await syncOperationsFleetData(staff.id);
-    const totalAircraft = result.aircraftImported + result.aircraftUpdated;
-    const totalFleets = result.fleetsImported + result.fleetsUpdated;
-    const totalAirports = result.airportsImported + result.airportsUpdated;
-    const suffix = result.errors.length ? ` Avisos: ${result.errors.slice(0, 2).join(" | ")}` : "";
-    feedback = { type: result.errors.length ? "error" : "success", message: `Operations sync: ${totalFleets} flotas, ${totalAircraft} aeronaves y ${totalAirports} aeropuertos procesados.${suffix}` };
-  } catch (error) {
-    feedback = { type: "error", message: readableError(error) };
-  }
+  await requireStaffPermission("OPERATIONS_API_MANAGE", { entityType: "MasterData", entityId: "external-sync", attemptedAction: "attempt disabled external synchronization" });
+  const feedback = { type: "error" as const, message: "External synchronization is permanently disabled. Manage HispaFly master data locally." };
   revalidatePath("/staff/settings/operations");
   revalidatePath("/staff/audit");
   redirect(`/staff/settings/operations?${feedback.type}=${encodeURIComponent(feedback.message)}`);

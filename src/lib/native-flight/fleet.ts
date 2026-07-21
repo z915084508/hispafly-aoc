@@ -4,7 +4,8 @@ import type { StaffIdentity } from "@/lib/staff/currentStaff";
 import type { NativeOrigin } from "./airport";
 import { nonNegative, normalizeFleetInput } from "./fleet-aircraft-rules";
 const actorId = (actor: StaffIdentity) => actor.id === "development-staff" ? null : actor.id;
-const editable = (origin: string) => origin !== "VAMSYS_LEGACY";
+// Provenance never controls whether an internal Fleet can be operated or edited.
+const editable = Boolean;
 
 export type FleetInput = {
   code: string; name: string; type: string; iataType?: string | null; manufacturer?: string | null;
@@ -56,7 +57,7 @@ export async function updateNativeFleet(id: string, input: FleetInput, actor: St
   const data = fleetData(input);
   return prisma.$transaction(async tx => {
     const before = await tx.fleet.findUnique({ where: { id } }); if (!before) throw new Error("Fleet not found.");
-    if (!editable(before.dataOrigin) || before.operationalStatus === "ARCHIVED") throw new Error("Legacy or archived fleets are read-only.");
+    if (!editable(before.dataOrigin) || before.operationalStatus === "ARCHIVED") throw new Error("Archived fleets are read-only.");
     if (await tx.fleet.findFirst({ where: { id: { not: id }, code: { equals: data.code, mode: "insensitive" } } })) throw new Error("Fleet code already exists.");
     const fleet = await tx.fleet.update({ where: { id }, data });
     await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "FLEET_UPDATED", entityType: "Fleet", entityId: id, message: `${actor.name} updated fleet ${fleet.code}.`, metadata: { before: { code: before.code, type: before.type, status: before.operationalStatus }, after: data } } });
@@ -68,7 +69,7 @@ export async function changeFleetStatus(id: string, status: FleetOperationalStat
   if (!reason.trim()) throw new Error("A reason is required.");
   return prisma.$transaction(async tx => {
     const before = await tx.fleet.findUnique({ where: { id }, include: { _count: { select: { nativeAircraft: true, defaultRoutes: true, routeAssignments: true } } } });
-    if (!before) throw new Error("Fleet not found."); if (!editable(before.dataOrigin)) throw new Error("Legacy fleets are read-only.");
+    if (!before) throw new Error("Fleet not found."); if (!editable(before.dataOrigin)) throw new Error("Fleet is read-only.");
     const row = await tx.fleet.update({ where: { id }, data: { operationalStatus: status, active: status === "ACTIVE", archivedAt: status === "ARCHIVED" ? new Date() : null } });
     await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: status === "ARCHIVED" ? "FLEET_ARCHIVED" : "FLEET_STATUS_CHANGED", entityType: "Fleet", entityId: id, message: `${actor.name} changed ${row.code} from ${before.operationalStatus} to ${status}.`, metadata: { reason, impact: before._count } } });
     return row;

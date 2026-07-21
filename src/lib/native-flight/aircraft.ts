@@ -4,7 +4,8 @@ import type { StaffIdentity } from "@/lib/staff/currentStaff";
 import type { NativeOrigin } from "./airport";
 import { nonNegative, normalizeAircraftInput } from "./fleet-aircraft-rules";
 const actorId = (actor: StaffIdentity) => actor.id === "development-staff" ? null : actor.id;
-const editable = (origin: string) => origin !== "VAMSYS_LEGACY";
+// Provenance is migration metadata; internal Aircraft identity is operational.
+const editable = Boolean;
 export type AircraftInput = {
   registration: string; aircraftType: string; fleetId: string; name?: string | null; serialNumber?: string | null;
   selcal?: string | null; deliveryDate?: Date | null; inServiceDate?: Date | null; cabinConfiguration?: string | null;
@@ -19,7 +20,7 @@ function aircraftData(input: AircraftInput) {
 }
 async function activeFleet(tx: Prisma.TransactionClient, id: string) {
   const fleet = await tx.fleet.findUnique({ where: { id } });
-  if (!fleet || fleet.operationalStatus !== "ACTIVE" || fleet.dataOrigin === "VAMSYS_LEGACY") throw new Error("Aircraft must use an active Native Fleet.");
+  if (!fleet || fleet.operationalStatus !== "ACTIVE") throw new Error("Aircraft must use an active Fleet.");
   return fleet;
 }
 export const findAircraftById = (id: string) => prisma.aircraft.findUnique({ where: { id }, include: {
@@ -57,7 +58,7 @@ export async function updateNativeAircraft(id: string, input: AircraftInput, act
   const data = aircraftData(input);
   return prisma.$transaction(async tx => {
     const before = await tx.aircraft.findUnique({ where: { id } }); if (!before) throw new Error("Aircraft not found.");
-    if (!editable(before.dataOrigin) || before.operationalStatus === "RETIRED") throw new Error("Legacy or retired aircraft are read-only.");
+    if (!editable(before.dataOrigin) || before.operationalStatus === "RETIRED") throw new Error("Retired aircraft are read-only.");
     const fleet = await activeFleet(tx, input.fleetId);
     if (await tx.aircraft.findFirst({ where: { id: { not: id }, registration: { equals: data.registration, mode: "insensitive" } } })) throw new Error("Aircraft registration already exists.");
     const aircraft = await tx.aircraft.update({ where: { id }, data: { ...data, nativeFleetId: fleet.id, fleetName: fleet.name } });

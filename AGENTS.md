@@ -8,16 +8,16 @@ HISPAFLY already has an EFB. Do not rebuild EFB features in this project.
 
 - Staff operations portal
 - Pilot management
-- vAMSYS PIREP synchronization
+- HispaFly ACARS PIREP ingestion
 - Virtual payroll calculation
 - Pilot wallet system
 - Monthly reports and rankings
 
 ## Data source
 
-- PEGASUS ACARS submits flights to vAMSYS.
-- vAMSYS PIREPs are the source of truth.
-- HISPAFLY AOC must only calculate payroll from accepted PIREPs.
+- HispaFly ACARS submits flights directly to HispaFly AOC.
+- Native AOC PIREPs are the operational source of truth.
+- Imported vAMSYS records are historical evidence only and must never trigger an external request.
 
 ## Tech stack
 
@@ -29,11 +29,11 @@ HISPAFLY already has an EFB. Do not rebuild EFB features in this project.
 
 ## Security rules
 
-- Never expose vAMSYS client secrets in frontend code.
+- Never re-enable retired vAMSYS OAuth or API requests.
 - Never commit `.env` files.
 - Store API tokens server-side only.
 - Payroll records must not be duplicated.
-- Use the vAMSYS PIREP ID as a unique key.
+- Use internal PIREP identity for new reports; retain legacy IDs only for historical uniqueness.
 - Add audit logs for staff actions.
 
 ## Useful commands

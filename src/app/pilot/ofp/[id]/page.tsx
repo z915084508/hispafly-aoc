@@ -8,7 +8,7 @@ import { DispatchReleasePanel } from "@/components/dispatch-release-panel";
 import { FuelPolicyPanel } from "@/components/fuel-policy-panel";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { prisma } from "@/lib/prisma";
-import { finalDispatchOFPAction, generateSimbriefOFPAction } from "../actions";
+import { generateSimbriefOFPAction } from "../actions";
 import { cancelFlightDispatchAction } from "../../flight-offers/actions";
 import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
 import { safeSimbriefPdfUrl } from "@/lib/simbrief/pdf";
@@ -85,13 +85,13 @@ export default async function PilotOfpPage({ params, searchParams }: { params: P
       <div className="card-header"><h2 className="card-title">Pilot acceptance</h2><span className="meta">Hash {ofp.contentHash.slice(0, 12)}</span></div>
       {ofp.status === "SIGNED" ? <>
         <div className="feedback success">Signed by {ofp.signedByName} ({ofp.signedByCallsign ?? "Pilot"}) at {ofp.signedAt?.toISOString()}.</div>
-        {!nativeDispatch && dispatch.status === "DISPATCHING" && (ofp.dispatchRelease?.status === "SIGNED" ? <form action={finalDispatchOFPAction}><input type="hidden" name="ofpId" value={ofp.id}/><input type="hidden" name="dispatchId" value={ofp.flightDispatchId}/><button className="button" type="submit">FINAL DISPATCH TO vAMSYS</button></form> : <button className="button disabled-button" type="button" disabled>FINAL DISPATCH BLOCKED BY RELEASE</button>)}
+        {!nativeDispatch && <div className="notice">Historical dispatch package. External final dispatch is permanently disabled.</div>}
         {nativeDispatch && dispatch.status !== "RELEASED" && <Link className="button" href={`/pilot/dispatch/${dispatch.id}`}>COMPLETE NATIVE DISPATCH RELEASE</Link>}
         {dispatch.vamsysBookingId && <p><strong>vAMSYS Booking:</strong> {dispatch.vamsysBookingId}</p>}
       </> : ofp.status === "AWAITING_SIGNATURE" ? <OfpSignaturePad ofpId={ofp.id}/> : <div className="notice">{t("ofp.generateBeforeSigning")}</div>}
       {dispatch.status === "DISPATCHING" && <form action={cancelFlightDispatchAction}><input type="hidden" name="dispatchId" value={ofp.flightDispatchId}/><button className="action-button reject" type="submit">Cancel pre-dispatch</button></form>}
     </section>
-    {!vatsimUnlocked && <div className="notice">{dispatchExpired ? "This Dispatch plan has expired and can no longer be imported into VATSIM." : ofp.status !== "SIGNED" ? "Review and sign the OFP before VATSIM prefiling." : nativeDispatch ? "Complete the Native Dispatch Release before opening the VATSIM prefile form." : "Complete Final Dispatch to vAMSYS before opening the VATSIM prefile form."}</div>}
+    {!vatsimUnlocked && <div className="notice">{dispatchExpired ? "This Dispatch plan has expired and can no longer be imported into VATSIM." : ofp.status !== "SIGNED" ? "Review and sign the OFP before VATSIM prefiling." : nativeDispatch ? "Complete the Native Dispatch Release before opening the VATSIM prefile form." : "Historical dispatches cannot create a new operational VATSIM plan."}</div>}
     <VatsimFlightPlanPanel ofpId={ofp.id} fields={vatsimPrefile.fields} icaoText={vatsimPrefile.icaoText} missing={vatsimPrefile.missing} unlocked={vatsimUnlocked}/>
   </PilotPortalShell>;
 }

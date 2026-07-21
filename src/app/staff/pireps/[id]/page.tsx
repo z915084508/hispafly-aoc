@@ -4,7 +4,7 @@ import { Badge } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
 import { formatDateTime, formatMinutes, formatMoney, formatNumber, PirepHero, PirepMetric, PirepReportStyles, PirepSection } from "@/components/pirep-report";
 import { getStaffPirepDetail } from "@/lib/pirep/detail";
-import { refreshVamsysPirepDetail, reprocessPirepEconomy } from "./actions";
+import { reprocessPirepEconomy } from "./actions";
 import { OperationalAnalysis } from "@/components/operational-analysis";
 
 export const dynamic = "force-dynamic";

@@ -5,7 +5,6 @@ import type { NativeOrigin } from "./airport";
 import { periodsOverlap, validateRouteBasics } from "./management-rules";
 
 const actorId = (actor: StaffIdentity) => actor.id === "development-staff" ? null : actor.id;
-const nativeOrigins = new Set(["HISPAFLY_NATIVE", "IMPORTED", "MANUAL"]);
 const includes = { departureAirport: true, arrivalAirport: true, defaultFleet: true } as const;
 
 export const findRouteById = (id: string) => prisma.route.findUnique({
@@ -53,7 +52,7 @@ async function validateReferences(tx: Prisma.TransactionClient, input: NativeRou
   ]);
   if (!departure || !arrival) throw new Error("Route airports do not exist.");
   if (departure.status !== "ACTIVE" || arrival.status !== "ACTIVE") throw new Error("Archived or inactive airports cannot be assigned to a new route.");
-  if (input.defaultFleetId && (!fleet || fleet.operationalStatus !== "ACTIVE" || fleet.dataOrigin === "VAMSYS_LEGACY")) throw new Error("Default fleet must be an active Native fleet.");
+  if (input.defaultFleetId && (!fleet || fleet.operationalStatus !== "ACTIVE")) throw new Error("Default fleet must be active.");
   return { basics, departure, arrival, fleet };
 }
 
@@ -116,7 +115,6 @@ export async function updateNativeRoute(id: string, input: NativeRouteInput, act
   return prisma.$transaction(async (tx) => {
     const before = await tx.route.findUnique({ where: { id } });
     if (!before) throw new Error("Route not found.");
-    if (!nativeOrigins.has(before.dataOrigin)) throw new Error("Legacy routes are read-only. Copy this route to a Native draft first.");
     if (before.operationalStatus === "ARCHIVED") throw new Error("Archived routes are read-only.");
     const refs = await validateReferences(tx, input), warnings = await conflictWarnings(tx, input, id);
     await assertConflictOverride(warnings, input);
@@ -136,10 +134,9 @@ export async function changeRouteStatus(id: string, status: RouteOperationalStat
   return prisma.$transaction(async (tx) => {
     const before = await tx.route.findUnique({ where: { id }, include: includes });
     if (!before) throw new Error("Route not found.");
-    if (!nativeOrigins.has(before.dataOrigin)) throw new Error("Legacy routes are read-only.");
     if (status === "ACTIVE") {
       if (!before.departureAirport || !before.arrivalAirport || before.departureAirport.status !== "ACTIVE" || before.arrivalAirport.status !== "ACTIVE") throw new Error("Both airports must be active before activating a route.");
-      if (before.defaultFleet && (before.defaultFleet.operationalStatus !== "ACTIVE" || before.defaultFleet.dataOrigin === "VAMSYS_LEGACY")) throw new Error("The default fleet must be an active Native fleet.");
+      if (before.defaultFleet && before.defaultFleet.operationalStatus !== "ACTIVE") throw new Error("The default fleet must be active.");
     }
     const route = await tx.route.update({ where: { id }, data: {
       operationalStatus: status, active: status === "ACTIVE" || status === "DRAFT",

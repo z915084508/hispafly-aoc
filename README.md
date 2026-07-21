@@ -1,8 +1,8 @@
 # HISPAFLY AOC Portal
 
-Staff portal for HISPAFLY operations, pilot administration, accepted PIREP synchronization, virtual payroll, wallet transactions, monthly reports and rankings.
+Independent portal for HISPAFLY operations, pilot administration, Native ACARS PIREPs, virtual payroll, wallet transactions, monthly reports and rankings.
 
-This is **not an EFB**. PEGASUS ACARS and vAMSYS remain the official flight-detection and PIREP source. The AOC portal only reads accepted PIREPs and calculates virtual payroll.
+This is **not an EFB**. HispaFly AOC owns new operational identity, Dispatch, ACARS sessions and PIREPs. Imported vAMSYS data is retained as read-only historical provenance and no production request is permitted.
 
 ## Stack
 
