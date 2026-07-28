@@ -21,14 +21,24 @@ export function telemetrySummary(positions: CompletionPosition[], events: Comple
   const blockEnd = ordered.at(-1)?.recordedAt;
   const flightStart = airborne.at(0)?.recordedAt ?? blockStart;
   const flightEnd = airborne.at(-1)?.recordedAt ?? blockEnd;
-  const firstFuel = ordered.find((item) => item.fuelKg != null)?.fuelKg ?? null;
-  const lastFuel = ordered.findLast((item) => item.fuelKg != null)?.fuelKg ?? null;
+
+  // Some FSUIPC aircraft briefly report zero fuel while their custom systems
+  // initialise or disconnect. Treat those samples as unavailable rather than
+  // as a genuine empty-tank reading, otherwise an otherwise valid flight is
+  // finalized with 0 kg fuel burn.
+  const validFuelSamples = ordered.filter((item) => item.fuelKg != null && Number.isFinite(item.fuelKg) && item.fuelKg > 0);
+  const firstFuel = validFuelSamples.at(0)?.fuelKg ?? null;
+  const lastFuel = validFuelSamples.at(-1)?.fuelKg ?? null;
+  const fuelUsedKg = firstFuel != null && lastFuel != null && firstFuel >= lastFuel
+    ? Math.round(firstFuel - lastFuel)
+    : null;
+
   const landing = [...events].reverse().find((item) => /LANDING|TOUCHDOWN/i.test(item.type) && item.numericValue != null);
   const minutes = (start?: Date, end?: Date) => start && end ? Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000)) : null;
   return {
     blockTimeMinutes: minutes(blockStart, blockEnd),
     flightTimeMinutes: minutes(flightStart, flightEnd),
-    fuelUsedKg: firstFuel != null && lastFuel != null ? Math.max(0, Math.round(firstFuel - lastFuel)) : null,
+    fuelUsedKg,
     landingRate: landing?.numericValue == null ? null : Math.round(landing.numericValue),
   };
 }
