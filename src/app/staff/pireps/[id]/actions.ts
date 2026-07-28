@@ -30,6 +30,8 @@ export async function refreshVamsysPirepDetail(id: string) {
 }
 
 export async function reprocessPirepEconomy(id: string) {
+  let feedback: { type: "success" | "error"; message: string };
+
   try {
     const staff = await authorize(id, "reprocesar las métricas y la economía del PIREP");
     const pirep = await prisma.pirep.findFirst({
@@ -69,8 +71,10 @@ export async function reprocessPirepEconomy(id: string) {
         metadata: { flightDistanceNm, score, points, passengerRevenueCents, fuelCostCents: fuel.fuelCostCents, expensesGenerated: expenses.generated, expenseTotalCents: expenses.totalCents },
       },
     });
-    finish(id, "success", "Métricas y economía recalculadas con las reglas actuales.");
+    feedback = { type: "success", message: "Métricas y economía recalculadas con las reglas actuales." };
   } catch (error) {
-    finish(id, "error", error instanceof Error ? error.message : "No se pudo reprocesar el PIREP.");
+    feedback = { type: "error", message: error instanceof Error ? error.message : "No se pudo reprocesar el PIREP." };
   }
+
+  finish(id, feedback.type, feedback.message);
 }
