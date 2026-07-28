@@ -40,6 +40,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
+        if (!tokenPayload) throw new Error("Upload metadata was not returned by Vercel Blob.");
         const metadata = JSON.parse(tokenPayload) as UploadMetadata & { staffId: string };
         const release = {
           product: "HispaFly ACARS",
