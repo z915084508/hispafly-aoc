@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { greatCircleDistanceNm, nativePirepScore } from "@/lib/acars/completion";
 import { generateCompanyExpensesForPirep } from "@/lib/economy/companyExpenses";
 import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
 import { prisma } from "@/lib/prisma";
@@ -30,28 +31,50 @@ export async function refreshVamsysPirepDetail(id: string) {
 
 export async function reprocessPirepEconomy(id: string) {
   try {
-    const staff = await authorize(id, "reprocesar la economía del PIREP");
-    const pirep = await prisma.pirep.findFirst({ where: { id, status: "accepted" } });
+    const staff = await authorize(id, "reprocesar las métricas y la economía del PIREP");
+    const pirep = await prisma.pirep.findFirst({
+      where: { id, status: "accepted" },
+      include: {
+        acarsSession: {
+          include: {
+            dispatch: {
+              include: {
+                flight: { include: { departureAirport: true, arrivalAirport: true } },
+              },
+            },
+          },
+        },
+      },
+    });
     if (!pirep) throw new Error("PIREP aceptado no encontrado.");
 
-    const passengerRevenueCents = pirep.passengers !== null && pirep.flightDistanceNm !== null
-      ? calculatePassengerRevenue(pirep.passengers, pirep.flightDistanceNm).revenueCents
+    const nativeFlight = pirep.acarsSession?.dispatch?.flight;
+    const flightDistanceNm = pirep.flightDistanceNm ?? (nativeFlight?.departureAirport && nativeFlight.arrivalAirport
+      ? greatCircleDistanceNm(nativeFlight.departureAirport, nativeFlight.arrivalAirport)
+      : null);
+    const score = pirep.score ?? (pirep.dataOrigin === "HISPAFLY_NATIVE" ? nativePirepScore(pirep.landingRate) : null);
+    const points = pirep.points ?? score;
+    const passengerRevenueCents = pirep.passengers !== null && flightDistanceNm !== null
+      ? calculatePassengerRevenue(pirep.passengers, flightDistanceNm).revenueCents
       : null;
     const fuel = await calculateFuelCostSnapshot({ departure: pirep.departure, fuelUsedKg: pirep.fuelUsed, at: pirep.flownAt ?? pirep.acceptedAt });
-    await prisma.pirep.update({ where: { id }, data: { passengerRevenueCents, ...fuel } });
+    await prisma.pirep.update({
+      where: { id },
+      data: { flightDistanceNm, score, points, passengerRevenueCents, ...fuel },
+    });
     const expenses = await generateCompanyExpensesForPirep(id);
     await prisma.aocAuditLog.create({
       data: {
         staffUserId: staff.id,
-        action: "PIREP_ECONOMY_REPROCESSED",
+        action: "PIREP_METRICS_ECONOMY_REPROCESSED",
         entityType: "Pirep",
         entityId: id,
-        message: `${staff.name} reprocessed company economy for PIREP ${pirep.vamsysPirepId}.`,
-        metadata: { passengerRevenueCents, fuelCostCents: fuel.fuelCostCents, expensesGenerated: expenses.generated, expenseTotalCents: expenses.totalCents },
+        message: `${staff.name} reprocessed metrics and company economy for PIREP ${pirep.vamsysPirepId ?? pirep.id}.`,
+        metadata: { flightDistanceNm, score, points, passengerRevenueCents, fuelCostCents: fuel.fuelCostCents, expensesGenerated: expenses.generated, expenseTotalCents: expenses.totalCents },
       },
     });
-    finish(id, "success", "Economía reprocesada con las reglas actuales.");
+    finish(id, "success", "Métricas y economía recalculadas con las reglas actuales.");
   } catch (error) {
-    finish(id, "error", error instanceof Error ? error.message : "No se pudo reprocesar la economía.");
+    finish(id, "error", error instanceof Error ? error.message : "No se pudo reprocesar el PIREP.");
   }
 }
