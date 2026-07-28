@@ -1,4 +1,5 @@
 "use server";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePilotSession } from "@/lib/pilot/session";
@@ -7,6 +8,28 @@ import { createNativeDispatch } from "@/lib/native-flight/dispatch";
 import { createDispatchOfpBriefing } from "@/lib/simbrief/ofp";
 import { assertNavigraphConnected } from "@/lib/navigraph/token";
 import { purchaseJumpseat } from "@/lib/pilot/position";
+import { prisma } from "@/lib/prisma";
+
+export async function setInitialCrewPositionAction(formData: FormData) {
+  const pilotSession = await requirePilotSession();
+  const airportId = String(formData.get("airportId") ?? "").trim();
+  if (!airportId) redirect("/pilot/flight-offers/self-dispatch?error=Select an airport to continue.");
+
+  const [pilot, airport] = await Promise.all([
+    prisma.pilot.findUnique({ where: { id: pilotSession.id }, select: { id: true, currentAirportId: true } }),
+    prisma.airport.findFirst({ where: { id: airportId, status: "ACTIVE", archivedAt: null }, select: { id: true, icao: true } }),
+  ]);
+  if (!pilot) redirect("/pilot/flight-offers/self-dispatch?error=Pilot account not found.");
+  if (pilot.currentAirportId) redirect("/pilot/flight-offers/self-dispatch?error=Your crew position is already set. Use Jumpseat to move.");
+  if (!airport) redirect("/pilot/flight-offers/self-dispatch?error=The selected airport is unavailable.");
+
+  await prisma.$transaction([
+    prisma.pilot.update({ where: { id: pilot.id }, data: { currentAirportId: airport.id, positionUpdatedAt: new Date(), positionSource: "INITIAL_SELECTION" } }),
+    prisma.aocAuditLog.create({ data: { action: "PILOT_INITIAL_POSITION_SET", entityType: "Pilot", entityId: pilot.id, message: `Pilot selected ${airport.icao} as the initial crew position.`, metadata: { pilotId: pilot.id, airportId: airport.id, airportIcao: airport.icao } as Prisma.InputJsonValue } }),
+  ]);
+  revalidatePath("/pilot/flight-offers/self-dispatch"); revalidatePath("/pilot/dashboard");
+  redirect(`/pilot/flight-offers/self-dispatch?success=${encodeURIComponent(`Crew position set to ${airport.icao}.`)}`);
+}
 
 export async function purchaseJumpseatAction(formData: FormData) {
   const pilot = await requirePilotSession();
