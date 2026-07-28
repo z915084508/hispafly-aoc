@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { baseFuelDiscountPercent } from "@/lib/dispatch/loadFactor";
 
@@ -7,7 +8,7 @@ export const IATA_JET_FUEL_PRICE_URL = "https://www.iata.org/en/publications/eco
 export const FUEL_REGIONS = ["GLOBAL", "EUROPE", "NORTH_AMERICA", "ASIA", "MIDDLE_EAST"] as const;
 export type FuelRegion = (typeof FUEL_REGIONS)[number];
 
-export interface FuelCostSnapshot {
+export interface FuelCostSnapshot extends Prisma.JsonObject {
   fuelCostCents: number | null;
   fuelPricePerKgCents: number | null;
   fuelPriceRegion: string | null;
