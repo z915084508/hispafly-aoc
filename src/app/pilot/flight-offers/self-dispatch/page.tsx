@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveAircraftState } from "@/lib/native-flight/aircraft-state";
 import { distanceKm, jumpseatCostCents, resolvePilotPosition } from "@/lib/pilot/position";
 import { PilotJumpseatForm } from "@/components/pilot-jumpseat-form";
+import { setInitialCrewPositionAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 export default async function NativeSelfDispatchPage({ searchParams }: { searchParams: Promise<{ error?: string; success?: string }> }) {
@@ -18,7 +19,24 @@ export default async function NativeSelfDispatchPage({ searchParams }: { searchP
     prisma.aircraftLocationSnapshot.findMany({ where: { status: "AVAILABLE", currentAirportId: { not: null }, aircraftId: { not: null }, aircraft: { archivedAt: null, nativeFleetId: { not: null }, nativeFleet: { operationalStatus: "ACTIVE" }, OR: [{ conditionSnapshot: null }, { conditionSnapshot: { operationalStatus: { notIn: ["AOG", "IN_MAINTENANCE"] }, maintenanceStatus: { notIn: ["REQUIRED", "IN_PROGRESS", "WAITING_MAINTENANCE"] } } }] } }, include: { currentAirport: true, aircraft: true }, orderBy: { registration: "asc" } }),
     prisma.airport.findMany({ where: { status: "ACTIVE", archivedAt: null, latitude: { not: null }, longitude: { not: null } }, orderBy: { icao: "asc" } }),
   ]);
-  if (!position.airport) return <PilotPortalShell><PageHeading eyebrow="PILOT SELF-DISPATCH" title="Crew position required" copy="Your current airport could not be determined. Ask Staff Operations to set your position before planning or using Jumpseat."/>{query.error && <div className="feedback error">{query.error}</div>}</PilotPortalShell>;
+
+  if (!position.airport) return <PilotPortalShell>
+    <PageHeading eyebrow="WELCOME TO HISPAFLY" title="Choose your initial crew position" copy="Select the airport where you want to begin operations. This free selection is available only once; later movements use completed flights or Jumpseat." />
+    {query.error && <div className="feedback error">{query.error}</div>}
+    <section className="card" style={{ maxWidth: 760 }}>
+      <form action={setInitialCrewPositionAction} className="form-grid">
+        <label>Initial airport
+          <select name="airportId" required defaultValue="">
+            <option value="" disabled>Select an active airport</option>
+            {airports.map((airport) => <option key={airport.id} value={airport.id}>{airport.icao} · {airport.name}</option>)}
+          </select>
+        </label>
+        <p className="meta">Staff Operations can correct this position later when necessary. After setup, use Jumpseat to move without flying.</p>
+        <button className="button" type="submit">SET CREW POSITION</button>
+      </form>
+    </section>
+  </PilotPortalShell>;
+
   const routeOptions = routes.map((route) => ({ id: route.id, flightNumber: route.flightNumber, callsign: route.callsign, departure: route.departure, arrival: route.arrival, departureAirportId: route.departureAirportId!, duration: route.scheduledDurationMinutes!, fleetIds: route.fleetAssignments.map((item) => item.fleetId), altitude: route.cruiseAltitude, userRoute: route.route }));
   const aircraftOptions = aircraft.filter((item) => item.aircraft && (item.aircraft.seatCapacity ?? 0) > 0 && item.aircraft.nativeFleetId).map((item) => { const state = resolveAircraftState({ operationalStatus: item.aircraft!.operationalStatus, currentAirportId: item.aircraft!.currentAirportId, locationSnapshot: item }); return { id: item.aircraft!.id, registration: item.registration ?? item.aircraft!.registration, aircraftType: item.aircraftType ?? item.aircraft!.aircraftType, airportId: item.currentAirportId!, airportIcao: item.currentAirport?.icao ?? item.currentAirportIcao ?? "Unknown", fleetId: item.aircraft!.nativeFleetId!, seatCapacity: item.aircraft!.seatCapacity!, source: item.source, updatedAt: item.updatedAt.toISOString(), stale: state.stale, external: state.external }; });
   const navigraph = await prisma.navigraphOAuthToken.findUnique({ where: { pilotId: pilot.id }, select: { revokedAt: true } });
