@@ -34,21 +34,17 @@ export async function reprocessPirepEconomy(id: string) {
     const staff = await authorize(id, "reprocesar las métricas y la economía del PIREP");
     const pirep = await prisma.pirep.findFirst({
       where: { id, status: "accepted" },
-      include: {
-        acarsSession: {
-          include: {
-            dispatch: {
-              include: {
-                flight: { include: { departureAirport: true, arrivalAirport: true } },
-              },
-            },
-          },
-        },
-      },
+      include: { acarsSession: true },
     });
     if (!pirep) throw new Error("PIREP aceptado no encontrado.");
 
-    const nativeFlight = pirep.acarsSession?.dispatch?.flight;
+    const nativeDispatch = pirep.acarsSession
+      ? await prisma.flightDispatch.findUnique({
+        where: { id: pirep.acarsSession.dispatchId },
+        include: { flight: { include: { departureAirport: true, arrivalAirport: true } } },
+      })
+      : null;
+    const nativeFlight = nativeDispatch?.flight;
     const flightDistanceNm = pirep.flightDistanceNm ?? (nativeFlight?.departureAirport && nativeFlight.arrivalAirport
       ? greatCircleDistanceNm(nativeFlight.departureAirport, nativeFlight.arrivalAirport)
       : null);
