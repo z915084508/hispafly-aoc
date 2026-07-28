@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { telemetrySummary, validateTelemetryBatch } from "@/lib/acars/completion";
+import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
+import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
+import { greatCircleDistanceNm, nativePirepScore, telemetrySummary, validateTelemetryBatch } from "@/lib/acars/completion";
 
 export type AcarsStartInput = {
   localSessionId: string; dispatchId: string; dispatchVersion: number; bookingId: string;
@@ -87,9 +89,9 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
 
     const dispatch = await tx.flightDispatch.findUnique({
       where: { id: current.dispatchId },
-      include: { booking: true, flight: { include: { arrivalAirport: true } }, aircraft: { include: { locationSnapshot: true } } },
+      include: { booking: true, flight: { include: { departureAirport: true, arrivalAirport: true } }, aircraft: { include: { locationSnapshot: true } } },
     });
-    if (!dispatch?.booking || !dispatch.flight || !dispatch.aircraft || !dispatch.flight.arrivalAirportId || !dispatch.flight.arrivalAirport) {
+    if (!dispatch?.booking || !dispatch.flight || !dispatch.aircraft || !dispatch.flight.departureAirportId || !dispatch.flight.departureAirport || !dispatch.flight.arrivalAirportId || !dispatch.flight.arrivalAirport) {
       throw new Error("ACARS completion identity is incomplete.");
     }
     if (dispatch.pilotId !== pilotId || dispatch.bookingId !== current.bookingId || dispatch.flightId !== current.flightId || dispatch.aircraftId !== current.aircraftId) {
@@ -104,6 +106,16 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
     const summary = telemetrySummary(positions, events);
     const finalFuelKg = [...positions].reverse().find((item) => item.fuelKg != null)?.fuelKg ?? null;
     const completedAt = new Date();
+    const flightDistanceNm = greatCircleDistanceNm(dispatch.flight.departureAirport, dispatch.flight.arrivalAirport);
+    const score = nativePirepScore(summary.landingRate);
+    const fuelEconomics = await calculateFuelCostSnapshot({
+      departure: dispatch.flight.departureIcao,
+      fuelUsedKg: summary.fuelUsedKg,
+      at: completedAt,
+    });
+    const passengerRevenueCents = dispatch.booking.passengers != null && flightDistanceNm != null
+      ? calculatePassengerRevenue(dispatch.booking.passengers, flightDistanceNm).revenueCents
+      : null;
     const pirep = await tx.pirep.create({
       data: {
         dataOrigin: "HISPAFLY_NATIVE", acarsSessionId: sessionId, pilotId,
@@ -112,11 +124,21 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
         aircraftType: dispatch.aircraft.aircraftType, aircraftRegistration: dispatch.aircraft.registration,
         network: dispatch.booking.network, flightTimeMinutes: summary.flightTimeMinutes,
         blockTimeMinutes: summary.blockTimeMinutes, landingRate: summary.landingRate,
-        fuelUsed: summary.fuelUsedKg, passengers: dispatch.booking.passengers,
+        score, points: score, fuelUsed: summary.fuelUsedKg, passengers: dispatch.booking.passengers,
         cargoKg: dispatch.booking.cargoKg, luggageKg: dispatch.booking.luggageKg,
-        freightKg: dispatch.booking.freightKg, status: "accepted", acarsSoftware: current.acarsVersion,
+        freightKg: dispatch.booking.freightKg, flightDistanceNm, passengerRevenueCents,
+        fuelCostCents: fuelEconomics.fuelCostCents,
+        fuelPricePerKgCents: fuelEconomics.fuelPricePerKgCents,
+        fuelPriceRegion: fuelEconomics.fuelPriceRegion,
+        fuelPriceSource: fuelEconomics.fuelPriceSource,
+        fuelCalculationDetails: {
+          method: "fuelUsedKg_x_effectivePricePerKg",
+          fuelUsedKg: summary.fuelUsedKg,
+          ...fuelEconomics,
+        } as Prisma.InputJsonValue,
+        status: "accepted", acarsSoftware: current.acarsVersion,
         source: "HISPAFLY_ACARS", flownAt: completedAt, acceptedAt: completedAt,
-        rawData: { contractVersion: "1.0", sessionId, dispatchId: dispatch.id, summary } as Prisma.InputJsonValue,
+        rawData: { contractVersion: "1.0", sessionId, dispatchId: dispatch.id, summary, flightDistanceNm, score } as Prisma.InputJsonValue,
       },
     });
     pirepId = pirep.id;
@@ -133,7 +155,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
       update: { currentAirportId: dispatch.flight.arrivalAirportId, currentAirportIcao: dispatch.flight.arrivalIcao, currentAirportIata: dispatch.flight.arrivalAirport.iata, status: "AVAILABLE", source: "NATIVE_PIREP", reservedByDispatchId: null, lastBookingId: dispatch.booking.id, lastPirepId: pirep.id, lastReportAt: completedAt, lastLatitude: dispatch.flight.arrivalAirport.latitude, lastLongitude: dispatch.flight.arrivalAirport.longitude },
     });
     await tx.pilot.update({ where: { id: pilotId }, data: { currentAirportId: dispatch.flight.arrivalAirportId, positionUpdatedAt: completedAt, positionSource: "NATIVE_PIREP" } });
-    await tx.aocAuditLog.create({ data: { action: "NATIVE_ACARS_FLIGHT_COMPLETED", entityType: "Pirep", entityId: pirep.id, message: `${dispatch.flight.flightNumber} completed by HispaFly ACARS.`, metadata: { sessionId, dispatchId: dispatch.id, bookingId: dispatch.booking.id, flightId: dispatch.flight.id, aircraftId: dispatch.aircraft.id, arrivalIcao: dispatch.flight.arrivalIcao, summary } as Prisma.InputJsonValue } });
+    await tx.aocAuditLog.create({ data: { action: "NATIVE_ACARS_FLIGHT_COMPLETED", entityType: "Pirep", entityId: pirep.id, message: `${dispatch.flight.flightNumber} completed by HispaFly ACARS.`, metadata: { sessionId, dispatchId: dispatch.id, bookingId: dispatch.booking.id, flightId: dispatch.flight.id, aircraftId: dispatch.aircraft.id, arrivalIcao: dispatch.flight.arrivalIcao, summary, flightDistanceNm, score, fuelEconomics } as Prisma.InputJsonValue } });
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   return { acceptedPositions: body.positions?.length ?? 0, acceptedEvents: body.events?.length ?? 0, completed: Boolean(body.completed), pirepId };
 }

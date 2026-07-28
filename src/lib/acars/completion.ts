@@ -9,6 +9,11 @@ export type CompletionEvent = {
   numericValue: number | null;
 };
 
+export type AirportCoordinates = {
+  latitude: number | null;
+  longitude: number | null;
+};
+
 export function telemetrySummary(positions: CompletionPosition[], events: CompletionEvent[]) {
   const ordered = [...positions].sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
   const airborne = ordered.filter((item) => item.onGround === false);
@@ -26,6 +31,23 @@ export function telemetrySummary(positions: CompletionPosition[], events: Comple
     fuelUsedKg: firstFuel != null && lastFuel != null ? Math.max(0, Math.round(firstFuel - lastFuel)) : null,
     landingRate: landing?.numericValue == null ? null : Math.round(landing.numericValue),
   };
+}
+
+export function greatCircleDistanceNm(departure: AirportCoordinates, arrival: AirportCoordinates): number | null {
+  const { latitude: lat1, longitude: lon1 } = departure;
+  const { latitude: lat2, longitude: lon2 } = arrival;
+  if ([lat1, lon1, lat2, lon2].some((value) => value == null || !Number.isFinite(value))) return null;
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const dLat = radians(lat2! - lat1!);
+  const dLon = radians(lon2! - lon1!);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(radians(lat1!)) * Math.cos(radians(lat2!)) * Math.sin(dLon / 2) ** 2;
+  return Math.round(3440.065 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+export function nativePirepScore(landingRate: number | null): number {
+  if (landingRate === null) return 100;
+  return Math.max(0, Math.min(100, Math.round(100 - Math.max(0, Math.abs(landingRate) - 300) / 20)));
 }
 
 export function validateTelemetryBatch(body: {
