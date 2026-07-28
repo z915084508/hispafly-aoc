@@ -53,6 +53,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
+    "@vercel/blob": "^2.6.1",
     "leaflet": "^1.9.4",
     "next": "^16.0.0",
     "nodemailer": "^9.0.3",
