@@ -6,8 +6,15 @@ import { getTranslations } from "@/lib/i18n/server";
 import { formatCurrency } from "@/lib/i18n/core";
 import { logoutPilot } from "@/app/pilot/actions";
 
-const flightNavItems = [
-  ["dashboard", "/pilot/dashboard"], ["pireps", "/pilot/pireps"], ["offers", "/pilot/flight-offers"], ["bookings", "/pilot/bookings"], ["ofp", "/pilot/ofp"], ["fleet", "/pilot/fleet"], ["roster", "/pilot/roster"],
+const dispatchNavItems = [
+  ["Flight Marketplace", "/pilot/flight-offers"],
+  ["Create my flight", "/pilot/flight-offers/self-dispatch"],
+  ["My Operations", "/pilot/bookings"],
+  ["Dispatch / OFP", "/pilot/ofp"],
+] as const;
+
+const operationNavItems = [
+  ["pireps", "/pilot/pireps"], ["fleet", "/pilot/fleet"], ["roster", "/pilot/roster"],
 ] as const;
 
 const economyNavItems = [
@@ -28,10 +35,19 @@ export async function PilotPortalShell({ children }: { children: React.ReactNode
           <div className="brand-logo"><Image src="/logo-hispafly-full.png" alt="HISPAFLY" width={1800} height={400} priority /></div>
           <div className="brand-subtitle">Pilot Portal</div>
         </div>
-        <div className="nav-label">{t("pilotNav.area")}</div>
-        <nav className="nav-list">{flightNavItems.map(([key, href]) => <Link className="nav-item" href={href} key={href}>{t(`pilotNav.${key}`)}</Link>)}</nav>
-        <div className="nav-label">Software</div>
+
+        <div className="nav-label">PILOT PORTAL</div>
+        <nav className="nav-list"><Link className="nav-item" href="/pilot/dashboard">{t("pilotNav.dashboard")}</Link></nav>
+
+        <div className="nav-label">DISPATCH PORTAL</div>
+        <nav className="nav-list">{dispatchNavItems.map(([label, href]) => <Link className="nav-item" href={href} key={href}>{label}</Link>)}</nav>
+
+        <div className="nav-label">MI OPERACIÓN</div>
+        <nav className="nav-list">{operationNavItems.map(([key, href]) => <Link className="nav-item" href={href} key={href}>{t(`pilotNav.${key}`)}</Link>)}</nav>
+
+        <div className="nav-label">SOFTWARE</div>
         <nav className="nav-list"><Link className="nav-item" href="/pilot/downloads">Descargar ACARS</Link></nav>
+
         <div className="nav-label">{t("pilotNav.economy")}</div>
         <nav className="nav-list">{economyNavItems.map(([key, href]) => <Link className="nav-item" href={href} key={href}>{t(`pilotNav.${key}`)}</Link>)}</nav>
         <div className="sidebar-note">{t("pilotNav.privacyNote")}<br/><Link href="/privacy">{t("pilotNav.privacy")}</Link></div>
