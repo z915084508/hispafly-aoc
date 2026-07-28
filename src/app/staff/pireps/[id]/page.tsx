@@ -43,7 +43,7 @@ export default async function StaffPirepDetailPage({ params, searchParams }: { p
     <div className="pirep-toolbar">
       <Link className="action-button" href="/staff/pireps">← Volver a PIREPs</Link>
       <button className="action-button pay" type="button" disabled title="vAMSYS is disconnected; historical PIREPs are read-only.">Legacy detail read-only</button>
-      <form action={reprocessPirepEconomy.bind(null, id)}><button className="action-button recalculate" type="submit">Reprocess economy</button></form>
+      <form action={reprocessPirepEconomy.bind(null, id)}><button className="action-button recalculate" type="submit">Recalculate metrics & economy</button></form>
     </div>
     {feedback.success && <div className="feedback success">{feedback.success}</div>}
     {feedback.error && <div className="feedback error">{feedback.error}</div>}
