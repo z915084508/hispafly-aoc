@@ -13,7 +13,8 @@ export function AcarsReleaseUploader() {
       className="card acars-release-form"
       onSubmit={async (event) => {
         event.preventDefault();
-        const form = new FormData(event.currentTarget);
+        const formElement = event.currentTarget;
+        const form = new FormData(formElement);
         const version = String(form.get("version") ?? "").trim();
         const downloadUrl = String(form.get("downloadUrl") ?? "").trim();
         const notes = String(form.get("notes") ?? "").trim();
@@ -34,8 +35,8 @@ export function AcarsReleaseUploader() {
           });
           const result = await response.json() as { error?: string };
           if (!response.ok) throw new Error(result.error || "Release publication failed.");
+          formElement.reset();
           setMessage(`ACARS ${version} published successfully.`);
-          event.currentTarget.reset();
           router.refresh();
         } catch (error) {
           setMessage(error instanceof Error ? error.message : "Release publication failed.");
