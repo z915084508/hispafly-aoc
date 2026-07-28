@@ -13,7 +13,7 @@ export default async function StaffSoftwareReleasesPage() {
       <div>
         <div className="eyebrow">SOFTWARE DISTRIBUTION</div>
         <h1>ACARS releases</h1>
-        <p>Upload and publish the Windows client distributed through the Pilot Portal.</p>
+        <p>Register the Windows installer already uploaded to Vercel Blob and publish it through the Pilot Portal.</p>
       </div>
     </div>
 
@@ -28,9 +28,10 @@ export default async function StaffSoftwareReleasesPage() {
         <div><span>Size</span><strong>{formatReleaseSize(release.fileSize)}</strong></div>
       </div>
       <p className="meta" style={{ marginTop: 14 }}>Published {new Date(release.publishedAt).toLocaleString("es-ES", { timeZone: "Europe/Madrid" })} · {release.mandatory ? "Mandatory update" : "Optional update"}</p>
+      <div className="form-actions" style={{ marginTop: 14 }}><a className="button secondary" href={release.downloadUrl} target="_blank" rel="noreferrer">Open installer</a></div>
     </section>}
 
-    {!release && <div className="notice">No ACARS installer has been published to Vercel Blob yet.</div>}
+    {!release && <div className="notice">No ACARS release has been registered yet. Upload the installer in Vercel Blob, copy its public URL and publish it below.</div>}
     <AcarsReleaseUploader />
   </>;
 }
