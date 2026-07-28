@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { greatCircleDistanceNm, nativePirepScore } from "@/lib/acars/completion";
+import { greatCircleDistanceNm, nativePirepScore, telemetrySummary } from "@/lib/acars/completion";
 import { generateCompanyExpensesForPirep } from "@/lib/economy/companyExpenses";
 import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
 import { prisma } from "@/lib/prisma";
@@ -52,13 +52,35 @@ export async function reprocessPirepEconomy(id: string) {
       : null);
     const score = pirep.score ?? (pirep.dataOrigin === "HISPAFLY_NATIVE" ? nativePirepScore(pirep.landingRate) : null);
     const points = pirep.points ?? score;
+
+    let fuelUsedKg = pirep.fuelUsed;
+    if (pirep.acarsSessionId && (fuelUsedKg == null || fuelUsedKg <= 0)) {
+      const [positions, events] = await Promise.all([
+        prisma.acarsPosition.findMany({
+          where: { sessionId: pirep.acarsSessionId },
+          orderBy: { recordedAt: "asc" },
+          select: { recordedAt: true, fuelKg: true, onGround: true },
+        }),
+        prisma.acarsEvent.findMany({
+          where: { sessionId: pirep.acarsSessionId },
+          orderBy: { recordedAt: "asc" },
+          select: { type: true, numericValue: true },
+        }),
+      ]);
+      fuelUsedKg = telemetrySummary(positions, events).fuelUsedKg;
+    }
+
     const passengerRevenueCents = pirep.passengers !== null && flightDistanceNm !== null
       ? calculatePassengerRevenue(pirep.passengers, flightDistanceNm).revenueCents
       : null;
-    const fuel = await calculateFuelCostSnapshot({ departure: pirep.departure, fuelUsedKg: pirep.fuelUsed, at: pirep.flownAt ?? pirep.acceptedAt });
+    const fuel = await calculateFuelCostSnapshot({
+      departure: pirep.departure,
+      fuelUsedKg,
+      at: pirep.flownAt ?? pirep.acceptedAt,
+    });
     await prisma.pirep.update({
       where: { id },
-      data: { flightDistanceNm, score, points, passengerRevenueCents, ...fuel },
+      data: { fuelUsed: fuelUsedKg, flightDistanceNm, score, points, passengerRevenueCents, ...fuel },
     });
     const expenses = await generateCompanyExpensesForPirep(id);
     await prisma.aocAuditLog.create({
@@ -68,10 +90,12 @@ export async function reprocessPirepEconomy(id: string) {
         entityType: "Pirep",
         entityId: id,
         message: `${staff.name} reprocessed metrics and company economy for PIREP ${pirep.vamsysPirepId ?? pirep.id}.`,
-        metadata: { flightDistanceNm, score, points, passengerRevenueCents, fuelCostCents: fuel.fuelCostCents, expensesGenerated: expenses.generated, expenseTotalCents: expenses.totalCents },
+        metadata: { fuelUsedKg, flightDistanceNm, score, points, passengerRevenueCents, fuelCostCents: fuel.fuelCostCents, expensesGenerated: expenses.generated, expenseTotalCents: expenses.totalCents },
       },
     });
-    feedback = { type: "success", message: "Métricas y economía recalculadas con las reglas actuales." };
+    feedback = fuelUsedKg != null && fuelUsedKg > 0
+      ? { type: "success", message: "Métricas, combustible y economía recalculados con las reglas actuales." }
+      : { type: "error", message: "Las métricas se recalcularon, pero la telemetría no contiene lecturas válidas de combustible. Verifica que ACARS muestre combustible durante el próximo vuelo." };
   } catch (error) {
     feedback = { type: "error", message: error instanceof Error ? error.message : "No se pudo reprocesar el PIREP." };
   }
