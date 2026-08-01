@@ -139,7 +139,8 @@
                      "noBase":  "Sin base",
                      "privacyNote":  "Tu portal solo muestra tus datos personales de operación, nómina y cartera.",
                      "privacy":  "Política de privacidad",
-                     "fleet":  "Flota disponible"
+                     "fleet":  "Flota disponible",
+                     "routes":  "Mapa de rutas"
                  },
     "dashboard":  {
                       "staffEyebrow":  "RESUMEN DE OPERACIONES",

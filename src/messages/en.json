@@ -139,7 +139,8 @@
                      "noBase":  "No base",
                      "privacyNote":  "Your portal only displays your personal operations, payroll and wallet data.",
                      "privacy":  "Privacy policy",
-                     "fleet":  "Available fleet"
+                     "fleet":  "Available fleet",
+                     "routes":  "Route map"
                  },
     "dashboard":  {
                       "staffEyebrow":  "OPERATIONS SUMMARY",
