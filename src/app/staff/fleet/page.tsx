@@ -9,8 +9,6 @@ import {
 import { prisma } from "@/lib/prisma";
 import {
   initializeAircraftConditionsAction,
-  setAircraftLocationAction,
-  syncAircraftLocationsAction,
   updatePublicFleetAircraftAction,
 } from "./actions";
 export const dynamic = "force-dynamic";
@@ -362,63 +360,6 @@ export default async function StaffFleetPage({
         locale={locale}
         title={t("fleet.map.title")}
       />
-      <div className="card settings-link">
-        <div className="card-header">
-          <h2>{t("aircraftLocation.manualTitle")}</h2>
-          <form action={syncAircraftLocationsAction}>
-            <button className="action-button approve">
-              {t("aircraftLocation.sync")}
-            </button>
-          </form>
-        </div>
-        <form action={setAircraftLocationAction} className="settings-grid">
-          <label>
-            {t("aircraftLocation.aircraft")}
-            <input
-              name="vamsysAircraftId"
-              list="aircraft-location-options"
-              required
-            />
-            <datalist id="aircraft-location-options">
-              {aircraft.filter((x) => x.vamsysAircraftId).map((x) => (
-                <option key={x.id} value={x.vamsysAircraftId!}>
-                  {x.registration ?? x.vamsysAircraftId} ·{" "}
-                  {x.aircraftType ?? "—"}
-                </option>
-              ))}
-            </datalist>
-          </label>
-          <label>
-            {t("aircraftLocation.registration")}
-            <input name="registration" />
-          </label>
-          <label>
-            {t("aircraftLocation.type")}
-            <input name="aircraftType" />
-          </label>
-          <label>
-            {t("aircraftLocation.airport")}
-            <input name="airportIcao" maxLength={4} />
-          </label>
-          <label>
-            {t("common.status")}
-            <select name="status" defaultValue="AVAILABLE">
-              {[
-                "AVAILABLE",
-                "MAINTENANCE",
-                "UNKNOWN",
-              ].map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("aircraftLocation.notes")}
-            <input name="notes" />
-          </label>
-          <button className="action-button approve">{t("common.save")}</button>
-        </form>
-      </div>
     </>
   );
 }
