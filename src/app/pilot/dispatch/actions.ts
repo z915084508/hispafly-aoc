@@ -20,9 +20,9 @@ export async function createPilotDispatchAction(formData: FormData) {
   const pilot = await requirePilotSession();
   try {
     const dispatch = await createNativeDispatch({ bookingId: String(formData.get("bookingId")), aircraftId: String(formData.get("aircraftId") ?? "") || null, actorPilotId: pilot.id, idempotencyKey: String(formData.get("idempotencyKey") ?? randomUUID()) });
-    await createDispatchOfpBriefing(dispatch.id);
+    const ofp = await createDispatchOfpBriefing(dispatch.id);
     await writeAuditLogSafely({ action: "NATIVE_DISPATCH_CREATED", entityType: "FlightDispatch", entityId: dispatch.id, message: `${pilot.displayName} created Native Dispatch.`, metadata: { pilotId: pilot.id, bookingId: dispatch.bookingId } });
-    redirect(`/pilot/dispatch/${dispatch.id}`);
+    redirect(`/pilot/ofp/${ofp.id}`);
   } catch (error) { if (error && typeof error === "object" && "digest" in error) throw error; redirect(`/pilot/bookings/${String(formData.get("bookingId"))}?error=${encodeURIComponent(error instanceof Error ? error.message : "Dispatch creation failed")}`); }
 }
 export async function runPilotDispatchChecksAction(formData: FormData) {

@@ -8,7 +8,7 @@ import { DispatchReleasePanel } from "@/components/dispatch-release-panel";
 import { FuelPolicyPanel } from "@/components/fuel-policy-panel";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { prisma } from "@/lib/prisma";
-import { generateSimbriefOFPAction } from "../actions";
+import { finalizeSignedOFPAction, generateSimbriefOFPAction } from "../actions";
 import { cancelFlightDispatchAction } from "../../flight-offers/actions";
 import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
 import { safeSimbriefPdfUrl } from "@/lib/simbrief/pdf";
@@ -86,7 +86,8 @@ export default async function PilotOfpPage({ params, searchParams }: { params: P
       {ofp.status === "SIGNED" ? <>
         <div className="feedback success">Signed by {ofp.signedByName} ({ofp.signedByCallsign ?? "Pilot"}) at {ofp.signedAt?.toISOString()}.</div>
         {!nativeDispatch && <div className="notice">Historical dispatch package. External final dispatch is permanently disabled.</div>}
-        {nativeDispatch && dispatch.status !== "RELEASED" && <Link className="button" href={`/pilot/dispatch/${dispatch.id}`}>COMPLETE NATIVE DISPATCH RELEASE</Link>}
+        {nativeDispatch && dispatch.status !== "RELEASED" && <form action={finalizeSignedOFPAction}><input type="hidden" name="ofpId" value={ofp.id}/><button className="button">RETRY FINAL RELEASE</button></form>}
+        {nativeDispatch && dispatch.status === "RELEASED" && <div className="feedback success">Flight released. The ACARS assignment is ready.</div>}
         {dispatch.vamsysBookingId && <p><strong>vAMSYS Booking:</strong> {dispatch.vamsysBookingId}</p>}
       </> : ofp.status === "AWAITING_SIGNATURE" ? <OfpSignaturePad ofpId={ofp.id}/> : <div className="notice">{t("ofp.generateBeforeSigning")}</div>}
       {dispatch.status === "DISPATCHING" && <form action={cancelFlightDispatchAction}><input type="hidden" name="dispatchId" value={ofp.flightDispatchId}/><button className="action-button reject" type="submit">Cancel pre-dispatch</button></form>}
