@@ -269,8 +269,55 @@ export async function getRepositionCandidates() {
 
 export async function setAircraftLocationManually(params: { vamsysAircraftId: string; registration?: string | null; aircraftType?: string | null; airportIcao?: string | null; status: AircraftLocationStatus; notes?: string | null; staffUserId?: string | null }) {
   const icao = params.airportIcao?.trim().toUpperCase() || null;
-  const airport = await airportDetails(icao);
-  const snapshot = await prisma.aircraftLocationSnapshot.upsert({ where: { vamsysAircraftId: params.vamsysAircraftId }, create: { vamsysAircraftId: params.vamsysAircraftId, registration: params.registration, aircraftType: params.aircraftType, currentAirportId: airport.id, currentAirportIcao: icao, currentAirportIata: airport.iata, status: params.status, source: "MANUAL", notes: params.notes, lastReportAt: new Date(), lastLatitude: airport.latitude, lastLongitude: airport.longitude }, update: { registration: params.registration, aircraftType: params.aircraftType, currentAirportId: airport.id, currentAirportIcao: icao, currentAirportIata: airport.iata, status: params.status, source: "MANUAL", notes: params.notes, reservedByDispatchId: null, lastReportAt: new Date(), lastLatitude: airport.latitude, lastLongitude: airport.longitude } });
-  await writeAuditLogSafely({ staffUserId: params.staffUserId, action: "AIRCRAFT_LOCATION_MANUAL_SET", entityType: "AircraftLocationSnapshot", entityId: snapshot.id, message: `Aircraft ${params.vamsysAircraftId} location manually updated.`, metadata: { airportIcao: icao, status: params.status } });
-  return snapshot;
+  if (!icao) throw new Error("A destination airport ICAO is required.");
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`aircraft-location:${params.vamsysAircraftId}`}))`;
+    const airport = await tx.airport.findUnique({ where: { icao }, select: { id: true, iata: true, latitude: true, longitude: true } });
+    if (!airport) throw new Error(`Airport ${icao} is not present in the AOC airport catalog.`);
+    const current = await tx.aircraftLocationSnapshot.findUnique({ where: { vamsysAircraftId: params.vamsysAircraftId } });
+    if (!current) throw new Error("Aircraft location record not found.");
+    if (current.status === "RESERVED" || current.status === "IN_FLIGHT" || current.reservedByDispatchId) {
+      throw new Error("Reserved or in-flight aircraft cannot be moved manually.");
+    }
+    const aircraft = current.aircraftId
+      ? await tx.aircraft.findUnique({ where: { id: current.aircraftId }, select: { id: true } })
+      : await tx.aircraft.findUnique({ where: { vamsysAircraftId: params.vamsysAircraftId }, select: { id: true } });
+    if (aircraft) {
+      const [activeDispatch, activeAcars] = await Promise.all([
+        tx.flightDispatch.findFirst({ where: { aircraftId: aircraft.id, isCurrent: true, status: { in: ["RELEASED", "DISPATCHING", "DISPATCHED"] } }, select: { id: true } }),
+        tx.acarsSession.findFirst({ where: { aircraftId: aircraft.id, status: "ACTIVE" }, select: { id: true } }),
+      ]);
+      if (activeDispatch || activeAcars) throw new Error("Aircraft has an active Dispatch or ACARS session and cannot be moved manually.");
+    }
+    const snapshot = await tx.aircraftLocationSnapshot.update({
+      where: { id: current.id },
+      data: {
+        registration: params.registration ?? current.registration,
+        aircraftType: params.aircraftType ?? current.aircraftType,
+        aircraftId: aircraft?.id ?? current.aircraftId,
+        currentAirportId: airport.id,
+        currentAirportIcao: icao,
+        currentAirportIata: airport.iata,
+        status: params.status,
+        source: "MANUAL",
+        notes: params.notes,
+        reservedByDispatchId: null,
+        lastReportAt: new Date(),
+        lastLatitude: airport.latitude,
+        lastLongitude: airport.longitude,
+      },
+    });
+    if (aircraft) await tx.aircraft.update({ where: { id: aircraft.id }, data: { currentAirportId: airport.id, ...(params.status === "AVAILABLE" ? { operationalStatus: "AVAILABLE" } : {}) } });
+    await tx.aocAuditLog.create({
+      data: {
+        staffUserId: params.staffUserId,
+        action: "AIRCRAFT_LOCATION_MANUAL_SET",
+        entityType: "AircraftLocationSnapshot",
+        entityId: snapshot.id,
+        message: `Aircraft ${snapshot.registration ?? params.vamsysAircraftId} moved manually from ${current.currentAirportIcao ?? "unknown"} to ${icao}.`,
+        metadata: { fromAirportIcao: current.currentAirportIcao, airportIcao: icao, previousStatus: current.status, status: params.status, aircraftId: aircraft?.id ?? null, notes: params.notes ?? null },
+      },
+    });
+    return snapshot;
+  });
 }

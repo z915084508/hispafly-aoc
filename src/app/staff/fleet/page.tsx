@@ -405,8 +405,6 @@ export default async function StaffFleetPage({
             <select name="status" defaultValue="AVAILABLE">
               {[
                 "AVAILABLE",
-                "RESERVED",
-                "IN_FLIGHT",
                 "MAINTENANCE",
                 "UNKNOWN",
               ].map((s) => (

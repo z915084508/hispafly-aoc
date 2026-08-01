@@ -9,14 +9,14 @@ import { completeMaintenance, initializeAircraftConditions } from "@/lib/aircraf
 import { redirect } from "next/navigation";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 
-const allowed = new Set<AircraftLocationStatus>(["AVAILABLE", "RESERVED", "IN_FLIGHT", "MAINTENANCE", "UNKNOWN"]);
+const allowed = new Set<AircraftLocationStatus>(["AVAILABLE", "MAINTENANCE", "UNKNOWN"]);
 
 export async function setAircraftLocationAction(formData: FormData) {
-  const staff = await requireStaffPermission("FLEET_LOCATION_EDIT", { entityType: "AircraftLocationSnapshot", attemptedAction: "actualizar la ubicación de una aeronave" });
+  const staff = await requireStaffPermission("AIRCRAFT_LOCATION_MANAGE", { entityType: "AircraftLocationSnapshot", attemptedAction: "mover manualmente una aeronave" });
   const vamsysAircraftId = String(formData.get("vamsysAircraftId") ?? "").trim();
   const statusValue = String(formData.get("status") ?? "UNKNOWN") as AircraftLocationStatus;
   if (!vamsysAircraftId) throw new Error("Aircraft ID is required.");
-  if (!allowed.has(statusValue)) throw new Error("Invalid aircraft status.");
+  if (!allowed.has(statusValue)) throw new Error("Manual movement may only set AVAILABLE, MAINTENANCE or UNKNOWN.");
   await setAircraftLocationManually({ vamsysAircraftId, registration: String(formData.get("registration") ?? "").trim() || null, aircraftType: String(formData.get("aircraftType") ?? "").trim() || null, airportIcao: String(formData.get("airportIcao") ?? "").trim() || null, status: statusValue, notes: String(formData.get("notes") ?? "").trim() || null, staffUserId: staff.id });
   revalidatePath("/staff/fleet"); revalidatePath("/pilot/fleet");
 }
