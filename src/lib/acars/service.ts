@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
 import { greatCircleDistanceNm, nativePirepScore, telemetrySummary, validateTelemetryBatch } from "@/lib/acars/completion";
+import { ensureNativePayrollSettlement } from "@/lib/payroll/nativeSettlement";
+import { generateCompanyExpensesForPirep } from "@/lib/economy/companyExpenses";
+import { createOrUpdateFlightAnalysis } from "@/lib/flight-analysis/service";
 
 export type AcarsStartInput = {
   localSessionId: string; dispatchId: string; dispatchVersion: number; bookingId: string;
@@ -20,6 +23,17 @@ type EventInput = {
   numericValue?: number | null; textValue?: string | null;
 };
 export type TelemetryInput = { currentPhase: string; completed?: boolean; positions?: PositionInput[]; events?: EventInput[] };
+
+async function completeNativePirepPostProcessing(pirepId: string) {
+  const results = await Promise.allSettled([
+    ensureNativePayrollSettlement(pirepId),
+    generateCompanyExpensesForPirep(pirepId),
+    createOrUpdateFlightAnalysis(pirepId),
+  ]);
+  for (const [index, result] of results.entries()) {
+    if (result.status === "rejected") console.error(`[Native ACARS] post-processing step ${index + 1} failed pirep=${pirepId}`, result.reason);
+  }
+}
 
 export async function startAcarsSession(pilotId: string, body: AcarsStartInput) {
   if (!body || ![body.localSessionId, body.dispatchId, body.bookingId, body.flightId, body.aircraftId, body.simulatorName, body.acarsVersion].every((value) => typeof value === "string" && value.trim())) throw new Error("Invalid ACARS session identity.");
@@ -57,7 +71,10 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
   if (!session) throw new Error("ACARS session not found.");
   if (session.status === "COMPLETED") {
     const pirep = await prisma.pirep.findUnique({ where: { acarsSessionId: session.id }, select: { id: true } });
-    if (body.completed && !(body.positions?.length || body.events?.length)) return { acceptedPositions: 0, acceptedEvents: 0, completed: true, pirepId: pirep?.id ?? null };
+    if (body.completed && !(body.positions?.length || body.events?.length)) {
+      if (pirep) await completeNativePirepPostProcessing(pirep.id);
+      return { acceptedPositions: 0, acceptedEvents: 0, completed: true, pirepId: pirep?.id ?? null };
+    }
     throw new Error("ACARS session is already completed.");
   }
   let pirepId: string | null = null;
@@ -157,5 +174,6 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
     await tx.pilot.update({ where: { id: pilotId }, data: { currentAirportId: dispatch.flight.arrivalAirportId, positionUpdatedAt: completedAt, positionSource: "NATIVE_PIREP" } });
     await tx.aocAuditLog.create({ data: { action: "NATIVE_ACARS_FLIGHT_COMPLETED", entityType: "Pirep", entityId: pirep.id, message: `${dispatch.flight.flightNumber} completed by HispaFly ACARS.`, metadata: { sessionId, dispatchId: dispatch.id, bookingId: dispatch.booking.id, flightId: dispatch.flight.id, aircraftId: dispatch.aircraft.id, arrivalIcao: dispatch.flight.arrivalIcao, summary, flightDistanceNm, score, fuelEconomics } as Prisma.InputJsonValue } });
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  if (body.completed && pirepId) await completeNativePirepPostProcessing(pirepId);
   return { acceptedPositions: body.positions?.length ?? 0, acceptedEvents: body.events?.length ?? 0, completed: Boolean(body.completed), pirepId };
 }
