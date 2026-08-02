@@ -2,34 +2,28 @@ import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
 import { requirePilotSession } from "@/lib/pilot/session";
-import { listBookableFlights } from "@/lib/native-flight/booking";
-import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/i18n/core";
-import { getLocale } from "@/lib/i18n/server";
+import { loadPilotDepartures } from "@/lib/native-flight/departures-service";
 
 export const dynamic = "force-dynamic";
-export default async function PilotFlightOffersPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  const [pilot, query, locale] = await Promise.all([requirePilotSession(), searchParams, getLocale()]);
-  const [result, airports, fleets, scheduleCount, futureFlightCount] = await Promise.all([
-    listBookableFlights({
-      pilotId: pilot.id,
-      from: query.from ? new Date(`${query.from}T00:00:00Z`) : undefined,
-      to: query.to ? new Date(`${query.to}T23:59:59Z`) : undefined,
-      departureAirportId: query.departureAirportId,
-      arrivalAirportId: query.arrivalAirportId,
-      flightNumber: query.flightNumber,
-      fleetId: query.fleetId,
-      page: Number(query.page) || 1,
-    }),
-    prisma.airport.findMany({ where: { status: "ACTIVE" }, orderBy: { icao: "asc" } }),
-    prisma.fleet.findMany({ where: { operationalStatus: "ACTIVE" }, orderBy: { code: "asc" } }),
-    prisma.flightSchedule.count({ where: { status: "ACTIVE" } }),
-    prisma.flight.count({ where: { scheduledDeparture: { gt: new Date() }, status: { in: ["SCHEDULED", "OPEN", "OPEN_FOR_BOOKING"] } } }),
-  ]);
-  const dateTime = (value: Date) => `${formatDate(value, locale, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC`;
+const labels = { AVAILABLE: "DISPONIBLE", MY_BOOKING: "TU RESERVA", RESERVED: "RESERVADO", UPCOMING: "PRÓXIMAMENTE", CLOSED: "CERRADO", CANCELLED: "CANCELADO", FINISHED: "FINALIZADO", WRONG_AIRPORT: "POSICIÓN REQUERIDA" } as const;
+const duration = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+
+export default async function PilotFlightOffersPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
+  const [session, query] = await Promise.all([requirePilotSession(), searchParams]);
+  const result = await loadPilotDepartures(session.id, query.date);
+  const airport = result.pilot.currentAirport;
+  const utc = (date: Date) => new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "UTC" }).format(date);
+  const local = (date: Date) => new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: result.day.timeZone }).format(date);
+  const row = (flight: (typeof result.flights)[number], compact = false) => <tr key={flight.id}><td><strong>{local(flight.scheduledDeparture)}</strong><small>{utc(flight.scheduledDeparture)} UTC</small></td><td><strong>{flight.flightNumber}</strong><small>{flight.callsign}</small></td><td>{flight.arrivalIcao}<small>{flight.arrivalAirport?.city || flight.arrivalAirport?.name}</small></td><td>{local(flight.scheduledArrival)}<small>{utc(flight.scheduledArrival)} UTC</small></td>{!compact && <><td>{duration(flight.scheduledDurationMinutes)}</td><td>{flight.fleet?.code || "—"}</td><td>{flight.assignedAircraft?.registration || "A elegir"}</td></>}<td><strong>{labels[flight.availability.state]}</strong></td><td>{flight.availability.state === "MY_BOOKING" ? <Link className="action-button approve" href={`/pilot/bookings/${flight.availability.bookingId}`}>ABRIR MI RESERVA</Link> : flight.availability.state === "AVAILABLE" ? <Link className="action-button approve" href={`/pilot/flight-offers/${flight.id}`}>REVISAR Y RESERVAR</Link> : <Link href={`/pilot/flight-offers/${flight.id}`}>Ver vuelo</Link>}</td></tr>;
   return <PilotPortalShell>
-    <div className="booking-page-header"><PageHeading eyebrow="DISPATCH PORTAL" title="Flight Marketplace" copy="Accept Staff missions and published HispaFly flights, or create your own operation." /><Link className="button" href="/pilot/flight-offers/self-dispatch">Create my flight</Link></div>
-    <form className="audit-filters"><label>From<input type="date" name="from" defaultValue={query.from}/></label><label>To<input type="date" name="to" defaultValue={query.to}/></label><label>Departure<select name="departureAirportId" defaultValue={query.departureAirportId ?? ""}><option value="">All</option>{airports.map((airport) => <option key={airport.id} value={airport.id}>{airport.icao}</option>)}</select></label><label>Arrival<select name="arrivalAirportId" defaultValue={query.arrivalAirportId ?? ""}><option value="">All</option>{airports.map((airport) => <option key={airport.id} value={airport.id}>{airport.icao}</option>)}</select></label><label>Flight<input name="flightNumber" defaultValue={query.flightNumber}/></label><label>Fleet<select name="fleetId" defaultValue={query.fleetId ?? ""}><option value="">All</option>{fleets.map((fleet) => <option key={fleet.id} value={fleet.id}>{fleet.code ?? fleet.name}</option>)}</select></label><button className="button secondary">Search</button></form>
-    <section className="card"><div className="table-wrap"><table><thead><tr><th>Flight</th><th>Route</th><th>Operating date</th><th>Local schedule</th><th>Duration</th><th>Fleet / Aircraft</th><th>Window</th><th></th></tr></thead><tbody>{result.rows.map((flight) => <tr key={flight.id}><td><strong>{flight.flightNumber}</strong><br/>{flight.callsign}</td><td>{flight.departureIcao} → {flight.arrivalIcao}</td><td>{flight.operatingDate.toISOString().slice(0, 10)}</td><td>{flight.departureLocalTime} {flight.departureTimezone}<br/>{flight.arrivalLocalTime} {flight.arrivalTimezone}</td><td>{flight.scheduledDurationMinutes} min</td><td>{flight.fleet?.code ?? "Fleet pending"}<br/>{flight.assignedAircraft?.registration ?? "Aircraft pending assignment"}</td><td>{flight.bookingCloseAt ? `Closes ${dateTime(flight.bookingCloseAt)}` : "Open until departure"}</td><td><Link className="action-button approve" href={`/pilot/flight-offers/${flight.id}`}>Review & accept</Link></td></tr>)}</tbody></table></div>{!result.rows.length && <div className="flight-availability-empty"><span>NO MISSIONS AVAILABLE</span><h2>{scheduleCount === 0 ? "The flight programme has not been published yet" : futureFlightCount === 0 ? "No future missions have been generated" : "No mission matches the selected filters"}</h2><p>{scheduleCount === 0 ? "Operations must publish a Schedule before pilots can accept a mission." : futureFlightCount === 0 ? "Operations has an active Schedule but still needs to generate its upcoming Flight instances." : "Clear one or more filters or select a wider date range."}</p>{(query.from || query.to || query.departureAirportId || query.arrivalAirportId || query.flightNumber || query.fleetId) && <Link className="button secondary" href="/pilot/flight-offers">Clear filters</Link>}</div>}</section>
+    <div className="booking-page-header"><PageHeading eyebrow="PORTAL DE OPERACIONES" title="SELF DISPATCH" copy="Vuelos programados desde tu posición actual"/><Link className="button" href="/pilot/flight-offers/self-dispatch">+ CREATE MY FLIGHT</Link></div>
+    <div className="dashboard-grid"><section className="card"><h2>VUELOS PROGRAMADOS</h2><p>Consulta la programación publicada desde tu aeropuerto actual y acepta un vuelo disponible.</p><strong>{airport ? `VER SALIDAS DESDE ${airport.icao}` : "POSICIÓN PENDIENTE"}</strong></section><section className="card"><h2>CREATE MY FLIGHT</h2><p>Elige libremente una ruta, una aeronave disponible y tu propia hora de salida.</p><Link className="button secondary" href="/pilot/flight-offers/self-dispatch">PLAN MY OWN OPERATION</Link></section></div>
+    {!airport ? <section className="card"><h2>Posición de tripulación requerida</h2><p>Debes establecer tu posición de tripulación antes de reservar o crear una operación.</p><Link className="button" href="/pilot/flight-offers/self-dispatch">Establecer posición inicial</Link></section> : <>
+      <section className="card"><div className="workflow-summary"><div><span>POSICIÓN DE TRIPULACIÓN</span><strong>{airport.icao} · {airport.city || airport.name}</strong></div><div><span>Actualizada</span><strong>{result.pilot.positionUpdatedAt?.toISOString().slice(0, 16).replace("T", " · ") || "Sin fecha"} UTC</strong></div><div><span>Origen</span><strong>{result.pilot.positionSource || "Operaciones"}</strong></div></div><p><Link href="/pilot/flight-offers/self-dispatch">Acceso Jumpseat</Link> · <Link href={`/pilot/routes?airport=${airport.icao}`}>Mapa de rutas</Link></p></section>
+      {result.day.fallback && <div className="notice">La zona horaria del aeropuerto no es válida. Las fechas se muestran y consultan en UTC.</div>}
+      <div className="booking-page-header"><h2>SALIDAS DESDE {airport.icao} · {result.day.date}</h2><div><Link className="button secondary" href={`?date=${result.day.previous}`}>← DÍA ANTERIOR</Link> <Link className="button secondary" href="/pilot/flight-offers">HOY</Link> <Link className="button secondary" href={`?date=${result.day.next}`}>DÍA SIGUIENTE →</Link></div></div>
+      <section className="card"><div className="table-wrap departures-table"><table><thead><tr><th>HORA</th><th>VUELO</th><th>DESTINO</th><th>LLEGADA</th><th>DURACIÓN</th><th>FLOTA</th><th>AERONAVE</th><th>ESTADO</th><th>ACCIÓN</th></tr></thead><tbody>{result.flights.map((flight) => row(flight))}</tbody></table></div>{!result.flights.length && <p>No hay salidas programadas para este día local.</p>}</section>
+      <section className="card"><h2>PRÓXIMAS SALIDAS</h2><div className="table-wrap"><table><tbody>{result.upcoming.map((flight) => row(flight, true))}</tbody></table></div></section>
+    </>}
   </PilotPortalShell>;
 }

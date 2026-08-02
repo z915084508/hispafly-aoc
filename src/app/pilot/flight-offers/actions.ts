@@ -3,7 +3,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { createNativeBooking } from "@/lib/native-flight/booking";
-import { writeAuditLogSafely } from "@/lib/audit/log";
 import { cancelFlightDispatchByPilot } from "@/lib/flightOffers/service";
 
 export async function bookNativeFlightAction(formData: FormData) {
@@ -16,7 +15,6 @@ export async function bookNativeFlightAction(formData: FormData) {
       aircraftId: String(formData.get("aircraftId") ?? "") || null,
       idempotencyKey: String(formData.get("idempotencyKey") ?? ""),
     });
-    await writeAuditLogSafely({ action: "PILOT_BOOKING_CREATED", entityType: "PilotBooking", entityId: booking.id, message: "Pilot created a native booking.", metadata: { pilotId: pilot.id, flightId } });
     revalidatePath("/pilot/flight-offers");
     revalidatePath("/pilot/bookings");
     redirect(`/pilot/bookings/${booking.id}?success=Booking+confirmed`);
