@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
 
 const vercelEnvironment = process.env.VERCEL_ENV ?? "local";
-const shouldRunDatabaseSetup =
-  vercelEnvironment === "production" || process.env.AOC_RUN_MIGRATIONS === "true";
+const shouldRunMigrations = process.env.AOC_RUN_MIGRATIONS === "true";
+const shouldRunStaffBootstrap = process.env.AOC_RUN_STAFF_BOOTSTRAP === "true";
 
 function sleep(milliseconds) {
   const buffer = new SharedArrayBuffer(4);
@@ -43,19 +43,22 @@ function runMigrationWithRetry() {
 
 console.log(`Vercel environment: ${vercelEnvironment}`);
 
-if (shouldRunDatabaseSetup) {
-  console.log("Running production database migration and Staff bootstrap.");
+if (shouldRunMigrations) {
+  console.log("AOC_RUN_MIGRATIONS=true: running Prisma production migrations.");
   runMigrationWithRetry();
 } else {
   console.log(
-    "Skipping database migration and Staff bootstrap for this non-production build to avoid concurrent Prisma advisory locks.",
+    "Skipping Prisma migrations unless AOC_RUN_MIGRATIONS=true. Normal deployments must not compete for Prisma advisory locks.",
   );
 }
 
 run("pnpm", ["prisma", "generate"]);
 
-if (shouldRunDatabaseSetup) {
+if (shouldRunStaffBootstrap) {
+  console.log("AOC_RUN_STAFF_BOOTSTRAP=true: running Staff access bootstrap.");
   run("npm", ["run", "staff:bootstrap"]);
+} else {
+  console.log("Skipping Staff bootstrap unless AOC_RUN_STAFF_BOOTSTRAP=true.");
 }
 
 run("pnpm", ["exec", "next", "build"]);
