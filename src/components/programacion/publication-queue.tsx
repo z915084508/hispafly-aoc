@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { bulkPublishProgramacionAction } from "@/app/staff/operations/programacion/actions";
+import styles from "./publication-queue.module.css";
 
 export type PublicationQueueRow = {
   id: string;
@@ -25,6 +26,7 @@ export type PublicationQueueRow = {
 
 const stateLabel = (state: PublicationQueueRow["state"]) => state === "READY" ? "LISTA" : state === "WARNING" ? "ADVERTENCIAS" : "BLOQUEADA";
 const stateClass = (state: PublicationQueueRow["state"]) => state === "READY" ? "badge" : state === "WARNING" ? "badge amber" : "badge red";
+const rowClass = (state: PublicationQueueRow["state"]) => state === "READY" ? styles.ready : state === "WARNING" ? styles.warning : styles.blocked;
 
 export function PublicationQueue({
   rows,
@@ -58,11 +60,11 @@ export function PublicationQueue({
   const selectAll = () => setSelected(new Set(rows.map(({ id }) => id)));
   const selectReady = () => setSelected(new Set(rows.filter(({ state }) => state === "READY").map(({ id }) => id)));
 
-  return <form action={bulkPublishProgramacionAction} className="publication-queue">
+  return <form action={bulkPublishProgramacionAction} className={styles.queue}>
     <input type="hidden" name="returnTo" value={returnTo}/>
     {rows.map((row) => <input key={`fingerprint-${row.id}`} type="hidden" name={`warningFingerprint:${row.id}`} value={row.warningFingerprint}/>) }
 
-    <section className="publication-selection-summary card">
+    <section className={`${styles.summary} card`}>
       <div><span>SELECCIONADAS</span><strong>{selectedRows.length}</strong></div>
       <div><span>LISTAS</span><strong>{selectedReady}</strong></div>
       <div><span>CON ADVERTENCIAS</span><strong>{selectedWarnings}</strong></div>
@@ -70,7 +72,7 @@ export function PublicationQueue({
       <div><span>FLIGHTS PREVISTOS</span><strong>{expectedCreated}</strong></div>
     </section>
 
-    <div className="publication-toolbar card">
+    <div className={`${styles.toolbar} card`}>
       <div className="button-row">
         <button type="button" className="button secondary" onClick={selectAll} disabled={!rows.length}>SELECCIONAR TODO</button>
         <button type="button" className="button secondary" onClick={selectReady} disabled={!rows.some(({ state }) => state === "READY")}>SOLO LISTAS</button>
@@ -87,16 +89,16 @@ export function PublicationQueue({
       </div> : <p className="meta">Tu usuario puede revisar la cola, pero no dispone de permiso para publicar.</p>}
     </div>
 
-    <div className="table-wrap programacion-table publication-table"><table>
+    <div className={`table-wrap programacion-table ${styles.table}`}><table>
       <thead><tr><th><span className="sr-only">Seleccionar</span></th><th>Programación</th><th>Ruta</th><th>Días / UTC</th><th>Flota / aeronave</th><th>Vigencia</th><th>Validación</th><th>Flights</th><th>Acciones</th></tr></thead>
-      <tbody>{rows.map((row) => <tr key={row.id} className={`publication-row publication-${row.state.toLowerCase()}`}>
+      <tbody>{rows.map((row) => <tr key={row.id} className={rowClass(row.state)}>
         <td><input type="checkbox" name="scheduleId" value={row.id} checked={selected.has(row.id)} onChange={() => toggle(row.id)} disabled={!canPublish} aria-label={`Seleccionar ${row.code}`}/></td>
         <td><strong>{row.code}</strong><span className="secondary">{row.flightNumber}</span></td>
         <td>{row.route}</td>
         <td>{row.days}<span className="secondary">{row.utc}</span></td>
         <td>{row.fleet}<span className="secondary">{row.aircraft}</span></td>
         <td>{row.effectivePeriod}</td>
-        <td><span className={stateClass(row.state)}>{stateLabel(row.state)}</span><span className="secondary">{row.errors} conflictos · {row.warnings} advertencias</span>{row.issues.length > 0 && <details className="publication-issues"><summary>Ver problemas</summary><ul>{row.issues.map((issue, index) => <li key={`${row.id}-${issue.code}-${index}`}><strong>{issue.code}</strong> · {issue.message}</li>)}</ul></details>}</td>
+        <td><span className={stateClass(row.state)}>{stateLabel(row.state)}</span><span className="secondary">{row.errors} conflictos · {row.warnings} advertencias</span>{row.issues.length > 0 && <details className={styles.issues}><summary>Ver problemas</summary><ul>{row.issues.map((issue, index) => <li key={`${row.id}-${issue.code}-${index}`}><strong>{issue.code}</strong> · {issue.message}</li>)}</ul></details>}</td>
         <td>{row.expectedCreated}<span className="secondary">{row.existing} existentes</span></td>
         <td><a href={`/staff/operations/programacion/${row.id}`}>ABRIR DETALLE</a></td>
       </tr>)}</tbody>
