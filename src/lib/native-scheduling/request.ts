@@ -3,7 +3,7 @@ import { staffHasPermission } from "@/lib/staff/permissions";
 
 export function scheduleValidationAccessStatus(staff: StaffIdentity | null): 200 | 401 | 403 {
   if (!staff) return 401;
-  return staffHasPermission(staff, "SCHEDULE_CREATE") ? 200 : 403;
+  return staffHasPermission(staff, "SCHEDULE_CREATE") || staffHasPermission(staff, "SCHEDULE_EDIT") ? 200 : 403;
 }
 
 export { parseScheduleValidationPayload } from "./payload";

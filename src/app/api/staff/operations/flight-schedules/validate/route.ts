@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const parsed = parseScheduleValidationPayload(body);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-    await requireStaffPermission("SCHEDULE_CREATE", { entityType: "FlightSchedule", entityId: parsed.value.scheduleId, attemptedAction: "validate a proposed flight schedule" });
+    await requireStaffPermission(parsed.value.scheduleId ? "SCHEDULE_EDIT" : "SCHEDULE_CREATE", { entityType: "FlightSchedule", entityId: parsed.value.scheduleId, attemptedAction: "validate a proposed flight schedule" });
     const result = await validateProposedSchedule(parsed.value, { excludeScheduleId: parsed.value.scheduleId, includeExistingGeneratedFlights: true });
     return NextResponse.json(result, { status: 200 });
   } catch (error) {

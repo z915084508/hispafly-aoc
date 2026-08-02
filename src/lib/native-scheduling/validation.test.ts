@@ -39,4 +39,17 @@ assert.equal(validateProposedScheduleWithContext(proposed(), context({ existingS
 const generatedContext = context({ generatedFlights: [{ id: "flight-1", scheduleId: "other", routeId: "route-b-c", assignedAircraftId: "aircraft-a", scheduledDeparture: new Date("2026-08-10T08:30:00.000Z"), scheduledArrival: new Date("2026-08-10T09:30:00.000Z"), status: "SCHEDULED", manuallyModifiedAt: new Date("2026-08-01T00:00:00.000Z") }] });
 assert.ok(codes(proposed(), generatedContext).includes("GENERATED_FLIGHT_CONFLICT"));
 
-console.log("Native scheduling validation rules passed (21 focused scenarios).");
+const activeConflict = validateProposedScheduleWithContext(proposed(), context({ existingSchedules: [schedule({ status: "ACTIVE", departureTimeMinutesUtc: 530 })] }));
+assert.ok(activeConflict.errors.some(({ code }) => code === "AIRCRAFT_SCHEDULE_OVERLAP"));
+assert.ok(activeConflict.days.find(({ dayOfWeek }) => dayOfWeek === 1)?.issues.some(({ code }) => code === "AIRCRAFT_SCHEDULE_OVERLAP"), "day errors must be aggregated");
+assert.equal(activeConflict.days.find(({ dayOfWeek }) => dayOfWeek === 1)?.valid, false);
+assert.ok(codes(proposed(), context({ existingSchedules: [schedule({ status: "DRAFT", departureTimeMinutesUtc: 530 })] })).includes("AIRCRAFT_SCHEDULE_OVERLAP"));
+const suspendedConflict = validateProposedScheduleWithContext(proposed(), context({ existingSchedules: [schedule({ status: "SUSPENDED", departureTimeMinutesUtc: 530 })] }));
+assert.equal(suspendedConflict.valid, true);
+assert.ok(suspendedConflict.warnings.some(({ code }) => code === "SUSPENDED_SCHEDULE_CONFLICT"));
+assert.ok(suspendedConflict.days[0]?.issues.some(({ code }) => code === "SUSPENDED_SCHEDULE_CONFLICT"), "day warnings must be aggregated");
+assert.equal(suspendedConflict.days[0]?.valid, true, "warning-only days remain valid");
+assert.equal(validateProposedScheduleWithContext(proposed(), context({ existingSchedules: [schedule({ status: "EXPIRED", departureTimeMinutesUtc: 530 })] })).valid, true);
+assert.equal(validateProposedScheduleWithContext(proposed(), context({ existingSchedules: [schedule({ status: "ARCHIVED", departureTimeMinutesUtc: 530 })] })).valid, true);
+
+console.log("Native scheduling validation rules passed (30 focused scenarios).");

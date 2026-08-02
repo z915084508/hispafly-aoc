@@ -1,0 +1,5 @@
+import { ScheduleForm } from "@/components/programacion/schedule-form";
+import { scheduleFormOptions } from "@/lib/native-scheduling/presentation";
+import { requireStaffPermission } from "@/lib/staff/authorization";
+import { createProgramacionAction } from "../actions";
+export default async function NewProgramacionPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) { await requireStaffPermission("SCHEDULE_CREATE", { entityType: "FlightSchedule", attemptedAction: "open new Programación draft" }); const [query, options] = await Promise.all([searchParams, scheduleFormOptions()]); const today = new Date().toISOString().slice(0, 10); return <><div className="page-header"><div><div className="eyebrow">OPERACIONES</div><h1>Nueva programación</h1><p>Crea un borrador. Los conflictos operativos no impiden guardarlo.</p></div></div>{query.error && <div className="notice">{query.error}</div>}<ScheduleForm action={createProgramacionAction} value={{ effectiveFrom: today }} {...options} submitLabel="Guardar borrador"/></>; }
