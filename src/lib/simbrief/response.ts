@@ -54,6 +54,7 @@ export function summarizeSimbriefOfp(snapshot: unknown) {
       ?? valueAt(firstAlternate, ["icao_code"], ["icao"], ["ident"], ["airport", "icao_code"]),
     blockTime: valueAt(root, ["times", "est_block"], ["times", "block"], ["general", "block_time"]),
     airTime: valueAt(root, ["times", "est_time_enroute"], ["times", "air_time"], ["general", "air_time"]),
+    passengers: valueAt(root, ["weights", "pax_count"], ["weights", "passengers"], ["general", "passengers"], ["params", "pax"], ["pax_count"]),
     zfw: valueAt(root, ["weights", "est_zfw"], ["weights", "zfw"], ["general", "zfw"]),
     tow: valueAt(root, ["weights", "est_tow"], ["weights", "tow"], ["general", "tow"]),
     landingWeight: valueAt(root, ["weights", "est_ldw"], ["weights", "landing_weight"], ["general", "landing_weight"]),
