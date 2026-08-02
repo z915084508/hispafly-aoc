@@ -63,22 +63,43 @@ export async function createOrUpdateFlightAnalysis(pirepId: string) {
   const planned = plannedValues(ofp?.ofpSnapshot);
   const actualBlockMinutes = pirep.blockTimeMinutes;
   const actualFlightMinutes = pirep.flightTimeMinutes;
-  const actualFuelUsedKg = pirep.fuelUsed;
+  const rawFuelDataComplete = deepValue(pirep.rawData, ["fueldatacomplete"]);
+  const fuelDataComplete = typeof rawFuelDataComplete === "boolean" ? rawFuelDataComplete : null;
+  const fuelDataSourceValue = deepValue(pirep.rawData, ["fueldatasource"]);
+  const fuelDataSource = typeof fuelDataSourceValue === "string" ? fuelDataSourceValue : null;
+  const actualFuelUsedKg = fuelDataComplete === false ? null : pirep.fuelUsed;
   const plannedTripFuelKg = planned.tripFuelKg === null ? null : Math.round(planned.tripFuelKg);
   const fuelDiffKg = difference(actualFuelUsedKg, plannedTripFuelKg);
   const fuelDiffPercent = differencePercent(actualFuelUsedKg, plannedTripFuelKg);
   const blockTimeDiffMinutes = difference(actualBlockMinutes, planned.blockMinutes);
   const flightTimeDiffMinutes = difference(actualFlightMinutes, planned.flightMinutes);
-  const landingG = numericValue(deepValue(pirep.rawData, ["landing_g", "landingg", "g_force", "gforce"]));
+  const rawLandingG = numericValue(deepValue(pirep.rawData, ["landing_g", "landingg", "g_force", "gforce"]));
+  const landingG = rawLandingG != null && rawLandingG > 0.05 && rawLandingG < 5 ? rawLandingG : null;
   const plannedDistanceNm = planned.distanceNm === null ? null : Math.round(planned.distanceNm);
   const distanceDiffNm = difference(pirep.flightDistanceNm, plannedDistanceNm);
   const score = efficiencyScore({ fuelDiffPercent, blockTimeDiffMinutes, landingRate: pirep.landingRate });
-  const summary = { efficiencyScore: score, plannedDistanceNm, distanceDiffNm, hasSignedOfp: Boolean(ofp), landingSummary: { rateFpm: pirep.landingRate, gForce: landingG }, interpretation: fuelDiffPercent === null ? "Fuel comparison unavailable." : fuelDiffPercent > 5 ? "Actual fuel burn exceeded plan." : fuelDiffPercent < -5 ? "Actual fuel burn was materially below plan." : "Actual fuel burn was close to plan." } as Prisma.InputJsonValue;
+  const summary = {
+    efficiencyScore: score,
+    plannedDistanceNm,
+    distanceDiffNm,
+    hasSignedOfp: Boolean(ofp),
+    fuelDataComplete,
+    fuelDataSource,
+    landingSummary: { rateFpm: pirep.landingRate, gForce: landingG },
+    interpretation: fuelDataComplete === false
+      ? "Fuel comparison excluded because telemetry coverage was incomplete."
+      : fuelDiffPercent === null
+        ? "Fuel comparison unavailable."
+        : fuelDiffPercent > 5
+          ? "Actual fuel burn exceeded plan."
+          : fuelDiffPercent < -5
+            ? "Actual fuel burn was materially below plan."
+            : "Actual fuel burn was close to plan.",
+  } as Prisma.InputJsonValue;
   const data = { ofpBriefingId: ofp?.id ?? null, plannedBlockMinutes: planned.blockMinutes, actualBlockMinutes, blockTimeDiffMinutes, plannedFlightMinutes: planned.flightMinutes, actualFlightMinutes, flightTimeDiffMinutes, plannedTripFuelKg, actualFuelUsedKg, fuelDiffKg, fuelDiffPercent, plannedRoute: planned.route, actualDistanceNm: pirep.flightDistanceNm, landingRate: pirep.landingRate, landingG, summary };
   const created = !pirep.flightAnalysisReport;
   const report = await prisma.flightAnalysisReport.upsert({ where: { pirepId }, create: { pirepId, ...data }, update: data });
-  if (created) await writeAuditLogSafely({ action: "FLIGHT_ANALYSIS_CREATED", entityType: "FlightAnalysisReport", entityId: report.id, message: "Post-flight planned versus actual analysis created.", metadata: { pirepId, ofpBriefingId: ofp?.id ?? null, efficiencyScore: score } });
+  if (created) await writeAuditLogSafely({ action: "FLIGHT_ANALYSIS_CREATED", entityType: "FlightAnalysisReport", entityId: report.id, message: "Post-flight planned versus actual analysis created.", metadata: { pirepId, ofpBriefingId: ofp?.id ?? null, efficiencyScore: score, fuelDataComplete } });
   await calibrateFuelBias(pirep.vamsysAircraftId, report.id);
   return report;
 }
-
