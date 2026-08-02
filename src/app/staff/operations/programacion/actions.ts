@@ -8,7 +8,7 @@ import { generateFlightsForSchedule, publishFlightSchedule, SchedulePublicationE
 import { getFlightSchedule } from "@/lib/native-scheduling/repository";
 
 const value = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
-const raw = (form: FormData) => ({ code: value(form, "code"), name: value(form, "name"), routeId: value(form, "routeId"), daysOfWeek: form.getAll("daysOfWeek").map(Number), departureTimeMinutesUtc: Number(value(form, "departureTimeMinutesUtc")), scheduledDurationMinutes: Number(value(form, "scheduledDurationMinutes")), defaultFleetId: value(form, "defaultFleetId"), assignedAircraftId: value(form, "assignedAircraftId"), effectiveFrom: value(form, "effectiveFrom"), effectiveUntil: value(form, "effectiveUntil"), bookingOpenOffsetMinutes: Number(value(form, "bookingOpenOffsetMinutes")), bookingCloseOffsetMinutes: Number(value(form, "bookingCloseOffsetMinutes")), generationHorizonDays: Number(value(form, "generationHorizonDays")), notes: value(form, "notes") });
+const raw = (form: FormData) => ({ code: value(form, "code"), autoGenerateCode: value(form, "autoGenerateCode"), name: value(form, "name"), routeId: value(form, "routeId"), daysOfWeek: form.getAll("daysOfWeek").map(Number), departureTimeMinutesUtc: Number(value(form, "departureTimeMinutesUtc")), scheduledDurationMinutes: Number(value(form, "scheduledDurationMinutes")), defaultFleetId: value(form, "defaultFleetId"), assignedAircraftId: value(form, "assignedAircraftId"), effectiveFrom: value(form, "effectiveFrom"), effectiveUntil: value(form, "effectiveUntil"), bookingOpenOffsetMinutes: Number(value(form, "bookingOpenOffsetMinutes")), bookingCloseOffsetMinutes: Number(value(form, "bookingCloseOffsetMinutes")), generationHorizonDays: Number(value(form, "generationHorizonDays")), notes: value(form, "notes") });
 const plainMessage = (error: unknown) => error instanceof SchedulePublicationError ? error.message : error instanceof Error ? error.message : "No se pudo completar la operación.";
 const message = (error: unknown) => encodeURIComponent(plainMessage(error));
 const workspace = (form: FormData, scheduleId?: string) => { const requested = value(form, "returnTo"); if (!requested.startsWith("/staff/operations/programacion?") || requested.includes("//")) return null; const url = new URL(requested, "https://aoc.local"); url.searchParams.delete("panel"); url.searchParams.delete("mode"); if (scheduleId) url.searchParams.set("scheduleId", scheduleId); url.searchParams.set("saved", "1"); return `${url.pathname}?${url.searchParams.toString()}`; };
@@ -22,6 +22,7 @@ export async function createProgramacionAction(form: FormData) {
     if (value(form, "createReturn") === "yes") {
       const result = await createFlightScheduleDraftPair(raw(form), {
         code: value(form, "returnCode"),
+        autoGenerateCode: value(form, "autoGenerateReturnCode"),
         routeId: value(form, "returnRouteId"),
         turnaroundMinutes: Number(value(form, "returnTurnaroundMinutes")),
       }, staff);

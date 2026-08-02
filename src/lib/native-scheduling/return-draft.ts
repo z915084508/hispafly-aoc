@@ -3,6 +3,7 @@ import { ScheduleManagementError, type ScheduleDraftInput } from "./management-r
 
 export type ReturnScheduleDraftRequest = {
   code: unknown;
+  autoGenerateCode?: unknown;
   routeId: unknown;
   turnaroundMinutes: unknown;
   scheduledDurationMinutes: unknown;

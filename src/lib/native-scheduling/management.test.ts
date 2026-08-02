@@ -33,6 +33,7 @@ assert.throws(() => deriveReturnScheduleDraft(normalized, { code: normalized.cod
 assert.throws(() => deriveReturnScheduleDraft(normalized, { code: "HFY102", routeId: "route-2", turnaroundMinutes: 44, scheduledDurationMinutes: 70 }), /45/);
 
 const management = readFileSync(fileURLToPath(new URL("./management.ts", import.meta.url)), "utf8");
+const codeGeneration = readFileSync(fileURLToPath(new URL("./code-generation.ts", import.meta.url)), "utf8");
 const actions = readFileSync(fileURLToPath(new URL("../../app/staff/operations/programacion/actions.ts", import.meta.url)), "utf8");
 const form = readFileSync(fileURLToPath(new URL("../../components/programacion/schedule-form.tsx", import.meta.url)), "utf8");
 assert.match(management, /validationBeforeSave[\s\S]*flightSchedule\.create/, "operational conflicts are evaluated but do not block draft creation");
@@ -47,6 +48,17 @@ assert.match(actions, /createFlightScheduleDraftPair/);
 assert.match(form, /Crear también el vuelo de regreso/);
 assert.match(form, /Guardar ida y regreso/);
 assert.match(form, /returnTurnaroundMinutes/);
+assert.match(codeGeneration, /route\.flightNumber/);
+assert.match(codeGeneration, /route\.routeCode/);
+assert.match(codeGeneration, /padStart\(2, "0"\)/);
+assert.match(codeGeneration, /startsWith: `\$\{base\}-`/);
+assert.match(management, /prepareCreateRaw/);
+assert.match(management, /generateAvailableScheduleCode/);
+assert.match(management, /autoGenerateCode/);
+assert.match(actions, /autoGenerateReturnCode/);
+assert.match(form, /name="autoGenerateCode"/);
+assert.match(form, /name="autoGenerateReturnCode"/);
+assert.match(form, /Automático: usa el número de vuelo/);
 assert.match(management, /SCHEDULE_DRAFT_CREATED/);
 assert.match(management, /SCHEDULE_DRAFT_UPDATED/);
 assert.match(management, /SCHEDULE_DRAFT_DUPLICATED/);
@@ -56,4 +68,4 @@ assert.doesNotMatch(management, /flightSchedule\.delete|deleteMany/, "drafts are
 assert.doesNotMatch(management, /tx\.flight\.create|prisma\.flight\.create/, "management creates no generated Flights");
 for (const forbidden of ["pilotBooking.create", "flightDispatch.create", "ofpBriefing.create"]) assert.doesNotMatch(management + actions, new RegExp(forbidden, "i"));
 
-console.log("Programación draft management and return-pair rules passed (43 focused assertions).");
+console.log("Programación draft management, automatic codes and return-pair rules passed (53 focused assertions).");

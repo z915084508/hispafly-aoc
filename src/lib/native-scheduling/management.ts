@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { StaffIdentity } from "@/lib/staff/currentStaff";
+import { generateAvailableScheduleCode } from "./code-generation";
 import { validateProposedSchedule } from "./service";
 import { assertDraftEditable, normalizeScheduleDraftInput, scheduleCreatePolicy, ScheduleManagementError, type ScheduleDraftInput } from "./management-rules";
 import { deriveReturnScheduleDraft, type ReturnScheduleDraftRequest } from "./return-draft";
@@ -8,6 +9,16 @@ import { deriveReturnScheduleDraft, type ReturnScheduleDraftRequest } from "./re
 const actorId = (actor: StaffIdentity) => actor.id === "development-staff" ? null : actor.id;
 const proposed = (input: ScheduleDraftInput, scheduleId?: string) => ({ scheduleId, routeId: input.routeId, daysOfWeek: input.daysOfWeek, departureTimeMinutesUtc: input.departureTimeMinutesUtc, arrivalTimeMinutesUtc: input.arrivalTimeMinutesUtc, scheduledDurationMinutes: input.scheduledDurationMinutes, defaultFleetId: input.defaultFleetId, assignedAircraftId: input.assignedAircraftId, effectiveFrom: input.effectiveFrom, effectiveUntil: input.effectiveUntil, bookingOpenOffsetMinutes: input.bookingOpenOffsetMinutes, bookingCloseOffsetMinutes: input.bookingCloseOffsetMinutes, generationHorizonDays: input.generationHorizonDays });
 const data = (input: ScheduleDraftInput) => ({ ...input, departureLocalTimeMinutes: input.departureTimeMinutesUtc, arrivalLocalTimeMinutes: input.arrivalTimeMinutesUtc, departureTimezone: "UTC", arrivalTimezone: "UTC" });
+const wantsAutoCode = (value: unknown) => String(value ?? "").trim().toLowerCase() === "yes";
+
+async function prepareCreateRaw(raw: Record<string, unknown>) {
+  const routeId = String(raw.routeId ?? "").trim();
+  if (!routeId || (!wantsAutoCode(raw.autoGenerateCode) && String(raw.code ?? "").trim())) return raw;
+  return {
+    ...raw,
+    code: await generateAvailableScheduleCode({ routeId, preferredCode: raw.code }),
+  };
+}
 
 async function assertReferencesAndCode(input: ScheduleDraftInput, excludeId?: string) {
   const [route, fleet, aircraft, duplicate] = await Promise.all([
@@ -30,7 +41,7 @@ function cleanError(error: unknown) {
 
 export async function createFlightScheduleDraft(raw: Record<string, unknown>, actor: StaffIdentity) {
   try {
-    const input = normalizeScheduleDraftInput(raw);
+    const input = normalizeScheduleDraftInput(await prepareCreateRaw(raw));
     await assertReferencesAndCode(input);
     const validationBeforeSave = await validateProposedSchedule(proposed(input));
     const schedule = await prisma.$transaction(async (tx) => {
@@ -44,7 +55,7 @@ export async function createFlightScheduleDraft(raw: Record<string, unknown>, ac
 
 export async function createFlightScheduleDraftPair(raw: Record<string, unknown>, returnRequest: Omit<ReturnScheduleDraftRequest, "scheduledDurationMinutes">, actor: StaffIdentity) {
   try {
-    const outboundInput = normalizeScheduleDraftInput(raw);
+    const outboundInput = normalizeScheduleDraftInput(await prepareCreateRaw(raw));
     const returnRouteId = String(returnRequest.routeId ?? "").trim();
     const [outboundRoute, returnRoute] = await Promise.all([
       prisma.route.findUnique({ where: { id: outboundInput.routeId }, select: { departureAirportId: true, arrivalAirportId: true } }),
@@ -54,7 +65,15 @@ export async function createFlightScheduleDraftPair(raw: Record<string, unknown>
     if (!returnRoute) throw new ScheduleManagementError("RETURN_ROUTE_NOT_FOUND", "La ruta de regreso no existe.");
     if (returnRoute.departureAirportId !== outboundRoute.arrivalAirportId || returnRoute.arrivalAirportId !== outboundRoute.departureAirportId) throw new ScheduleManagementError("RETURN_ROUTE_NOT_REVERSE", "La ruta seleccionada no es el trayecto inverso de la ida.");
 
-    const returnInput = deriveReturnScheduleDraft(outboundInput, { ...returnRequest, routeId: returnRoute.id, scheduledDurationMinutes: returnRoute.scheduledDurationMinutes });
+    let returnCode = returnRequest.code;
+    if (wantsAutoCode(returnRequest.autoGenerateCode) || !String(returnCode ?? "").trim()) {
+      returnCode = await generateAvailableScheduleCode({ routeId: returnRoute.id, preferredCode: returnCode });
+    }
+    if (String(returnCode ?? "").trim().toUpperCase() === outboundInput.code) {
+      returnCode = await generateAvailableScheduleCode({ routeId: returnRoute.id, preferredCode: `${outboundInput.code}-R` });
+    }
+
+    const returnInput = deriveReturnScheduleDraft(outboundInput, { ...returnRequest, code: returnCode, routeId: returnRoute.id, scheduledDurationMinutes: returnRoute.scheduledDurationMinutes });
     await assertReferencesAndCode(outboundInput);
     await assertReferencesAndCode(returnInput);
 
