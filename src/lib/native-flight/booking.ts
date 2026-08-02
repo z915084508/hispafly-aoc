@@ -106,24 +106,28 @@ export async function listBookableFlights(input: {
   return { rows, total, page, pageSize };
 }
 
-export async function createNativeBooking(input: {
+export async function claimScheduledFlight(input: {
   pilotId: string;
   flightId: string;
   aircraftId?: string | null;
   idempotencyKey: string;
 }) {
   return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${input.flightId}`}))`;
-    const existing = await tx.pilotBooking.findFirst({
-      where: { OR: [{ idempotencyKey: input.idempotencyKey }, { pilotId: input.pilotId, flightId: input.flightId }] },
-    });
-    if (existing) return existing;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`scheduled-flight-book:${input.flightId}`}))`;
+    const idempotent = await tx.pilotBooking.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+    if (idempotent) {
+      if (idempotent.pilotId === input.pilotId && idempotent.flightId === input.flightId) return idempotent;
+      throw new Error("This booking request key is already in use.");
+    }
+    const priorPilotBooking = await tx.pilotBooking.findUnique({ where: { pilotId_flightId: { pilotId: input.pilotId, flightId: input.flightId } } });
+    if (priorPilotBooking && ACTIVE_BOOKING_STATUSES.includes(priorPilotBooking.status)) return priorPilotBooking;
 
     const flight = await tx.flight.findUnique({
       where: { id: input.flightId },
       include: { route: true, assignedAircraft: { include: { nativeFleet: true, conditionSnapshot: true, locationSnapshot: true } } },
     });
     if (!flight) throw new Error("Flight does not exist.");
+    if (flight.operatingType !== "SCHEDULED" || !flight.scheduleId) throw new Error("Only a published scheduled Flight can be claimed here.");
     assertNativeOrigin("Flight booking", flight.dataOrigin);
     assertNativeOrigin("Flight booking route", flight.route.dataOrigin);
     assertNativeIds("Flight booking", { flightId: flight.id, routeId: flight.routeId, departureAirportId: flight.departureAirportId, arrivalAirportId: flight.arrivalAirportId });
@@ -133,6 +137,13 @@ export async function createNativeBooking(input: {
     if (flight.bookingOpenAt && flight.bookingOpenAt > now) throw new Error("Booking window has not opened.");
     if (flight.bookingCloseAt && flight.bookingCloseAt <= now) throw new Error("Booking window has closed.");
 
+    const activeBooking = await tx.pilotBooking.findFirst({ where: { flightId: flight.id, status: { in: ACTIVE_BOOKING_STATUSES } } });
+    if (activeBooking) {
+      if (activeBooking.pilotId === input.pilotId) return activeBooking;
+      throw new Error("Este vuelo acaba de ser reservado por otra tripulación.");
+    }
+    const pilot = await tx.pilot.findUnique({ where: { id: input.pilotId }, select: { currentAirportId: true } });
+    if (!pilot?.currentAirportId || pilot.currentAirportId !== flight.departureAirportId) throw new Error("Tu posición actual no coincide con el aeropuerto de salida de este vuelo.");
     const eligibility = await checkPilotEligibility(input.pilotId, flight, tx);
     if (!eligibility.allowed) throw new Error(eligibility.blockingReasons.join(" "));
     const aircraftId = flight.assignedAircraftId ?? input.aircraftId ?? null;
@@ -148,18 +159,18 @@ export async function createNativeBooking(input: {
       if (aircraft.conditionSnapshot && ["AOG", "IN_MAINTENANCE"].includes(aircraft.conditionSnapshot.operationalStatus)) throw new Error("Aircraft maintenance status blocks booking.");
       if (flight.fleetId && aircraft.nativeFleetId !== flight.fleetId) throw new Error("Aircraft does not belong to the required fleet.");
       if (aircraftState.currentAirportId && flight.departureAirportId && aircraftState.currentAirportId !== flight.departureAirportId) throw new Error("Aircraft is not at the departure airport.");
-      const conflict = await tx.pilotBooking.findFirst({
+      const [conflict, dispatchConflict, flightConflict] = await Promise.all([tx.pilotBooking.findFirst({
         where: {
           aircraftId,
           status: { in: ACTIVE_BOOKING_STATUSES },
           selectedDepartureAt: { lt: flight.scheduledArrival },
           OR: [{ estimatedArrivalAt: { gt: flight.scheduledDeparture } }, { estimatedArrivalAt: null }],
         },
-      });
-      if (conflict) throw new Error("Aircraft is already reserved during this flight window.");
+      }), tx.flightDispatch.findFirst({ where: { aircraftId, status: { in: ["DISPATCHING", "DISPATCHED", "RELEASED"] }, selectedDepartureAt: { lt: flight.scheduledArrival }, OR: [{ estimatedArrivalAt: { gt: flight.scheduledDeparture } }, { estimatedArrivalAt: null }] } }), tx.flight.findFirst({ where: { id: { not: flight.id }, assignedAircraftId: aircraftId, status: { notIn: ["COMPLETED", "CANCELLED", "EXPIRED"] }, scheduledDeparture: { lt: flight.scheduledArrival }, scheduledArrival: { gt: flight.scheduledDeparture } } })]);
+      if (conflict || dispatchConflict || flightConflict) throw new Error("Aircraft is already reserved during this flight window.");
     }
-    return tx.pilotBooking.create({
-      data: {
+    const selectedAircraft = aircraftId ? await tx.aircraft.findUnique({ where: { id: aircraftId } }) : null;
+    const bookingData = {
         dataOrigin: AocDataOrigin.HISPAFLY_NATIVE,
         pilotId: input.pilotId,
         flightId: flight.id,
@@ -170,30 +181,53 @@ export async function createNativeBooking(input: {
         arrivalIcao: flight.arrivalIcao,
         flightNumber: flight.flightNumber,
         callsign: flight.callsign,
-        aircraftType: flight.assignedAircraft?.aircraftType ?? null,
-        aircraftRegistration: flight.assignedAircraft?.registration ?? null,
+        aircraftType: selectedAircraft?.aircraftType ?? null,
+        aircraftRegistration: selectedAircraft?.registration ?? null,
         selectedDepartureAt: flight.scheduledDeparture,
         estimatedArrivalAt: flight.scheduledArrival,
         estimatedDurationMinutes: flight.scheduledDurationMinutes,
         status: PilotBookingStatus.CONFIRMED,
         expiresAt: flight.scheduledDeparture,
         idempotencyKey: input.idempotencyKey,
-      },
-    });
+        cancelledAt: null,
+        cancellationReason: null,
+      } satisfies Prisma.PilotBookingUncheckedCreateInput;
+    const booking = priorPilotBooking
+      ? await tx.pilotBooking.update({ where: { id: priorPilotBooking.id }, data: bookingData })
+      : await tx.pilotBooking.create({ data: bookingData });
+    await tx.flight.update({ where: { id: flight.id }, data: { status: NativeFlightStatus.BOOKED } });
+    await tx.aocAuditLog.create({ data: { action: "SCHEDULED_FLIGHT_BOOKED", entityType: "PilotBooking", entityId: booking.id, message: "Pilot claimed a published scheduled Flight.", metadata: { flightId: flight.id, scheduleId: flight.scheduleId, pilotId: input.pilotId, routeId: flight.routeId, aircraftId, scheduledDeparture: flight.scheduledDeparture.toISOString(), bookingId: booking.id } } });
+    return booking;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
+// Backward-compatible name for the existing pilot action; scheduled claims use the guarded operation above.
+export const createNativeBooking = claimScheduledFlight;
+
 export async function cancelNativeBooking(bookingId: string, pilotId: string, reason: string) {
-  const booking = await prisma.pilotBooking.findFirst({ where: { id: bookingId, pilotId }, include: { dispatch: true } });
-  if (!booking) throw new Error("Booking does not exist.");
-  if (booking.dataOrigin === AocDataOrigin.VAMSYS_LEGACY) throw new Error("Legacy bookings are read-only.");
-  const cancellable = new Set<PilotBookingStatus>([PilotBookingStatus.PENDING, PilotBookingStatus.CONFIRMED, PilotBookingStatus.BOOKED]);
-  const dispatchControlled = new Set<PilotBookingStatus>([PilotBookingStatus.DISPATCHED, PilotBookingStatus.IN_PROGRESS, PilotBookingStatus.COMPLETED]);
-  if (!cancellable.has(booking.status)) throw new Error("Booking can no longer be cancelled directly.");
-  if (booking.dispatch || dispatchControlled.has(booking.status)) throw new Error("Dispatch-controlled booking cannot be cancelled here.");
-  const updated = await prisma.pilotBooking.update({ where: { id: booking.id }, data: { status: PilotBookingStatus.CANCELLED, cancelledAt: new Date(), cancellationReason: reason } });
-  await writeAuditLogSafely({ action: "PILOT_BOOKING_CANCELLED", entityType: "PilotBooking", entityId: booking.id, message: "Pilot cancelled a native booking.", metadata: { pilotId, reason } });
-  return updated;
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pilot-booking-cancel:${bookingId}`}))`;
+    const booking = await tx.pilotBooking.findFirst({ where: { id: bookingId, pilotId }, include: { dispatch: true, flight: true } });
+    if (!booking) throw new Error("Booking does not exist.");
+    if (booking.dataOrigin === AocDataOrigin.VAMSYS_LEGACY) throw new Error("Legacy bookings are read-only.");
+    const cancellable = new Set<PilotBookingStatus>([PilotBookingStatus.PENDING, PilotBookingStatus.CONFIRMED, PilotBookingStatus.BOOKED]);
+    if (!cancellable.has(booking.status) || booking.dispatch) throw new Error("Booking can no longer be cancelled directly.");
+    const now = new Date();
+    if (booking.flight && booking.flight.scheduledDeparture <= now) throw new Error("A departed Flight cannot be cancelled here.");
+    const updated = await tx.pilotBooking.update({ where: { id: booking.id }, data: { status: PilotBookingStatus.CANCELLED, cancelledAt: now, cancellationReason: reason } });
+    const terminal = new Set<NativeFlightStatus>([NativeFlightStatus.CANCELLED, NativeFlightStatus.COMPLETED]);
+    if (booking.flight?.scheduleId && !terminal.has(booking.flight.status)) {
+      const another = await tx.pilotBooking.findFirst({ where: { flightId: booking.flight.id, id: { not: booking.id }, status: { in: ACTIVE_BOOKING_STATUSES } } });
+      if (!another) {
+        const status = booking.flight.bookingOpenAt && booking.flight.bookingOpenAt > now ? NativeFlightStatus.SCHEDULED : booking.flight.bookingCloseAt && booking.flight.bookingCloseAt <= now ? NativeFlightStatus.EXPIRED : NativeFlightStatus.OPEN_FOR_BOOKING;
+        await tx.flight.update({ where: { id: booking.flight.id }, data: { status } });
+      }
+      await tx.aocAuditLog.create({ data: { action: "SCHEDULED_FLIGHT_BOOKING_CANCELLED", entityType: "PilotBooking", entityId: booking.id, message: "Pilot cancelled a scheduled Flight booking.", metadata: { pilotId, flightId: booking.flight.id, reason } } });
+    } else {
+      await tx.aocAuditLog.create({ data: { action: "PILOT_BOOKING_CANCELLED", entityType: "PilotBooking", entityId: booking.id, message: "Pilot cancelled a native booking.", metadata: { pilotId, reason } } });
+    }
+    return updated;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 export async function expireNativeBookings(limit = 100) {
