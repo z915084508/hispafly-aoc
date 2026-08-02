@@ -116,6 +116,7 @@
                      "performance":  "Performance de flota",
         "routes":  "Rutas",
         "schedules": "Programación",
+        "schedulePlanner": "Planificador semanal",
         "flights": "Vuelos",
         "airports":  "Aeropuertos",
                      "fleetOverview": "Resumen de flota", "aircraftLocations": "Ubicación de aeronaves", "economyOverview": "Resumen económico", "expensesShort": "Gastos", "staffPermissions": "Personal y permisos", "integrations": "Integraciones", "apiSync": "API y sincronización", "systemSettings": "Configuración del sistema",
