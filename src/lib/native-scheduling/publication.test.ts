@@ -7,6 +7,7 @@ const actions = fs.readFileSync(new URL("../../app/staff/operations/programacion
 const detail = fs.readFileSync(new URL("../../app/staff/operations/programacion/[id]/page.tsx", import.meta.url), "utf8");
 const list = fs.readFileSync(new URL("../../app/staff/operations/programacion/page.tsx", import.meta.url), "utf8");
 const booking = fs.readFileSync(new URL("../native-flight/booking.ts", import.meta.url), "utf8");
+const prismaClient = fs.readFileSync(new URL("../prisma.ts", import.meta.url), "utf8");
 
 for (const token of ["previewSchedulePublication", "publishFlightSchedule", "generateFlightsForSchedule", "topUpActiveSchedules", "SCHEDULE_PUBLISHED", "SCHEDULE_FLIGHTS_GENERATED"]) assert.match(publication, new RegExp(token));
 assert.match(publication, /TransactionIsolationLevel\.Serializable/);
@@ -38,6 +39,9 @@ assert.match(detail, /AMPLIAR \/ ACTUALIZAR HORIZONTE/);
 assert.match(detail, /He revisado y acepto las advertencias actuales/);
 assert.doesNotMatch(list, /name="validation"/);
 assert.match(booking, /NativeFlightStatus\.OPEN_FOR_BOOKING/);
+assert.match(prismaClient, /transactionOptions/);
+assert.match(prismaClient, /maxWait:\s*10_000/);
+assert.match(prismaClient, /timeout:\s*60_000/);
 for (const forbidden of ["flightOffer.create", "pilotBooking.create", "flightDispatch.create", "ofpBriefing.create", "acarsSession.create", "pirep.create"]) assert.doesNotMatch(publication, new RegExp(forbidden, "i"));
 assert.doesNotMatch(publication, /self-dispatch|selfDispatch/);
-console.log("Programación publication safety contracts passed (36 focused assertions).");
+console.log("Programación publication safety contracts passed (39 focused assertions).");
