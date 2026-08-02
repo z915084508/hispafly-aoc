@@ -1,5 +1,5 @@
-import { DEFAULT_MIN_TURNAROUND_MINUTES } from "./constants";
-import { ScheduleManagementError, type ScheduleDraftInput } from "./management-rules";
+import { DEFAULT_MIN_TURNAROUND_MINUTES } from "./constants.ts";
+import { ScheduleManagementError, type ScheduleDraftInput } from "./management-rules.ts";
 
 export type ReturnScheduleDraftRequest = {
   code: unknown;
