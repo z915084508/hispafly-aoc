@@ -56,7 +56,7 @@ export function validateProposedScheduleWithContext(proposed: ProposedFlightSche
       if (proposed.defaultFleetId && aircraft.nativeFleetId !== proposed.defaultFleetId) errors.push(issue("AIRCRAFT_FLEET_MISMATCH", "The assigned aircraft does not belong to the selected default fleet.", proposed, { aircraftId: aircraft.id }));
       if (route && aircraft.nativeFleetId && (!fleetIsAuthorized(route.fleetAssignments.map(({ fleetId }) => fleetId), aircraft.nativeFleetId) || route.fleetCompatibility.some((row) => row.fleetId === aircraft.nativeFleetId && row.policy === "FORBIDDEN"))) errors.push(issue("AIRCRAFT_ROUTE_INCOMPATIBLE", "The assigned aircraft fleet is not allowed on this route.", proposed, { aircraftId: aircraft.id }));
     }
-    if (route?.departureAirportId && route.arrivalAirportId) errors.push(...validateAircraftScheduleConflicts(proposed, route, context.existingSchedules));
+    if (route?.departureAirportId && route.arrivalAirportId) for (const conflict of validateAircraftScheduleConflicts(proposed, route, context.existingSchedules)) (conflict.severity === "ERROR" ? errors : warnings).push(conflict);
   }
 
   if (options.includeExistingGeneratedFlights !== false && proposed.assignedAircraftId && validDate(proposed.effectiveFrom)) for (const flight of context.generatedFlights) {
@@ -68,7 +68,7 @@ export function validateProposedScheduleWithContext(proposed: ProposedFlightSche
     if (window.startsAt < flight.scheduledArrival && window.endsAt > flight.scheduledDeparture) errors.push(issue("GENERATED_FLIGHT_CONFLICT", "The proposed schedule overlaps an existing future Flight.", proposed, { aircraftId: proposed.assignedAircraftId, dayOfWeek: utcDayOfWeek(flight.scheduledDeparture), startsAt: window.startsAt, endsAt: window.endsAt, details: { flightId: flight.id, flightScheduleId: flight.scheduleId, flightStartsAt: flight.scheduledDeparture, flightEndsAt: flight.scheduledArrival, manuallyModified: Boolean(flight.manuallyModifiedAt) } }));
   }
 
-  const days = [...uniqueDays].filter((day) => day >= 1 && day <= 7).sort().map((dayOfWeek) => { const dayIssues = errors.filter((item) => item.dayOfWeek === dayOfWeek); return { dayOfWeek, valid: dayIssues.length === 0, issues: dayIssues }; });
+  const days = [...uniqueDays].filter((day) => day >= 1 && day <= 7).sort().map((dayOfWeek) => { const dayIssues = [...errors, ...warnings].filter((item) => item.dayOfWeek === dayOfWeek); return { dayOfWeek, valid: !dayIssues.some((item) => item.severity === "ERROR"), issues: dayIssues }; });
   return { valid: errors.length === 0, errors, warnings, days };
 }
 
