@@ -9,6 +9,9 @@ export type ProposedFlightSchedule = {
   assignedAircraftId?: string | null;
   effectiveFrom: Date;
   effectiveUntil?: Date | null;
+  bookingOpenOffsetMinutes: number;
+  bookingCloseOffsetMinutes: number;
+  generationHorizonDays: number;
 };
 
 export type ScheduleValidationIssue = {

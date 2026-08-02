@@ -17,7 +17,7 @@ export async function listFlightSchedules(input: { search?: string; status?: str
   return { rows, total, page, pageSize };
 }
 
-export const getFlightSchedule = (id: string) => prisma.flightSchedule.findUnique({ where: { id }, include: { ...include, flights: { select: { id: true }, take: 1 }, } });
+export const getFlightSchedule = (id: string) => prisma.flightSchedule.findUnique({ where: { id }, include: { ...include, flights: { include: { fleet: true, assignedAircraft: true }, orderBy: { scheduledDeparture: "asc" }, take: 50 }, } });
 export const listScheduleFormOptions = () => Promise.all([
   prisma.route.findMany({ include: { departureAirport: true, arrivalAirport: true, defaultFleet: true, fleetAssignments: { include: { fleet: true } }, fleetCompatibility: true }, orderBy: [{ flightNumber: "asc" }, { routeCode: "asc" }] }),
   prisma.fleet.findMany({ where: { archivedAt: null }, orderBy: { code: "asc" } }),
