@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+const read=(path:string)=>readFileSync(fileURLToPath(new URL(path,import.meta.url)),"utf8");
+const workspace=read("../../app/staff/operations/programacion/page.tsx"), legacy=read("../../app/staff/operations/programacion/planner/page.tsx"), navigation=read("../staff/navigation.ts"), form=read("../../components/programacion/schedule-form.tsx"), planner=read("../../components/programacion/weekly-planner.tsx"), actions=read("../../app/staff/operations/programacion/actions.ts"), detail=read("../../app/staff/operations/programacion/[id]/page.tsx"), pilot=read("../../app/pilot/flight-offers/page.tsx"), booking=read("../native-flight/booking.ts");
+assert.equal((navigation.match(/key:"programacion"/g)??[]).length,1);assert.doesNotMatch(navigation,/programacionPlanner/);assert.doesNotMatch(navigation,/programacion\/planner/);
+for(const text of ["planner\"","list\"","unassigned\"","PLANIFICADOR SEMANAL","LISTA","SIN AERONAVE","NUEVA PROGRAMACIÓN"])assert.match(workspace,new RegExp(text));
+assert.match(workspace,/view = \["planner"/);assert.match(workspace,/WeeklyPlanner/);assert.match(workspace,/ScheduleForm/);assert.match(workspace,/programacion-workspace-split/);assert.match(workspace,/panel-open/);
+for(const key of ["aircraftId","week","scheduleId","panel","mode"])assert.match(workspace,new RegExp(key));
+assert.match(legacy,/redirect/);assert.match(legacy,/view: "planner"/);for(const key of ["aircraftId","week","scheduleId","includeExpired"])assert.match(legacy,new RegExp(key));
+assert.match(planner,/panel: "schedule"/);assert.match(planner,/mode: "create"/);assert.match(planner,/mode=edit/);assert.match(planner,/Math\.round/);assert.match(planner,/\/ 5\) \* 5/);assert.match(planner,/CREAR REGRESO/);
+assert.match(form,/hiddenFields/);assert.match(form,/rotationContext/);assert.match(form,/Comprobar programación/);assert.match(actions,/workspace\(form/);assert.match(actions,/createFlightScheduleDraft/);assert.match(actions,/updateFlightScheduleDraft/);
+for(const forbidden of ["flightOffer.create","pilotBooking.create","flightDispatch.create","ofpBriefing.create"])assert.doesNotMatch(workspace+actions,new RegExp(forbidden,"i"));
+assert.match(workspace,/CONTEXTO DE ROTACIÓN/);assert.match(workspace,/Turnaround disponible/);assert.match(workspace,/Turnaround mínimo/);assert.match(workspace,/Vuelo anterior/);assert.match(workspace,/Vuelo siguiente/);
+assert.match(workspace,/listFlightSchedules/);assert.match(workspace,/pageSize/);assert.match(workspace,/ABRIR EN PLANIFICADOR/);assert.match(workspace,/assignedAircraftId \?/);assert.match(workspace,/view=unassigned/);assert.match(detail,/ABRIR EN PLANIFICADOR/);
+assert.match(pilot,/loadPilotDepartures/);assert.match(pilot,/CREATE MY FLIGHT/);assert.match(pilot,/self-dispatch/);assert.match(booking,/scheduled-flight-book:/);assert.match(booking,/NativeFlightStatus\.BOOKED/);assert.match(booking,/SCHEDULED_FLIGHT_BOOKING_CANCELLED/);
+console.log("Unified Programación workspace contracts passed (55 focused assertions).");
