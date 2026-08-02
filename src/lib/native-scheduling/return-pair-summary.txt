@@ -1,1 +1,0 @@
-Optional return pair: UI toggle, reverse route selection, automatic turnaround/day shift, atomic two-draft creation, no Flight generation.
