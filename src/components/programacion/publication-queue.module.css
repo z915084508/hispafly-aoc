@@ -27,6 +27,29 @@
   gap: 14px;
 }
 
+.archiveButton {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid #b42318;
+  border-radius: 8px;
+  background: #fff;
+  color: #b42318;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  cursor: pointer;
+}
+
+.archiveButton:hover:not(:disabled) {
+  background: #fff2f0;
+}
+
+.archiveButton:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
 .table input[type="checkbox"] {
   width: 18px;
   height: 18px;
@@ -58,6 +81,33 @@
   line-height: 1.45;
 }
 
+.rowActions {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.rowActions button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #b42318;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.rowActions button:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.rowActions button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
 @media (max-width: 1000px) {
   .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .summary div { border-right: 0; }
@@ -67,5 +117,6 @@
   .summary { grid-template-columns: 1fr 1fr; }
   .summary strong { font-size: 20px; }
   .toolbar :global(.button-row) { align-items: stretch; }
-  .toolbar :global(.button) { width: 100%; justify-content: center; }
+  .toolbar :global(.button),
+  .archiveButton { width: 100%; justify-content: center; }
 }
