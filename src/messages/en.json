@@ -116,6 +116,7 @@
                      "performance":  "Aircraft performance",
         "routes":  "Routes",
         "schedules": "Schedules",
+        "schedulePlanner": "Weekly planner",
         "flights": "Flights",
         "airports":  "Airports",
                      "fleetOverview": "Fleet overview", "aircraftLocations": "Aircraft locations", "economyOverview": "Economy overview", "expensesShort": "Expenses", "staffPermissions": "Staff & permissions", "integrations": "Integrations", "apiSync": "API & synchronization", "systemSettings": "System settings",
