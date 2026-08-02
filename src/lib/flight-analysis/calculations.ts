@@ -24,9 +24,11 @@ export function differencePercent(actual: number | null, planned: number | null)
 
 export function efficiencyScore(input: { fuelDiffPercent: number | null; blockTimeDiffMinutes: number | null; landingRate: number | null }) {
   let score = 100;
-  if (input.fuelDiffPercent !== null) score -= Math.max(0, input.fuelDiffPercent) * 1.5 + Math.max(0, -input.fuelDiffPercent) * 0.25;
+  // Burning more than planned reduces efficiency. Burning less does not earn a
+  // bonus, but it is not a penalty either; unusually low values are handled as
+  // a separate telemetry/data-quality warning.
+  if (input.fuelDiffPercent !== null) score -= Math.max(0, input.fuelDiffPercent) * 1.5;
   if (input.blockTimeDiffMinutes !== null) score -= Math.max(0, input.blockTimeDiffMinutes) * 0.4;
   if (input.landingRate !== null) score -= Math.max(0, Math.abs(input.landingRate) - 300) / 20;
   return Math.max(0, Math.min(100, Math.round(score)));
 }
-
