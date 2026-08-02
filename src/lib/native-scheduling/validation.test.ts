@@ -22,6 +22,16 @@ assert.ok(codes(proposed(), context({ route: { ...context().route!, operationalS
 assert.ok(codes(proposed(), context({ route: { ...context().route!, fleetCompatibility: [{ fleetId: "fleet-a", policy: "FORBIDDEN" }] } })).includes("FLEET_NOT_COMPATIBLE"));
 assert.ok(codes(proposed(), context({ aircraft: { ...context().aircraft!, operationalStatus: "AOG" } })).includes("AIRCRAFT_NOT_OPERATIONAL"));
 
+const unknownAircraftState = validateProposedScheduleWithContext(proposed(), context({ aircraft: { ...context().aircraft!, operationalStatus: "UNKNOWN" } }));
+assert.equal(unknownAircraftState.valid, true, "unknown current aircraft state must not block future scheduling");
+assert.ok(unknownAircraftState.warnings.some(({ code }) => code === "AIRCRAFT_OPERATIONAL_STATUS_UNKNOWN"));
+assert.equal(unknownAircraftState.errors.some(({ code }) => code === "AIRCRAFT_NOT_OPERATIONAL"), false);
+
+const aircraftAtAnotherAirport = { ...context().aircraft!, currentAirportId: "airport-z" };
+assert.equal(validateProposedScheduleWithContext(proposed(), context({ aircraft: aircraftAtAnotherAirport })).valid, true, "current aircraft position must not block a future Programacion");
+assert.ok(codes(proposed(), context({ aircraft: { ...context().aircraft!, nativeFleet: null } })).includes("AIRCRAFT_NATIVE_FLEET_MISSING"));
+assert.ok(codes(proposed(), context({ aircraft: { ...context().aircraft!, nativeFleet: { ...context().aircraft!.nativeFleet!, operationalStatus: "DRAFT" } } })).includes("AIRCRAFT_FLEET_NOT_OPERATIONAL"));
+
 assert.equal(validateProposedScheduleWithContext(proposed(), context({ existingSchedules: [schedule()] })).valid, true, "non-overlap, turnaround and continuity should pass");
 assert.ok(codes(proposed(), context({ existingSchedules: [schedule({ departureTimeMinutesUtc: 530 })] })).includes("AIRCRAFT_SCHEDULE_OVERLAP"));
 assert.ok(codes(proposed(), context({ existingSchedules: [schedule({ departureTimeMinutesUtc: 560 })] })).includes("INSUFFICIENT_TURNAROUND"));
@@ -52,4 +62,4 @@ assert.equal(suspendedConflict.days[0]?.valid, true, "warning-only days remain v
 assert.equal(validateProposedScheduleWithContext(proposed(), context({ existingSchedules: [schedule({ status: "EXPIRED", departureTimeMinutesUtc: 530 })] })).valid, true);
 assert.equal(validateProposedScheduleWithContext(proposed(), context({ existingSchedules: [schedule({ status: "ARCHIVED", departureTimeMinutesUtc: 530 })] })).valid, true);
 
-console.log("Native scheduling validation rules passed (30 focused scenarios).");
+console.log("Native scheduling validation rules passed (34 focused scenarios).");
