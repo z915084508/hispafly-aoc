@@ -9,6 +9,7 @@ import { assertAircraftDispatchAllowed } from "@/lib/aircraft-maintenance/servic
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { extractSimbriefOfpUrl, simbriefResponseUserId } from "@/lib/simbrief/response";
 import { buildSimBriefGeneratePayload } from "@/lib/simbrief/payload";
+import { resolveSimbriefDispatchLoad } from "@/lib/simbrief/load";
 import { evaluateDispatchRelease } from "@/lib/dispatch-release/service";
 import { normalizeAlternateIcao } from "@/lib/dispatch-release/alternatePolicy";
 import { buildAppliedFuelPolicy, fuelPolicyJson, fuelPolicyPayload } from "@/lib/fuel-policy/service";
@@ -83,7 +84,7 @@ export async function importSimbriefOfp(ofpId: string, pilotId: string, simbrief
 export async function generateDispatchSimBriefOfp(input: { ofpId: string; pilotId: string; staffUserId?: string | null; alternateIcao?: string | null }) {
   const ofp = await prisma.ofpBriefing.findFirst({
     where: { id: input.ofpId, flightDispatch: { pilotId: input.pilotId } },
-    include: { flightDispatch: { include: { flightOffer: true, pilot: true, aircraft: { include: { conditionSnapshot: true } } } } },
+    include: { flightDispatch: { include: { flightOffer: true, pilot: true, aircraft: { include: { conditionSnapshot: true, nativeFleet: true } } } } },
   });
   if (!ofp) throw new Error("OFP not found or is not assigned to this pilot.");
   if (ofp.status === "VOIDED") throw new Error("This OFP can no longer be regenerated.");
@@ -96,6 +97,57 @@ export async function generateDispatchSimBriefOfp(input: { ofpId: string; pilotI
     if (!offer.vamsysAircraftId) throw new Error("Legacy aircraft identity is missing.");
     await assertAircraftDispatchAllowed({ vamsysAircraftId: offer.vamsysAircraftId, offerType: offer.offerType, arrivalIcao: offer.arrivalIcao });
   }
+
+  const resolvedLoad = dispatch.dataOrigin === "HISPAFLY_NATIVE"
+    ? resolveSimbriefDispatchLoad({
+        passengers: offer.passengers,
+        loadFactorPercent: offer.loadFactorPercent,
+        baggageKgPerPassenger: offer.baggageKgPerPassenger,
+        luggageKg: offer.luggageKg,
+        seatCapacity: dispatch.aircraft?.seatCapacity
+          ?? dispatch.aircraft?.nativeFleet?.typicalSeatCapacity
+          ?? dispatch.aircraft?.nativeFleet?.maxPassengers,
+        departureIcao: offer.departureIcao,
+        arrivalIcao: offer.arrivalIcao,
+        departureAt: dispatch.selectedDepartureAt,
+      })
+    : {
+        passengers: offer.passengers ?? 0,
+        loadFactorPercent: offer.loadFactorPercent,
+        baggageKgPerPassenger: offer.baggageKgPerPassenger,
+        luggageKg: offer.luggageKg,
+        generated: false,
+      };
+
+  if (resolvedLoad.generated) {
+    const loadData = {
+      passengers: resolvedLoad.passengers,
+      loadFactorPercent: resolvedLoad.loadFactorPercent,
+      baggageKgPerPassenger: resolvedLoad.baggageKgPerPassenger,
+      luggageKg: resolvedLoad.luggageKg,
+    };
+    await prisma.$transaction(async (tx) => {
+      await tx.flightOffer.update({ where: { id: offer.id }, data: loadData });
+      if (dispatch.bookingId) await tx.pilotBooking.update({ where: { id: dispatch.bookingId }, data: loadData });
+    });
+    await writeAuditLogSafely({
+      staffUserId: input.staffUserId,
+      action: "OFP_PASSENGER_LOAD_AUTO_GENERATED",
+      entityType: "OfpBriefing",
+      entityId: ofp.id,
+      message: "Missing passenger load was calculated before SimBrief OFP generation.",
+      metadata: {
+        pilotId: input.pilotId,
+        dispatchId: dispatch.id,
+        bookingId: dispatch.bookingId,
+        aircraftId: dispatch.aircraft?.id,
+        passengers: resolvedLoad.passengers,
+        loadFactorPercent: resolvedLoad.loadFactorPercent,
+        luggageKg: resolvedLoad.luggageKg,
+      },
+    });
+  }
+
   const alternateIcao = normalizeAlternateIcao(input.alternateIcao);
   const staticId = `HFAOC-${dispatch.id.replace(/[^A-Za-z0-9-]/g, "-")}`;
   const basePayload = buildSimBriefGeneratePayload({
@@ -107,7 +159,7 @@ export async function generateDispatchSimBriefOfp(input: { ofpId: string; pilotI
     callsign: offer.callsign,
     aircraftRegistration: offer.aircraftRegistration,
     selectedDepartureAt: dispatch.selectedDepartureAt,
-    passengers: offer.passengers,
+    passengers: resolvedLoad.passengers,
     freightKg: offer.freightKg,
     cargoKg: offer.cargoKg,
     userRoute: offer.userRoute,
@@ -125,7 +177,7 @@ export async function generateDispatchSimBriefOfp(input: { ofpId: string; pilotI
       departureIcao: offer.departureIcao,
       arrivalIcao: offer.arrivalIcao,
       estimatedDurationMinutes: offer.estimatedDurationMinutes,
-      passengers: offer.passengers,
+      passengers: resolvedLoad.passengers,
       freightKg: offer.freightKg,
     });
     const payload = { ...basePayload, ...fuelPolicyPayload(fuelPolicy) };
