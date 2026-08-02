@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { bulkPublishProgramacionAction } from "@/app/staff/operations/programacion/actions";
@@ -100,7 +101,7 @@ export function PublicationQueue({
         <td>{row.effectivePeriod}</td>
         <td><span className={stateClass(row.state)}>{stateLabel(row.state)}</span><span className="secondary">{row.errors} conflictos · {row.warnings} advertencias</span>{row.issues.length > 0 && <details className={styles.issues}><summary>Ver problemas</summary><ul>{row.issues.map((issue, index) => <li key={`${row.id}-${issue.code}-${index}`}><strong>{issue.code}</strong> · {issue.message}</li>)}</ul></details>}</td>
         <td>{row.expectedCreated}<span className="secondary">{row.existing} existentes</span></td>
-        <td><a href={`/staff/operations/programacion/${row.id}`}>ABRIR DETALLE</a></td>
+        <td><Link href={`/staff/operations/programacion/${row.id}`}>ABRIR DETALLE</Link></td>
       </tr>)}</tbody>
     </table></div>
   </form>;
