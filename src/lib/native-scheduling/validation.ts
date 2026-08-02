@@ -5,7 +5,12 @@ import { proposedWindowForDate, utcDayOfWeek, validDate } from "./time.ts";
 import type { ProposedFlightSchedule, ScheduleValidationContext, ScheduleValidationIssue, ScheduleValidationResult } from "./types.ts";
 
 const issue = (code: string, message: string, proposed: ProposedFlightSchedule, extra: Partial<ScheduleValidationIssue> = {}): ScheduleValidationIssue => ({ code, severity: "ERROR", message, scheduleId: proposed.scheduleId, routeId: proposed.routeId, ...extra });
-const blockedAircraftStates = new Set(["MAINTENANCE", "FERRY_ONLY", "AOG", "SUSPENDED", "RETIRED", "UNKNOWN"]);
+const warning = (code: string, message: string, proposed: ProposedFlightSchedule, extra: Partial<ScheduleValidationIssue> = {}): ScheduleValidationIssue => ({ code, severity: "WARNING", message, scheduleId: proposed.scheduleId, routeId: proposed.routeId, ...extra });
+
+// Programacion describes future aircraft rotations. Current position and temporary
+// real-time states such as RESERVED, DISPATCHED, IN_FLIGHT or TURNAROUND do not
+// make an aircraft unschedulable. Only explicit hard operational restrictions do.
+const hardBlockedAircraftStates = new Set(["MAINTENANCE", "FERRY_ONLY", "AOG", "SUSPENDED", "RETIRED"]);
 const blockedConditionStates = new Set(["AOG", "IN_MAINTENANCE"]);
 const blockedMaintenanceStates = new Set(["REQUIRED", "WAITING_MAINTENANCE", "IN_PROGRESS"]);
 
@@ -55,7 +60,14 @@ export function validateProposedScheduleWithContext(proposed: ProposedFlightSche
     const aircraft = context.aircraft;
     if (!aircraft) errors.push(issue("AIRCRAFT_NOT_FOUND", "The assigned aircraft does not exist.", proposed, { aircraftId: proposed.assignedAircraftId }));
     else {
-      if (aircraft.archivedAt || blockedAircraftStates.has(aircraft.operationalStatus) || !aircraft.nativeFleet || aircraft.nativeFleet.operationalStatus !== "ACTIVE") errors.push(issue("AIRCRAFT_NOT_OPERATIONAL", "The assigned aircraft is not operationally schedulable.", proposed, { aircraftId: aircraft.id }));
+      // Deliberately do not inspect currentAirportId or AircraftLocationSnapshot here.
+      // Those are execution-time constraints checked by Booking/Dispatch, not by a
+      // future weekly Programacion.
+      if (aircraft.archivedAt) errors.push(issue("AIRCRAFT_ARCHIVED", "The assigned aircraft is archived and cannot be scheduled.", proposed, { aircraftId: aircraft.id }));
+      if (hardBlockedAircraftStates.has(aircraft.operationalStatus)) errors.push(issue("AIRCRAFT_NOT_OPERATIONAL", `The assigned aircraft has blocking operational status ${aircraft.operationalStatus}.`, proposed, { aircraftId: aircraft.id, details: { operationalStatus: aircraft.operationalStatus } }));
+      if (aircraft.operationalStatus === "UNKNOWN") warnings.push(warning("AIRCRAFT_OPERATIONAL_STATUS_UNKNOWN", "The aircraft current operational state is unknown. This does not block future scheduling; verify availability before operation.", proposed, { aircraftId: aircraft.id, details: { operationalStatus: aircraft.operationalStatus } }));
+      if (!aircraft.nativeFleet) errors.push(issue("AIRCRAFT_NATIVE_FLEET_MISSING", "The assigned aircraft is not linked to a Native fleet.", proposed, { aircraftId: aircraft.id }));
+      else if (!aircraft.nativeFleet.active || aircraft.nativeFleet.archivedAt || aircraft.nativeFleet.operationalStatus !== "ACTIVE") errors.push(issue("AIRCRAFT_FLEET_NOT_OPERATIONAL", "The assigned aircraft Native fleet is not operationally active.", proposed, { aircraftId: aircraft.id, details: { fleetId: aircraft.nativeFleet.id, fleetOperationalStatus: aircraft.nativeFleet.operationalStatus } }));
       if (aircraft.conditionSnapshot && (blockedConditionStates.has(aircraft.conditionSnapshot.operationalStatus) || blockedMaintenanceStates.has(aircraft.conditionSnapshot.maintenanceStatus))) errors.push(issue("AIRCRAFT_IN_MAINTENANCE", "The assigned aircraft is in active maintenance or AOG.", proposed, { aircraftId: aircraft.id }));
       if (proposed.defaultFleetId && aircraft.nativeFleetId !== proposed.defaultFleetId) errors.push(issue("AIRCRAFT_FLEET_MISMATCH", "The assigned aircraft does not belong to the selected default fleet.", proposed, { aircraftId: aircraft.id }));
       if (route && aircraft.nativeFleetId && (!fleetIsAuthorized(route.fleetAssignments.map(({ fleetId }) => fleetId), aircraft.nativeFleetId) || route.fleetCompatibility.some((row) => row.fleetId === aircraft.nativeFleetId && row.policy === "FORBIDDEN"))) errors.push(issue("AIRCRAFT_ROUTE_INCOMPATIBLE", "The assigned aircraft fleet is not allowed on this route.", proposed, { aircraftId: aircraft.id }));
