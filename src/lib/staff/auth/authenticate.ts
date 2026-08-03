@@ -16,7 +16,7 @@ function normalizeIdentifier(identifier: string) {
 
 export async function authenticateStaff(identifier: string, password: string): Promise<StaffLoginResult> {
   const normalized = normalizeIdentifier(identifier);
-  const staff = await prisma.staffUser.findFirst({
+  const candidates = await prisma.staffUser.findMany({
     where: {
       OR: [
         { email: { equals: normalized.email, mode: "insensitive" } },
@@ -24,55 +24,88 @@ export async function authenticateStaff(identifier: string, password: string): P
       ],
     },
     include: { roleTemplate: true },
+    orderBy: { updatedAt: "desc" },
+    take: 5,
   });
 
-  if (!staff) {
+  if (candidates.length === 0) {
     await verifyStaffPassword(password, FAKE_PASSWORD_HASH);
     return { ok: false, reason: "invalid" };
   }
 
-  const credential = await getStaffCredential(staff.id);
-  const hashToVerify = credential?.passwordHash ?? FAKE_PASSWORD_HASH;
+  const now = new Date();
+  const evaluated: Array<{
+    staff: (typeof candidates)[number];
+    credential: Awaited<ReturnType<typeof getStaffCredential>>;
+    passwordMatches: boolean;
+    eligible: boolean;
+    locked: boolean;
+  }> = [];
 
-  if (!staff.active || staff.disabledAt || staff.roleTemplate?.active === false || !credential?.passwordHash) {
-    await verifyStaffPassword(password, hashToVerify);
-    return { ok: false, reason: "invalid" };
+  // PostgreSQL's normal unique email index is case-sensitive. Historical imports can
+  // therefore leave two Staff rows such as OPS@HISPAFLY.ES and ops@hispafly.es.
+  // Verify every case-insensitive candidate so a password reset on the intended row
+  // cannot be shadowed by whichever duplicate findFirst happened to return.
+  for (const staff of candidates) {
+    const credential = await getStaffCredential(staff.id);
+    const passwordMatches = await verifyStaffPassword(password, credential?.passwordHash ?? FAKE_PASSWORD_HASH);
+    const eligible = staff.active && !staff.disabledAt && staff.roleTemplate?.active !== false && Boolean(credential?.passwordHash);
+    const locked = Boolean(credential?.lockedUntil && credential.lockedUntil > now);
+    evaluated.push({ staff, credential, passwordMatches, eligible, locked });
   }
 
-  if (credential.lockedUntil && credential.lockedUntil > new Date()) {
-    await verifyStaffPassword(password, hashToVerify);
+  const successful = evaluated.find((candidate) => candidate.eligible && !candidate.locked && candidate.passwordMatches);
+  if (successful) {
+    const context = await getStaffRequestContext();
+    await recordStaffLoginSuccess(successful.staff.id, context.ipAddress, context.userAgent);
+    await createStaffSession(successful.staff.id, context);
+    await prisma.aocAuditLog.create({
+      data: {
+        staffUserId: successful.staff.id,
+        action: "STAFF_LOGIN_SUCCEEDED",
+        entityType: "StaffUser",
+        entityId: successful.staff.id,
+        message: `${successful.staff.name} signed in to the Staff portal.`,
+        metadata: {
+          staffCode: successful.staff.staffCode,
+          ipAddress: context.ipAddress,
+          identifierCandidateCount: candidates.length,
+        },
+      },
+    });
+
+    return {
+      ok: true,
+      staffUserId: successful.staff.id,
+      mustChangePassword: successful.credential?.mustChangePassword ?? false,
+    };
+  }
+
+  // Preserve the existing lockout behavior, but only after checking whether another
+  // duplicate identity has a valid, unlocked credential.
+  if (evaluated.some((candidate) => candidate.eligible && candidate.locked)) {
     return { ok: false, reason: "locked" };
   }
 
-  const valid = await verifyStaffPassword(password, hashToVerify);
-  const context = await getStaffRequestContext();
-  if (!valid) {
-    const failure = await recordStaffLoginFailure(staff.id, credential.failedLoginCount);
-    await prisma.aocAuditLog.create({
-      data: {
-        staffUserId: staff.id,
-        action: failure.lockedUntil ? "STAFF_ACCOUNT_LOCKED" : "STAFF_LOGIN_FAILED",
-        entityType: "StaffUser",
-        entityId: staff.id,
-        message: failure.lockedUntil ? "Staff account was temporarily locked after repeated failed sign-ins." : "A Staff sign-in attempt failed.",
-        metadata: { failedLoginCount: failure.failedLoginCount, ipAddress: context.ipAddress },
-      },
-    });
-    return { ok: false, reason: failure.lockedUntil ? "locked" : "invalid" };
-  }
+  const failureTarget = evaluated.find((candidate) => candidate.eligible && Boolean(candidate.credential?.passwordHash));
+  if (!failureTarget) return { ok: false, reason: "invalid" };
 
-  await recordStaffLoginSuccess(staff.id, context.ipAddress, context.userAgent);
-  await createStaffSession(staff.id, context);
+  const context = await getStaffRequestContext();
+  const failure = await recordStaffLoginFailure(failureTarget.staff.id, failureTarget.credential?.failedLoginCount ?? 0);
   await prisma.aocAuditLog.create({
     data: {
-      staffUserId: staff.id,
-      action: "STAFF_LOGIN_SUCCEEDED",
+      staffUserId: failureTarget.staff.id,
+      action: failure.lockedUntil ? "STAFF_ACCOUNT_LOCKED" : "STAFF_LOGIN_FAILED",
       entityType: "StaffUser",
-      entityId: staff.id,
-      message: `${staff.name} signed in to the Staff portal.`,
-      metadata: { staffCode: staff.staffCode, ipAddress: context.ipAddress },
+      entityId: failureTarget.staff.id,
+      message: failure.lockedUntil ? "Staff account was temporarily locked after repeated failed sign-ins." : "A Staff sign-in attempt failed.",
+      metadata: {
+        failedLoginCount: failure.failedLoginCount,
+        ipAddress: context.ipAddress,
+        identifierCandidateCount: candidates.length,
+      },
     },
   });
 
-  return { ok: true, staffUserId: staff.id, mustChangePassword: credential.mustChangePassword };
+  return { ok: false, reason: failure.lockedUntil ? "locked" : "invalid" };
 }
