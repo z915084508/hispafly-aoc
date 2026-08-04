@@ -10,13 +10,17 @@ import { StaffNavigation } from "@/components/staff-navigation";
 
 export async function StaffPortalShell({ children }: { children: React.ReactNode }) {
   const staff = await getCurrentStaff();
-  const { t } = await getTranslations();
+  const { locale, t } = await getTranslations();
   const initials = staff?.name.split(" ").map((word) => word[0]).slice(0, 2).join("").toUpperCase() ?? "AOC";
   const permissionSet = new Set(staff?.permissions ?? (staff ? [...resolvePermissionCodes({ legacyRole: staff.role })] : []));
   const groups = staff?.mustChangePassword ? [] : visibleNavigation(permissionSet).map((group) => ({
     key: group.key,
     label: t(group.labelKey),
-    items: group.items.map((item) => ({ key: item.key, label: t(item.labelKey), href: item.href })),
+    items: group.items.map((item) => ({
+      key: item.key,
+      label: locale === "en" ? item.labelEn ?? t(item.labelKey) : item.labelEs ?? t(item.labelKey),
+      href: item.href,
+    })),
   }));
 
   return (
