@@ -1,9 +1,9 @@
 import { StaffPortalShell } from "@/components/portal-shell";
-import { requireAdminStaff } from "@/lib/staff/requireAdmin";
+import { requireActiveStaff } from "@/lib/staff/requireActive";
 
 export const dynamic = "force-dynamic";
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
-  await requireAdminStaff();
+  await requireActiveStaff();
   return <StaffPortalShell>{children}</StaffPortalShell>;
 }
