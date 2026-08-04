@@ -1,0 +1,10 @@
+import "@/app/airport-programacion-board.css";
+import { requireStaffPermission } from "@/lib/staff/authorization";
+
+export default async function AirportProgramacionLayout({ children }: { children: React.ReactNode }) {
+  await requireStaffPermission("SCHEDULE_VIEW", {
+    entityType: "FlightSchedule",
+    attemptedAction: "view Programación by airport",
+  });
+  return children;
+}
