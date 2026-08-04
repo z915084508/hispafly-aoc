@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { suggestAutomaticRouteAction } from "./actions";
+import styles from "./route-form.module.css";
 
 type Option = { id: string; label: string };
 type RouteValue = {
@@ -91,12 +92,12 @@ export function RouteForm({ action, route, airports, fleets, submitLabel }: {
         <label>Commercial flight number<input name="flightNumber" value={flightNumber} readOnly placeholder="Assigned automatically"/><small>{editing ? "Identity is locked after creation" : "HF1xxx domestic · HF3xxx Schengen · HF6xxx non-Schengen"}</small></label>
         <label>Default callsign<input name="callsign" value={callsign} readOnly placeholder="Assigned automatically"/><small>HPF followed by the same four digits</small></label>
       </div>
-      {!editing && <div className="route-automation-status">
+      {!editing && <div className={styles.automationStatus}>
         <div><span>Market</span><strong>{preview?.marketLabel ?? "Select both airports"}</strong></div>
         <div><span>Identity status</span><strong>{previewPending ? "Checking available numbers…" : preview ? "Available at preview time" : "Pending"}</strong></div>
         <div><span>Number range</span><strong>{preview?.marketType === "DOMESTIC" ? "HF1000–HF2999" : preview?.marketType === "SCHENGEN" ? "HF3000–HF5999" : preview?.marketType === "NON_SCHENGEN" ? "HF6000–HF8999" : "—"}</strong></div>
       </div>}
-      {previewError && <div className="feedback error route-preview-error">{previewError}</div>}
+      {previewError && <div className={`feedback error ${styles.previewError}`}>{previewError}</div>}
     </fieldset>
 
     <fieldset>
@@ -108,11 +109,11 @@ export function RouteForm({ action, route, airports, fleets, submitLabel }: {
         <label>Default fleet<select name="defaultFleetId" value={defaultFleetId} onChange={(event) => { const next = event.target.value; setDefaultFleetId(next); refreshPreview({ defaultFleetId: next }); }}><option value="">No default fleet</option>{fleets.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select><small>Fleet cruise speed improves the duration estimate</small></label>
         <label>Network policy<input name="networkPolicy" placeholder={preview?.marketLabel ?? "Automatically use market classification"} defaultValue={route?.networkPolicy ?? ""}/><small>Leave blank to store the automatic market classification</small></label>
       </div>
-      {!editing && <label className="route-toggle route-return-toggle">
+      {!editing && <label className={styles.returnToggle}>
         <input type="checkbox" name="createReturnRoute" value="yes" checked={createReturnRoute} onChange={(event) => { const next = event.target.checked; setCreateReturnRoute(next); refreshPreview({ createReturnRoute: next }); }}/>
         <span><strong>Create return route at the same time</strong><small>The outbound receives an even number and the return receives the next odd number. Both are created in one transaction.</small></span>
       </label>}
-      {!editing && createReturnRoute && preview?.return && <div className="route-return-preview">
+      {!editing && createReturnRoute && preview?.return && <div className={styles.returnPreview}>
         <div><span>Outbound</span><strong>{preview.outboundRouteCode}</strong><small>{preview.outbound.flightNumber} · {preview.outbound.callsign}</small></div>
         <div><span>Return</span><strong>{preview.returnRouteCode}</strong><small>{preview.return.flightNumber} · {preview.return.callsign}</small></div>
       </div>}
