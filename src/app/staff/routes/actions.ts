@@ -2,7 +2,8 @@
 import type { RouteOperationalStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { changeRouteStatus, copyRouteToNativeDraft, createNativeRoute, updateNativeRoute } from "@/lib/native-flight/route";
+import { createAutomaticNativeRoutes, previewAutomaticNativeRoute } from "@/lib/native-flight/automatic-route";
+import { changeRouteStatus, copyRouteToNativeDraft, updateNativeRoute } from "@/lib/native-flight/route";
 import { requireStaffPermission } from "@/lib/staff/authorization";
 import { importLegacyRouteCsv } from "@/lib/native-flight/legacy-route-csv";
 
@@ -21,12 +22,46 @@ function routeInput(form: FormData) {
     overrideReason: value(form, "overrideReason"),
   };
 }
+function automaticRouteInput(form: FormData) {
+  return {
+    departureAirportId: value(form, "departureAirportId"),
+    arrivalAirportId: value(form, "arrivalAirportId"),
+    defaultFleetId: value(form, "defaultFleetId") || null,
+    durationMinutes: optionalNumber(form, "durationMinutes"),
+    cruiseAltitude: optionalNumber(form, "cruiseAltitude"),
+    route: value(form, "route"),
+    returnRoute: value(form, "returnRoute"),
+    networkPolicy: value(form, "networkPolicy"),
+    effectiveFrom: optionalDate(form, "effectiveFrom"),
+    effectiveUntil: optionalDate(form, "effectiveUntil"),
+    internalNotes: value(form, "internalNotes"),
+    createReturnRoute: value(form, "createReturnRoute") === "yes",
+    overrideConflicts: value(form, "overrideConflicts") === "yes",
+    overrideReason: value(form, "overrideReason"),
+  };
+}
+
+export async function suggestAutomaticRouteAction(input: {
+  departureAirportId: string;
+  arrivalAirportId: string;
+  defaultFleetId?: string;
+  durationMinutes?: number | null;
+  createReturnRoute?: boolean;
+}) {
+  await requireStaffPermission("ROUTE_CREATE", { entityType: "Route", attemptedAction: "preview automatic route identity" });
+  return previewAutomaticNativeRoute(input);
+}
+
 export async function createRouteAction(form: FormData) {
   let target = "/staff/routes/new";
   try {
     const staff = await requireStaffPermission("ROUTE_CREATE", { entityType: "Route", attemptedAction: "create Native route" });
-    const route = await createNativeRoute(routeInput(form), staff);
-    target = `/staff/routes/${route.id}?success=Native%20route%20created.`;
+    const result = await createAutomaticNativeRoutes(automaticRouteInput(form), staff);
+    const success = result.returnRoute
+      ? `Route pair created: ${result.outbound.flightNumber} and ${result.returnRoute.flightNumber}.`
+      : `Route created: ${result.outbound.flightNumber}.`;
+    target = `/staff/routes/${result.outbound.id}?success=${encodeURIComponent(success)}`;
+    revalidatePath("/staff/routes");
   } catch (error) { target += `?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to create route.")}`; }
   redirect(target);
 }
