@@ -3,10 +3,10 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { LiveFlight, TrackPoint } from "./types";
 const LiveMap=dynamic(()=>import("./live-map"),{ssr:false,loading:()=> <div className="fleet-map-loading"/>});
-export function LiveOperations({initialFlights}:{initialFlights:LiveFlight[]}){
+export function LiveOperations({initialFlights,apiPrefix="/api/staff/live-flights"}:{initialFlights:LiveFlight[];apiPrefix?:string}){
  const [flights,setFlights]=useState(initialFlights),[selected,setSelected]=useState<string|null>(initialFlights[0]?.id??null),[track,setTrack]=useState<TrackPoint[]>([]),[updated,setUpdated]=useState(new Date().toISOString());
- useEffect(()=>{const load=async()=>{const r=await fetch("/api/staff/live-flights",{cache:"no-store"});if(r.ok){const b=await r.json();setFlights(b.flights);setUpdated(b.updatedAt)}};const timer=setInterval(load,10000);return()=>clearInterval(timer)},[]);
- useEffect(()=>{if(!selected)return;const load=()=>fetch(`/api/staff/live-flights/${selected}/track`,{cache:"no-store"}).then(r=>r.ok?r.json():null).then(b=>b&&setTrack(b.points));void load();const timer=setInterval(load,10000);return()=>clearInterval(timer)},[selected]);
+ useEffect(()=>{const load=async()=>{const r=await fetch(apiPrefix,{cache:"no-store"});if(r.ok){const b=await r.json();setFlights(b.flights);setUpdated(b.updatedAt)}};const timer=setInterval(load,10000);return()=>clearInterval(timer)},[apiPrefix]);
+ useEffect(()=>{if(!selected)return;const load=()=>fetch(`${apiPrefix}/${selected}/track`,{cache:"no-store"}).then(r=>r.ok?r.json():null).then(b=>b&&setTrack(b.points));void load();const timer=setInterval(load,10000);return()=>clearInterval(timer)},[apiPrefix,selected]);
  const active=useMemo(()=>flights.filter(x=>x.sessionStatus==="ACTIVE"),[flights]),online=active.filter(x=>x.connectionStatus==="ONLINE").length,delayed=active.filter(x=>x.connectionStatus==="DELAYED").length,offline=active.filter(x=>x.connectionStatus==="OFFLINE").length;
  return <><div className="page-header"><div><div className="eyebrow">OPERATIONS CONTROL</div><h1>Live flights</h1><p>Native ACARS position, phase and connection monitoring.</p></div><span className="meta">Updated {new Date(updated).toLocaleTimeString()}</span></div>
  <div className="grid stats live-kpis">{[["Active",active.length,"blue"],["Online",online,""],["Delayed",delayed,"amber"],["Offline",offline,"red"]].map(([label,value,color])=><div className="card" key={label}><div className="stat-label">{label}</div><div className="stat-value">{value}</div><span className={`badge ${color}`}>{label}</span></div>)}</div>

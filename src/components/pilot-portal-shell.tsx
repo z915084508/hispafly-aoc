@@ -14,7 +14,7 @@ const dispatchNavItems = [
 ] as const;
 
 const operationNavItems = [
-  ["pireps", "/pilot/pireps"], ["routes", "/pilot/routes"], ["fleet", "/pilot/fleet"], ["roster", "/pilot/roster"],
+  ["liveFlights", "/pilot/live-flights"], ["pireps", "/pilot/pireps"], ["routes", "/pilot/routes"], ["fleet", "/pilot/fleet"], ["roster", "/pilot/roster"],
 ] as const;
 
 const economyNavItems = [

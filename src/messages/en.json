@@ -124,6 +124,7 @@
                      "groups": { "overview": "Overview", "operations": "Operations", "network": "Network Planning", "fleetEngineering": "Fleet & Engineering", "crew": "Crew", "finance": "Finance", "administration": "Administration" }
                  },
     "pilotNav":  {
+                     "liveFlights": "Live flights",
                      "portal":  "Pilot Portal",
                      "area":  "Flight area",
                      "dashboard":  "Dashboard",
