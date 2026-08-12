@@ -22,7 +22,7 @@ function configuredTesterEmails() {
   );
 }
 
-export function hasAcarsTestAccess(user: AcarsAccessUser | null | undefined) {
+export function hasAcarsBetaAccess(user: AcarsAccessUser | null | undefined) {
   if (user?.pilot?.acarsBetaAccess) return true;
   const email = normalizeEmail(user?.email);
   if (!email) return false;
@@ -34,9 +34,20 @@ export function hasAcarsTestAccess(user: AcarsAccessUser | null | undefined) {
   return Boolean(user?.roles?.some(({ role }) => role?.code === "ADMIN"));
 }
 
-export async function requireAcarsTestAccess() {
+/** @deprecated Use hasAcarsBetaAccess for the Beta/Early Access channel. */
+export const hasAcarsTestAccess = hasAcarsBetaAccess;
+
+export async function requireAcarsPilotAccess() {
   const user = await currentAuthUser();
   if (!user?.pilot) redirect("/pilot?error=login_required");
-  if (!hasAcarsTestAccess(user)) redirect("/pilot/dashboard?error=acars_beta_access_required");
   return user;
 }
+
+export async function requireAcarsBetaAccess() {
+  const user = await requireAcarsPilotAccess();
+  if (!hasAcarsBetaAccess(user)) redirect("/pilot/dashboard?error=acars_beta_access_required");
+  return user;
+}
+
+/** @deprecated Use requireAcarsBetaAccess for the Beta/Early Access channel. */
+export const requireAcarsTestAccess = requireAcarsBetaAccess;

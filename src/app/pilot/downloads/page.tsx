@@ -1,5 +1,5 @@
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
-import { requireAcarsTestAccess } from "@/lib/acars/access";
+import { hasAcarsBetaAccess, requireAcarsPilotAccess } from "@/lib/acars/access";
 import { formatReleaseSize, getLatestAcarsRelease } from "@/lib/software/acars-release";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +20,11 @@ function releaseHighlights(body: string | null) {
 }
 
 export default async function PilotDownloadsPage() {
-  await requireAcarsTestAccess();
-  const release = await getLatestAcarsRelease();
+  const user = await requireAcarsPilotAccess();
+  const [release, betaRelease] = await Promise.all([
+    getLatestAcarsRelease("STABLE"),
+    hasAcarsBetaAccess(user) ? getLatestAcarsRelease("BETA") : Promise.resolve(null),
+  ]);
   const highlights = releaseHighlights(release?.notes ?? null);
 
   return <PilotPortalShell>
@@ -31,7 +34,7 @@ export default async function PilotDownloadsPage() {
           <p className="eyebrow">SOFTWARE OFICIAL</p>
           <h1 style={{ margin: "8px 0 12px", fontSize: "clamp(2rem, 4vw, 3.6rem)" }}>HispaFly ACARS</h1>
           <p className="page-copy" style={{ maxWidth: "760px" }}>El cliente oficial para conectar tu simulador, recibir el Dispatch y enviar automáticamente la telemetría y el PIREP.</p>
-          <div className="form-actions" style={{ marginTop: "20px" }}><span className="badge amber">BETA CERRADA</span><span className="badge blue">WINDOWS 10/11 · 64 BIT</span><span className="badge gray">REQUIERE FSUIPC7</span></div>
+          <div className="form-actions" style={{ marginTop: "20px" }}><span className="badge green">VERSIÓN ESTABLE</span><span className="badge blue">WINDOWS 10/11 · 64 BIT</span><span className="badge gray">REQUIERE FSUIPC7</span></div>
         </div>
         <div className="card" style={{ padding: "22px", background: "#17202b", color: "white", minHeight: "180px", display: "grid", alignContent: "space-between" }}>
           <div><span className="meta" style={{ color: "#c9d2dc" }}>ACARS CLIENT</span><h2 style={{ margin: "8px 0" }}>Dispatch conectado</h2></div>
@@ -51,7 +54,7 @@ export default async function PilotDownloadsPage() {
             <div><span className="meta">Publicado</span><strong>{formatDate(release?.publishedAt ?? null)}</strong></div>
             <div><span className="meta">Tamaño</span><strong>{release ? formatReleaseSize(release.fileSize) : "—"}</strong></div>
             <div><span className="meta">Plataforma</span><strong>Windows 10/11 x64</strong></div>
-            <div><span className="meta">Estado</span><strong>{release?.mandatory ? "Actualización obligatoria" : "Beta cerrada"}</strong></div>
+            <div><span className="meta">Estado</span><strong>{release?.mandatory ? "Actualización obligatoria" : "Versión estable"}</strong></div>
           </div>
         </div>
         <div style={{ padding: 28, borderRight: "1px solid var(--border, #e3e7ee)" }}>
@@ -73,7 +76,15 @@ export default async function PilotDownloadsPage() {
         <div className="card" style={{ padding: 20 }}><span className="badge red">3</span><h3>Inicio de sesión</h3><p>Usa las credenciales de tu cuenta HispaFly AOC.</p></div>
         <div className="card" style={{ padding: 20 }}><span className="badge red">4</span><h3>Comprobación</h3><p>Verifica FSUIPC, fase, combustible y Dispatch.</p></div>
       </div>
-      <div className="notice" style={{ marginTop: 18 }}>Versión beta: mantén ACARS abierto hasta confirmar que el vuelo y la telemetría final se han sincronizado.</div>
+      <div className="notice" style={{ marginTop: 18 }}>Mantén ACARS abierto hasta confirmar que el vuelo y la telemetría final se han sincronizado.</div>
     </section>
+
+    {betaRelease && <section className="card" style={{ padding: 26, marginBottom: 18 }}>
+      <div className="card-header">
+        <div><p className="eyebrow">BETA ACCESO · EARLY ACCESS</p><h2 className="card-title">Canal de pruebas ACARS {betaRelease.version}</h2><p className="meta">Versión previa para probar futuras funciones. Puede contener errores y no sustituye a la versión estable.</p></div>
+        <span className="badge amber">BETA</span>
+      </div>
+      <div className="form-actions"><a className="button secondary" href={betaRelease.downloadUrl}>Descargar beta {betaRelease.version}</a><span className="meta">{formatReleaseSize(betaRelease.fileSize)} · acceso restringido</span></div>
+    </section>}
   </PilotPortalShell>;
 }

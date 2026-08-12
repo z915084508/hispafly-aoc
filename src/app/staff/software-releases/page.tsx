@@ -6,7 +6,10 @@ export const dynamic = "force-dynamic";
 
 export default async function StaffSoftwareReleasesPage() {
   await getCurrentStaff();
-  const release = await getLatestAcarsRelease();
+  const [stableRelease, betaRelease] = await Promise.all([
+    getLatestAcarsRelease("STABLE"),
+    getLatestAcarsRelease("BETA"),
+  ]);
 
   return <>
     <div className="page-header">
@@ -17,10 +20,10 @@ export default async function StaffSoftwareReleasesPage() {
       </div>
     </div>
 
-    {release && <section className="card" style={{ marginBottom: 18 }}>
+    {[stableRelease, betaRelease].filter(Boolean).map((release) => release && <section className="card" style={{ marginBottom: 18 }} key={release.channel}>
       <div className="card-header">
-        <div><h2 className="card-title">Current published version</h2><p className="meta">This is the installer currently shown to pilots.</p></div>
-        <span className="badge green">LATEST</span>
+        <div><h2 className="card-title">Current {release.channel.toLowerCase()} version</h2><p className="meta">{release.channel === "STABLE" ? "Available to all eligible pilots." : "Available only to pilots with BETA ACCESO."}</p></div>
+        <span className={release.channel === "STABLE" ? "badge green" : "badge amber"}>{release.channel}</span>
       </div>
       <div className="workflow-summary">
         <div><span>Version</span><strong>{release.version}</strong></div>
@@ -29,9 +32,9 @@ export default async function StaffSoftwareReleasesPage() {
       </div>
       <p className="meta" style={{ marginTop: 14 }}>Published {new Date(release.publishedAt).toLocaleString("es-ES", { timeZone: "Europe/Madrid" })} · {release.mandatory ? "Mandatory update" : "Optional update"}</p>
       <div className="form-actions" style={{ marginTop: 14 }}><a className="button secondary" href={release.downloadUrl} target="_blank" rel="noreferrer">Open installer</a></div>
-    </section>}
+    </section>)}
 
-    {!release && <div className="notice">No ACARS release has been registered yet. Upload the installer in Vercel Blob, copy its public URL and publish it below.</div>}
+    {!stableRelease && <div className="notice">No stable ACARS release has been registered yet. Publish v1.3.3 (or the current public version) to make it available to all eligible pilots.</div>}
     <AcarsReleaseUploader />
   </>;
 }

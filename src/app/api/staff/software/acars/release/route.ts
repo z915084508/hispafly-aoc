@@ -12,6 +12,7 @@ type PublishBody = {
   downloadUrl?: string;
   notes?: string;
   mandatory?: boolean;
+  channel?: "STABLE" | "BETA";
 };
 
 function validateBlobUrl(raw: string) {
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
     const version = String(body.version ?? "").trim();
     const notes = String(body.notes ?? "").trim();
     const mandatory = Boolean(body.mandatory);
+    const channel = body.channel === "BETA" ? "BETA" : "STABLE";
     const url = validateBlobUrl(String(body.downloadUrl ?? "").trim());
 
     if (!VERSION_RE.test(version)) throw new Error("Use a version such as 1.0.0.");
@@ -50,9 +52,9 @@ export async function POST(request: Request) {
 
     await prisma.$executeRaw`
       INSERT INTO "SoftwareRelease" (
-        "id", "product", "version", "downloadUrl", "fileName", "fileSize", "notes", "mandatory", "publishedAt", "publishedByStaffId"
+        "id", "product", "version", "downloadUrl", "fileName", "fileSize", "notes", "mandatory", "channel", "publishedAt", "publishedByStaffId"
       ) VALUES (
-        ${id}, ${PRODUCT}, ${version}, ${url.toString()}, ${fileName}, ${BigInt(fileSize)}, ${notes}, ${mandatory}, NOW(), ${staff.id}
+        ${id}, ${PRODUCT}, ${version}, ${url.toString()}, ${fileName}, ${BigInt(fileSize)}, ${notes}, ${mandatory}, ${channel}, NOW(), ${staff.id}
       )
       ON CONFLICT ("product", "version") DO UPDATE SET
         "downloadUrl" = EXCLUDED."downloadUrl",
@@ -60,11 +62,12 @@ export async function POST(request: Request) {
         "fileSize" = EXCLUDED."fileSize",
         "notes" = EXCLUDED."notes",
         "mandatory" = EXCLUDED."mandatory",
+        "channel" = EXCLUDED."channel",
         "publishedAt" = NOW(),
         "publishedByStaffId" = EXCLUDED."publishedByStaffId"
     `;
 
-    return NextResponse.json({ ok: true, version, fileName, fileSize });
+    return NextResponse.json({ ok: true, version, channel, fileName, fileSize });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Release publication failed." }, { status: 400 });
   }

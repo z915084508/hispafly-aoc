@@ -8,9 +8,10 @@ const session = fs.readFileSync("src/app/api/acars/sessions/route.ts", "utf8");
 const telemetry = fs.readFileSync("src/app/api/acars/sessions/[sessionId]/telemetry/route.ts", "utf8");
 assert.match(schema, /acarsBetaAccess\s+Boolean\s+@default\(false\)/);
 assert.match(access, /pilot\?\.acarsBetaAccess/);
-for (const route of [assignment, session, telemetry]) {
-  assert.match(route, /hasAcarsTestAccess/);
-  assert.match(route, /acars_beta_access_required/);
-  assert.match(route, /status:\s*403/);
-}
-console.log("ACARS Beta access gate: 11 assertions passed.");
+assert.doesNotMatch(assignment, /acars_beta_access_required/);
+assert.doesNotMatch(telemetry, /acars_beta_access_required/);
+assert.match(session, /hasAcarsBetaAccess/);
+assert.match(session, /channel\s*===\s*"BETA"/);
+assert.match(session, /acars_beta_access_required/);
+assert.match(session, /status:\s*403/);
+console.log("ACARS stable/Beta access policy: 8 assertions passed.");

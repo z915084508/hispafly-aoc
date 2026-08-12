@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import type { AcarsReleaseChannel } from "@/lib/acars/release-channel";
+export type { AcarsReleaseChannel } from "@/lib/acars/release-channel";
 
 export type AcarsRelease = {
   product: string;
@@ -10,6 +12,7 @@ export type AcarsRelease = {
   downloadUrl: string;
   publishedAt: string;
   publishedByStaffId?: string;
+  channel: AcarsReleaseChannel;
 };
 
 type ReleaseRow = {
@@ -22,14 +25,15 @@ type ReleaseRow = {
   downloadUrl: string;
   publishedAt: Date;
   publishedByStaffId: string | null;
+  channel: AcarsReleaseChannel;
 };
 
-export async function getLatestAcarsRelease(): Promise<AcarsRelease | null> {
+export async function getLatestAcarsRelease(channel: AcarsReleaseChannel = "STABLE"): Promise<AcarsRelease | null> {
   try {
     const rows = await prisma.$queryRaw<ReleaseRow[]>`
-      SELECT "product", "version", "notes", "mandatory", "fileName", "fileSize", "downloadUrl", "publishedAt", "publishedByStaffId"
+      SELECT "product", "version", "notes", "mandatory", "fileName", "fileSize", "downloadUrl", "publishedAt", "publishedByStaffId", "channel"
       FROM "SoftwareRelease"
-      WHERE "product" = 'HISPAFLY_ACARS'
+      WHERE "product" = 'HISPAFLY_ACARS' AND "channel" = ${channel}
       ORDER BY "publishedAt" DESC
       LIMIT 1
     `;
@@ -45,10 +49,20 @@ export async function getLatestAcarsRelease(): Promise<AcarsRelease | null> {
       downloadUrl: row.downloadUrl,
       publishedAt: row.publishedAt.toISOString(),
       publishedByStaffId: row.publishedByStaffId ?? undefined,
+      channel: row.channel,
     };
   } catch {
     return null;
   }
+}
+
+export async function getAcarsReleaseChannel(version: string): Promise<AcarsReleaseChannel | null> {
+  const rows = await prisma.$queryRaw<Array<{ channel: AcarsReleaseChannel }>>`
+    SELECT "channel" FROM "SoftwareRelease"
+    WHERE "product" = 'HISPAFLY_ACARS' AND "version" = ${version}
+    LIMIT 1
+  `;
+  return rows[0]?.channel ?? null;
 }
 
 export function formatReleaseSize(bytes: number) {
