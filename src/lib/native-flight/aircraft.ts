@@ -42,7 +42,7 @@ export async function listAircraft(input: { search?: string; fleetId?: string; a
     ...(input.maintenanceStatus ? { conditionSnapshot: { maintenanceStatus: input.maintenanceStatus as never } } : {}),
   };
   const [rows, total] = await Promise.all([
-    prisma.aircraft.findMany({ where, include: { nativeFleet: true, currentAirport: true, locationSnapshot: true, conditionSnapshot: true }, orderBy: { registration: "asc" }, skip: (page - 1) * 25, take: 25 }),
+    prisma.aircraft.findMany({ where, include: { nativeFleet: true, currentAirport: true, locationSnapshot: true, conditionSnapshot: true, hubs: { include: { airport: true }, orderBy: { airport: { icao: "asc" } } } }, orderBy: { registration: "asc" }, skip: (page - 1) * 25, take: 25 }),
     prisma.aircraft.count({ where }),
   ]); return { rows, total, page, pageSize: 25 };
 }
@@ -74,6 +74,18 @@ export async function updateNativeAircraft(id: string, input: AircraftInput, act
     const hubsChanged = beforeHubIds.join(",") !== [...hubAirportIds].sort().join(",");
     await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: hubsChanged ? "AIRCRAFT_HUBS_CHANGED" : before.operationMode !== aircraft.operationMode ? "AIRCRAFT_OPERATION_MODE_CHANGED" : before.nativeFleetId === fleet.id ? "AIRCRAFT_UPDATED" : "AIRCRAFT_FLEET_REASSIGNED", entityType: "Aircraft", entityId: id, message: `${actor.name} updated ${aircraft.registration}.`, metadata: { before: { registration: before.registration, fleetId: before.nativeFleetId, operationMode: before.operationMode, hubAirportIds: beforeHubIds }, after: { registration: aircraft.registration, fleetId: fleet.id, operationMode: aircraft.operationMode, hubAirportIds } } } });
     return aircraft;
+  });
+}
+export async function setAircraftHubs(id: string, hubAirportIds: string[], actor: StaffIdentity) {
+  const uniqueHubIds = [...new Set(hubAirportIds.filter(Boolean))];
+  return prisma.$transaction(async tx => {
+    const aircraft = await tx.aircraft.findUnique({ where: { id }, include: { hubs: true } });
+    if (!aircraft) throw new Error("Aircraft not found.");
+    if (!editable(aircraft.dataOrigin) || aircraft.operationalStatus === "RETIRED") throw new Error("This Aircraft is read-only.");
+    if (uniqueHubIds.length !== await tx.airport.count({ where: { id: { in: uniqueHubIds }, status: "ACTIVE", archivedAt: null } })) throw new Error("Every Aircraft HUB must be an active Airport.");
+    const before = aircraft.hubs.map(({ airportId }) => airportId).sort();
+    await tx.aircraft.update({ where: { id }, data: { hubs: { deleteMany: {}, create: uniqueHubIds.map((airportId) => ({ airportId })) } } });
+    await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "AIRCRAFT_HUBS_CHANGED", entityType: "Aircraft", entityId: id, message: `${actor.name} changed ${aircraft.registration} operational HUBS.`, metadata: { before, after: [...uniqueHubIds].sort() } } });
   });
 }
 export async function changeAircraftStatus(id: string, status: NativeAircraftStatus, actor: StaffIdentity, reason: string) {
