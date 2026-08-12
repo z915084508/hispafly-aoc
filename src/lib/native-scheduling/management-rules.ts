@@ -40,4 +40,9 @@ export function normalizeScheduleDraftInput(raw: Record<string, unknown>): Sched
 }
 
 export function assertDraftEditable(status: string) { if (status !== "DRAFT") throw new ScheduleManagementError("SCHEDULE_NOT_DRAFT", "Solo se pueden editar o archivar programaciones en borrador."); }
+
+export function assertScheduleDeletable(status: string, relatedFlights: number) {
+  if (!["DRAFT", "ARCHIVED"].includes(status)) throw new ScheduleManagementError("SCHEDULE_DELETE_STATUS_BLOCKED", "Solo se pueden eliminar programaciones en borrador o archivadas que nunca se hayan publicado.");
+  if (relatedFlights > 0) throw new ScheduleManagementError("SCHEDULE_DELETE_RELATED_FLIGHTS", "No se puede eliminar esta programación porque tiene vuelos relacionados. Archívala para conservar el historial.");
+}
 export function scheduleCreatePolicy() { return { status: "DRAFT" as const, dataOrigin: "HISPAFLY_NATIVE" as const }; }

@@ -21,5 +21,14 @@ export const getFlightSchedule = (id: string) => prisma.flightSchedule.findUniqu
 export const listScheduleFormOptions = () => Promise.all([
   prisma.route.findMany({ include: { departureAirport: true, arrivalAirport: true, defaultFleet: true, fleetAssignments: { include: { fleet: true } }, fleetCompatibility: true }, orderBy: [{ flightNumber: "asc" }, { routeCode: "asc" }] }),
   prisma.fleet.findMany({ where: { archivedAt: null }, orderBy: { code: "asc" } }),
-  prisma.aircraft.findMany({ where: { archivedAt: null }, include: { currentAirport: true, conditionSnapshot: true }, orderBy: { registration: "asc" } }),
+  prisma.aircraft.findMany({ where: { archivedAt: null, operationMode: { in: ["SCHEDULED", "FLEX"] } }, include: { currentAirport: true, conditionSnapshot: true }, orderBy: { registration: "asc" } }),
 ]);
+
+export async function listAirportScheduleCoverage(airportId?: string) {
+  const airports = await prisma.airport.findMany({ where: { status: "ACTIVE", archivedAt: null }, include: {
+    departureRoutes: { include: { schedules: { where: { status: { in: ["DRAFT", "ACTIVE", "SUSPENDED"] } }, include: { assignedAircraft: true }, orderBy: { departureTimeMinutesUtc: "asc" } } } },
+    arrivalRoutes: { include: { schedules: { where: { status: { in: ["DRAFT", "ACTIVE", "SUSPENDED"] } }, include: { assignedAircraft: true }, orderBy: { departureTimeMinutesUtc: "asc" } } } },
+  }, orderBy: { icao: "asc" } });
+  const rows = airports.map((airport) => { const schedules=[...airport.departureRoutes,...airport.arrivalRoutes].flatMap((route)=>route.schedules.map((schedule)=>({...schedule,route})));const unique=[...new Map(schedules.map((schedule)=>[schedule.id,schedule])).values()];return{airport,schedules:unique,hasProgramacion:unique.length>0}; });
+  return { rows, selected: rows.find((row)=>row.airport.id===airportId)??rows.find((row)=>row.hasProgramacion)??rows[0]??null };
+}

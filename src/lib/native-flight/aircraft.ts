@@ -1,4 +1,4 @@
-import type { NativeAircraftStatus, Prisma } from "@prisma/client";
+import type { AircraftOperationMode, NativeAircraftStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { StaffIdentity } from "@/lib/staff/currentStaff";
 import type { NativeOrigin } from "./airport";
@@ -8,12 +8,13 @@ const actorId = (actor: StaffIdentity) => actor.id === "development-staff" ? nul
 const editable = Boolean;
 export type AircraftInput = {
   registration: string; aircraftType: string; fleetId: string; name?: string | null; serialNumber?: string | null;
+  operationMode?: AircraftOperationMode;
   selcal?: string | null; deliveryDate?: Date | null; inServiceDate?: Date | null; cabinConfiguration?: string | null;
   seatCapacity?: number | null; cargoCapacityKg?: number | null; internalNotes?: string | null; dataOrigin?: NativeOrigin;
 };
 function aircraftData(input: AircraftInput) {
   const normalized = normalizeAircraftInput(input);
-  return { ...normalized, name: input.name?.trim() || null, serialNumber: input.serialNumber?.trim() || null,
+  return { ...normalized, operationMode: input.operationMode ?? "FLEX", name: input.name?.trim() || null, serialNumber: input.serialNumber?.trim() || null,
     deliveryDate: input.deliveryDate ?? null, inServiceDate: input.inServiceDate ?? null, cabinConfiguration: input.cabinConfiguration?.trim() || null,
     seatCapacity: nonNegative(input.seatCapacity, "Seat capacity"), cargoCapacityKg: nonNegative(input.cargoCapacityKg, "Cargo capacity"),
     internalNotes: input.internalNotes?.trim() || null };
@@ -63,7 +64,7 @@ export async function updateNativeAircraft(id: string, input: AircraftInput, act
     if (await tx.aircraft.findFirst({ where: { id: { not: id }, registration: { equals: data.registration, mode: "insensitive" } } })) throw new Error("Aircraft registration already exists.");
     const aircraft = await tx.aircraft.update({ where: { id }, data: { ...data, nativeFleetId: fleet.id, fleetName: fleet.name } });
     await tx.aircraftLocationSnapshot.updateMany({ where: { aircraftId: id }, data: { registration: aircraft.registration, aircraftType: aircraft.aircraftType } });
-    await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: before.nativeFleetId === fleet.id ? "AIRCRAFT_UPDATED" : "AIRCRAFT_FLEET_REASSIGNED", entityType: "Aircraft", entityId: id, message: `${actor.name} updated ${aircraft.registration}.`, metadata: { before: { registration: before.registration, fleetId: before.nativeFleetId }, after: { registration: aircraft.registration, fleetId: fleet.id } } } });
+    await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: before.operationMode !== aircraft.operationMode ? "AIRCRAFT_OPERATION_MODE_CHANGED" : before.nativeFleetId === fleet.id ? "AIRCRAFT_UPDATED" : "AIRCRAFT_FLEET_REASSIGNED", entityType: "Aircraft", entityId: id, message: `${actor.name} updated ${aircraft.registration}.`, metadata: { before: { registration: before.registration, fleetId: before.nativeFleetId, operationMode: before.operationMode }, after: { registration: aircraft.registration, fleetId: fleet.id, operationMode: aircraft.operationMode } } } });
     return aircraft;
   });
 }

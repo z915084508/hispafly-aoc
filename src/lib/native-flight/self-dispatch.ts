@@ -43,6 +43,7 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
     const aircraft = await tx.aircraft.findUnique({ where: { id: input.aircraftId }, include: { nativeFleet: true, conditionSnapshot: true, locationSnapshot: true } });
     if (!aircraft) throw new Error("The selected aircraft does not exist.");
     assertNativeOrigin("Self-dispatch aircraft", aircraft.dataOrigin);
+    if (aircraft.operationMode === "SCHEDULED") throw new Error("This aircraft is reserved for PROGRAMACION and cannot be used for a free flight.");
     const aircraftState = resolveAircraftState(aircraft);
     if (!aircraftState.available) throw new Error("The selected aircraft is not available.");
     if (!aircraft.nativeFleetId || aircraft.nativeFleet?.operationalStatus !== "ACTIVE") throw new Error("The selected aircraft Fleet is not active.");

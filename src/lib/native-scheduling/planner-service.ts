@@ -10,7 +10,7 @@ const blockedAircraft: NativeAircraftStatus[] = [NativeAircraftStatus.AOG, Nativ
 
 export async function getWeeklyAircraftPlannerData(input: { aircraftId?: string | null; weekStartUtc: Date; includeExpired?: boolean }) {
   const weekStartUtc = normalizeWeekStartUtc(input.weekStartUtc), weekEndUtc = new Date(weekStartUtc.getTime() + 7 * 86_400_000);
-  const aircraftRows = await prisma.aircraft.findMany({ where: { archivedAt: null, operationalStatus: { notIn: blockedAircraft } }, include: aircraftInclude, orderBy: { registration: "asc" }, take: 250 });
+  const aircraftRows = await prisma.aircraft.findMany({ where: { archivedAt: null, operationMode: { in: ["SCHEDULED", "FLEX"] }, operationalStatus: { notIn: blockedAircraft } }, include: aircraftInclude, orderBy: { registration: "asc" }, take: 250 });
   const aircraft = aircraftRows.map((item) => ({ id:item.id, registration:item.registration, aircraftType:item.aircraftType, operationalStatus:item.operationalStatus, nativeFleetId:item.nativeFleetId, nativeFleet:item.nativeFleet ? { id:item.nativeFleet.id, code:item.nativeFleet.code, name:item.nativeFleet.name } : null, currentAirport:item.currentAirport ? { icao:item.currentAirport.icao } : null, conditionSnapshot:item.conditionSnapshot ? { operationalStatus:item.conditionSnapshot.operationalStatus } : null }));
   const requested = input.aircraftId === "unassigned" ? null : aircraft.find(({ id }) => id === input.aircraftId) ?? aircraft[0] ?? null;
   const unassigned = input.aircraftId === "unassigned";

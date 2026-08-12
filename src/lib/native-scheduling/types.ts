@@ -41,7 +41,7 @@ export type SchedulingRoute = {
 };
 export type SchedulingFleet = { id: string; operationalStatus: string; active: boolean; archivedAt: Date | null };
 export type SchedulingAircraft = {
-  id: string; nativeFleetId: string | null; operationalStatus: string; archivedAt: Date | null;
+  id: string; nativeFleetId: string | null; operationalStatus: string; operationMode?: "FREE" | "SCHEDULED" | "FLEX"; archivedAt: Date | null;
   conditionSnapshot: { operationalStatus: string; maintenanceStatus: string } | null;
   nativeFleet: SchedulingFleet | null;
 };

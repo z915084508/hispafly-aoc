@@ -64,6 +64,7 @@ export function validateProposedScheduleWithContext(proposed: ProposedFlightSche
       // Those are execution-time constraints checked by Booking/Dispatch, not by a
       // future weekly Programacion.
       if (aircraft.archivedAt) errors.push(issue("AIRCRAFT_ARCHIVED", "The assigned aircraft is archived and cannot be scheduled.", proposed, { aircraftId: aircraft.id }));
+      if (aircraft.operationMode === "FREE") errors.push(issue("AIRCRAFT_FREE_ONLY", "FREE aircraft cannot be assigned to PROGRAMACION. Select a SCHEDULED or FLEX aircraft.", proposed, { aircraftId: aircraft.id }));
       if (hardBlockedAircraftStates.has(aircraft.operationalStatus)) errors.push(issue("AIRCRAFT_NOT_OPERATIONAL", `The assigned aircraft has blocking operational status ${aircraft.operationalStatus}.`, proposed, { aircraftId: aircraft.id, details: { operationalStatus: aircraft.operationalStatus } }));
       if (aircraft.operationalStatus === "UNKNOWN") warnings.push(warning("AIRCRAFT_OPERATIONAL_STATUS_UNKNOWN", "The aircraft current operational state is unknown. This does not block future scheduling; verify availability before operation.", proposed, { aircraftId: aircraft.id, details: { operationalStatus: aircraft.operationalStatus } }));
       if (!aircraft.nativeFleet) errors.push(issue("AIRCRAFT_NATIVE_FLEET_MISSING", "The assigned aircraft is not linked to a Native fleet.", proposed, { aircraftId: aircraft.id }));

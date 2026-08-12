@@ -5,7 +5,7 @@ import type { ProgramacionFormValue } from "@/components/programacion/types";
 import { createProgramacionAction, updateProgramacionAction } from "./actions";
 import { buildDevelopmentPlannerData, getWeeklyAircraftPlannerData } from "@/lib/native-scheduling/planner-service";
 import { normalizeWeekStartUtc, plannerRotationNeighbours } from "@/lib/native-scheduling/planner";
-import { getFlightSchedule, listFlightSchedules, listScheduleFormOptions } from "@/lib/native-scheduling/repository";
+import { getFlightSchedule, listAirportScheduleCoverage, listFlightSchedules, listScheduleFormOptions } from "@/lib/native-scheduling/repository";
 import { validateProposedSchedule } from "@/lib/native-scheduling/service";
 import { formatDate, formatDays, formatMinutes, scheduleFormOptions, toFormValue, toProposedSchedule } from "@/lib/native-scheduling/presentation";
 import { getCurrentStaff } from "@/lib/staff/currentStaff";
@@ -18,7 +18,7 @@ const queryString = (query: Record<string, string | undefined>, changes: Record<
 
 export default async function ProgramacionWorkspace({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const query = await searchParams;
-  const view = ["planner", "list", "unassigned"].includes(query.view ?? "") ? query.view! : "planner";
+  const view = ["planner", "airports", "list", "unassigned"].includes(query.view ?? "") ? query.view! : "planner";
   const staff = await getCurrentStaff();
   const canCreate = staffHasPermission(staff, "SCHEDULE_CREATE"), canEdit = staffHasPermission(staff, "SCHEDULE_EDIT");
   const weekStart = normalizeWeekStartUtc(validDate(query.week));
@@ -27,7 +27,7 @@ export default async function ProgramacionWorkspace({ searchParams }: { searchPa
   const newHref = queryString({ view: "planner", aircraftId: query.aircraftId, week: iso(weekStart) }, { panel: "schedule", mode: "create" });
 
   let plannerData: Awaited<ReturnType<typeof getWeeklyAircraftPlannerData>> | ReturnType<typeof buildDevelopmentPlannerData> | null = null;
-  if (view !== "list") {
+  if (view !== "list" && view !== "airports") {
     try { plannerData = await getWeeklyAircraftPlannerData({ aircraftId: view === "unassigned" ? "unassigned" : query.aircraftId, weekStartUtc: weekStart, includeExpired: query.includeExpired === "1" }); }
     catch (error) { if (process.env.NODE_ENV === "production") throw error; plannerData = buildDevelopmentPlannerData(weekStart); }
   }
@@ -46,15 +46,18 @@ export default async function ProgramacionWorkspace({ searchParams }: { searchPa
   const neighbours = panelSegment ? plannerRotationNeighbours(panelSegment, allSegments) : null;
 
   return <><div className="page-header programacion-workspace-header"><div><div className="eyebrow">OPERACIONES · PROGRAMACIÓN</div><h1>Programación</h1><p>Planifica la rotación semanal, administra borradores y publica vuelos programados.</p></div>{canCreate && <Link className="button" href={newHref}>+ NUEVA PROGRAMACIÓN</Link>}</div>
-    <nav className="programacion-workspace-tabs" aria-label="Vistas de Programación"><Link className={view === "planner" ? "active" : ""} href={queryString(context, { view: "planner" })}>PLANIFICADOR SEMANAL</Link><Link className={view === "list" ? "active" : ""} href={queryString(context, { view: "list" })}>LISTA</Link><Link className={view === "unassigned" ? "active" : ""} href={queryString(context, { view: "unassigned" })}>SIN AERONAVE</Link></nav>
-    {query.saved && <div className="notice">Borrador guardado. La rotación y la validación se han actualizado.</div>}{query.error && <div className="notice">{query.error}</div>}
+    <nav className="programacion-workspace-tabs" aria-label="Vistas de Programación"><Link className={view === "planner" ? "active" : ""} href={queryString(context, { view: "planner" })}>POR AERONAVE · PLANIFICADOR SEMANAL</Link><Link className={view === "airports" ? "active" : ""} href={queryString({}, { view: "airports" })}>POR AEROPUERTO</Link><Link className={view === "list" ? "active" : ""} href={queryString(context, { view: "list" })}>LISTA</Link><Link className={view === "unassigned" ? "active" : ""} href={queryString(context, { view: "unassigned" })}>SIN AERONAVE</Link></nav>
+    {query.saved && <div className="notice">Borrador guardado. La rotación y la validación se han actualizado.</div>}{query.deleted && <div className="notice">Programación eliminada correctamente.</div>}{query.error && <div className="notice">{query.error}</div>}
     <div className={mayOpenPanel ? "programacion-workspace-split panel-open" : "programacion-workspace-split"}><main>
       {view === "planner" && plannerData && <PlannerSurface data={plannerData} query={query} weekStart={weekStart} canCreate={canCreate} canEdit={canEdit}/>}
+      {view === "airports" && <AirportSurface query={query}/>}
       {view === "unassigned" && plannerData && <UnassignedSurface data={plannerData} query={query} canEdit={canEdit}/>}
       {view === "list" && <ListSurface query={query} canEdit={canEdit}/>}
     </main>{mayOpenPanel && options && <aside className="programacion-schedule-panel"><div className="programacion-panel-head"><div><span className="eyebrow">PROGRAMACIÓN</span><h2>{edited ? "Editar borrador" : query.reverseOf ? "Crear regreso" : "Nueva programación"}</h2></div><Link href={closePanel} aria-label="Cerrar panel">×</Link></div>{neighbours && <section className="rotation-context"><h3>CONTEXTO DE ROTACIÓN</h3><div><span>Vuelo anterior</span><strong>{neighbours.previous?.schedule.route.flightNumber ?? "—"} · {neighbours.previous?.schedule.route.arrival ?? "—"}</strong></div><div><span>Turnaround disponible</span><strong>{neighbours.availableTurnaround ?? "—"} min</strong></div><div><span>Turnaround mínimo</span><strong>{neighbours.minimumTurnaround} min</strong></div><div><span>Próxima salida posible</span><strong>{neighbours.earliestNextDeparture.toISOString().slice(11,16)} UTC</strong></div><div><span>Vuelo siguiente</span><strong>{neighbours.next?.schedule.route.flightNumber ?? "—"} · {neighbours.next?.schedule.route.departure ?? "—"}</strong></div></section>}<ScheduleForm action={edited ? updateProgramacionAction : createProgramacionAction} value={formValue} {...options} submitLabel="Guardar borrador" cancelHref={closePanel} hiddenFields={{ returnTo: queryString(query, {}) }}/></aside>}</div>
   </>;
 }
+
+async function AirportSurface({ query }: { query: Record<string,string|undefined> }) { const data=await listAirportScheduleCoverage(query.airportId);return <div className="programacion-airport-view"><section className="card"><h2>AEROPUERTOS</h2><p>Todos los aeropuertos activos, incluidos los que todavia no tienen rutas programadas.</p><div className="planner-unassigned">{data.rows.map(({airport,schedules,hasProgramacion})=><Link className="card" key={airport.id} href={queryString(query,{view:"airports",airportId:airport.id})}><strong>{airport.icao}{airport.iata?` / ${airport.iata}`:""}</strong><span>{airport.name??airport.city??"Aeropuerto"}</span><span className="badge">{hasProgramacion?`${schedules.length} PROGRAMACIONES`:"SIN RUTAS PROGRAMADAS"}</span></Link>)}</div></section>{data.selected&&<section className="card"><h2>{data.selected.airport.icao} · DETALLE</h2>{data.selected.schedules.length===0?<div className="empty-state">Este aeropuerto no tiene actualmente ninguna ruta en PROGRAMACION.</div>:<div className="table-wrap"><table><thead><tr><th>Programacion</th><th>Ruta</th><th>Dias</th><th>Salida UTC</th><th>Aeronave</th><th>Estado</th></tr></thead><tbody>{data.selected.schedules.map((schedule)=><tr key={schedule.id}><td><Link href={`/staff/operations/programacion/${schedule.id}`}>{schedule.code}</Link></td><td>{schedule.route.departure} → {schedule.route.arrival}</td><td>{formatDays(schedule.daysOfWeek)}</td><td>{formatMinutes(schedule.departureTimeMinutesUtc)}</td><td>{schedule.assignedAircraft?.registration??"Sin asignar"}</td><td>{schedule.status}</td></tr>)}</tbody></table></div>}</section>}</div>}
 
 async function ListSurface({ query, canEdit }: { query: Record<string,string|undefined>; canEdit: boolean }) {
   const [result, filters] = await Promise.all([listFlightSchedules({ search: query.search, status: query.status, fleetId: query.fleetId, aircraftId: query.aircraftId, effectiveDate: query.effectiveDate, page: Number(query.page) || 1 }), listScheduleFormOptions()]);

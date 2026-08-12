@@ -154,6 +154,7 @@ export async function claimScheduledFlight(input: {
       const aircraft = await tx.aircraft.findUnique({ where: { id: aircraftId }, include: { nativeFleet: true, conditionSnapshot: true, locationSnapshot: true } });
       if (!aircraft) throw new Error("Aircraft does not exist.");
       assertNativeOrigin("Flight booking aircraft", aircraft.dataOrigin);
+      if (aircraft.operationMode === "FREE") throw new Error("This aircraft is reserved for free flights and cannot operate PROGRAMACION.");
       const aircraftState = resolveAircraftState(aircraft);
       if (!aircraftState.available) throw new Error("Aircraft is not operationally available.");
       if (aircraft.conditionSnapshot && ["AOG", "IN_MAINTENANCE"].includes(aircraft.conditionSnapshot.operationalStatus)) throw new Error("Aircraft maintenance status blocks booking.");

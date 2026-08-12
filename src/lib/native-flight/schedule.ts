@@ -202,9 +202,13 @@ export async function cancelNativeFlight(flightId: string, reason: string) {
 }
 
 export async function assignAircraftToFlight(flightId: string, aircraftId: string) {
-  const flight = await prisma.flight.findUnique({ where: { id: flightId } });
+  const flight = await prisma.flight.findUnique({ where: { id: flightId }, include: { bookings: { where: { status: { in: ["PENDING", "CONFIRMED", "BOOKED", "DISPATCH_PENDING", "DISPATCHED", "IN_PROGRESS"] } }, select: { id: true } }, dispatches: { where: { status: { in: ["DISPATCHING", "DISPATCHED", "RELEASED"] } }, select: { id: true } } } });
   if (!flight) throw new Error("flight_not_found");
-  if (flight.assignedAircraftId) throw new Error("flight_already_has_aircraft");
+  const aircraft = await prisma.aircraft.findUnique({ where: { id: aircraftId } });
+  if (!aircraft) throw new Error("aircraft_not_found");
+  if (flight.operatingType === "SCHEDULED" && aircraft.operationMode === "FREE") throw new Error("FREE aircraft cannot operate PROGRAMACION.");
+  if (flight.assignedAircraftId && aircraft.operationMode !== "FLEX") throw new Error("Only a FLEX aircraft may replace an existing PROGRAMACION assignment.");
+  if (flight.assignedAircraftId && (flight.bookings.length || flight.dispatches.length)) throw new Error("Aircraft cannot be replaced after booking or dispatch has started.");
   const availability = await checkAircraftAvailability({
     aircraftId,
     routeId: flight.routeId,

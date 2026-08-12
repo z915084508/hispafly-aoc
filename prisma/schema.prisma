@@ -181,6 +181,12 @@ enum NativeAircraftStatus {
   UNKNOWN
 }
 
+enum AircraftOperationMode {
+  FREE
+  SCHEDULED
+  FLEX
+}
+
 enum RouteFleetPolicy {
   ALLOWED
   FORBIDDEN
@@ -643,6 +649,7 @@ model Aircraft {
   currentAirport        Airport?                    @relation(fields: [currentAirportId], references: [id], onDelete: SetNull)
   status                String?
   operationalStatus     NativeAircraftStatus        @default(UNKNOWN)
+  operationMode         AircraftOperationMode       @default(FLEX)
   totalFlightMinutes    Int                         @default(0)
   totalCycles           Int                         @default(0)
   archivedAt            DateTime?
@@ -700,6 +707,7 @@ model Aircraft {
   @@index([publicVisible, publicDisplayOrder])
   @@index([dataOrigin])
   @@index([operationalStatus])
+  @@index([operationMode])
 }
 
 model AircraftProfile {

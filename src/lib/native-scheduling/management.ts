@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { StaffIdentity } from "@/lib/staff/currentStaff";
 import { validateProposedSchedule } from "./service";
-import { assertDraftEditable, normalizeScheduleDraftInput, scheduleCreatePolicy, ScheduleManagementError, type ScheduleDraftInput } from "./management-rules";
+import { assertDraftEditable, assertScheduleDeletable, normalizeScheduleDraftInput, scheduleCreatePolicy, ScheduleManagementError, type ScheduleDraftInput } from "./management-rules";
 
 const actorId = (actor: StaffIdentity) => actor.id === "development-staff" ? null : actor.id;
 const proposed = (input: ScheduleDraftInput, scheduleId?: string) => ({ scheduleId, routeId: input.routeId, daysOfWeek: input.daysOfWeek, departureTimeMinutesUtc: input.departureTimeMinutesUtc, arrivalTimeMinutesUtc: input.arrivalTimeMinutesUtc, scheduledDurationMinutes: input.scheduledDurationMinutes, defaultFleetId: input.defaultFleetId, assignedAircraftId: input.assignedAircraftId, effectiveFrom: input.effectiveFrom, effectiveUntil: input.effectiveUntil, bookingOpenOffsetMinutes: input.bookingOpenOffsetMinutes, bookingCloseOffsetMinutes: input.bookingCloseOffsetMinutes, generationHorizonDays: input.generationHorizonDays });
@@ -61,5 +61,19 @@ export async function duplicateFlightScheduleAsDraft(id: string, raw: Record<str
 export async function archiveFlightScheduleDraft(id: string, actor: StaffIdentity) {
   try {
     return await prisma.$transaction(async (tx) => { const before = await tx.flightSchedule.findUnique({ where: { id } }); if (!before) throw new ScheduleManagementError("NOT_FOUND", "La programación no existe."); assertDraftEditable(before.status); const schedule = await tx.flightSchedule.update({ where: { id }, data: { status: "ARCHIVED", archivedAt: new Date() } }); await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "SCHEDULE_DRAFT_ARCHIVED", entityType: "FlightSchedule", entityId: id, message: `${actor.name} archivó el borrador ${schedule.code}.` } }); return schedule; });
+  } catch (error) { throw cleanError(error); }
+}
+
+export async function deleteFlightSchedule(id: string, actor: StaffIdentity) {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const schedule = await tx.flightSchedule.findUnique({ where: { id }, select: { id: true, code: true, status: true, _count: { select: { flights: true } } } });
+      if (!schedule) throw new ScheduleManagementError("NOT_FOUND", "La programación no existe.");
+      assertScheduleDeletable(schedule.status, schedule._count.flights);
+      const deleted = await tx.flightSchedule.deleteMany({ where: { id, status: { in: ["DRAFT", "ARCHIVED"] }, flights: { none: {} } } });
+      if (deleted.count !== 1) throw new ScheduleManagementError("SCHEDULE_DELETE_CONFLICT", "La programación cambió y ya no se puede eliminar de forma segura.");
+      await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "SCHEDULE_DELETED", entityType: "FlightSchedule", entityId: id, message: `${actor.name} eliminó la programación ${schedule.code}.`, metadata: { code: schedule.code, previousStatus: schedule.status } } });
+      return schedule;
+    });
   } catch (error) { throw cleanError(error); }
 }
