@@ -2,8 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { connectionStatus } from "./connection-status";
 
 export async function getLiveFlights() {
+  const liveSince = new Date(Date.now() - 2 * 60 * 1000);
   const sessions = await prisma.acarsSession.findMany({
-    where: { status: { in: ["ACTIVE", "COMPLETED"] }, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+    where: { status: "ACTIVE", lastHeartbeatAt: { gte: liveSince } },
     include: {
       positions: { orderBy: { sequenceNumber: "desc" }, take: 1 },
     },
