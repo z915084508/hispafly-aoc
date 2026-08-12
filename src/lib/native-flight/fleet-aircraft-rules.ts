@@ -15,8 +15,14 @@ export function normalizeFleetInput(input: { code: string; type: string; iataTyp
 export function normalizeAircraftInput(input: { registration: string; aircraftType: string; selcal?: string | null }) {
   const aircraftType = input.aircraftType.trim().toUpperCase();
   if (!/^[A-Z0-9]{2,4}$/.test(aircraftType)) throw new Error("Aircraft type is invalid.");
-  const selcal = input.selcal?.trim().toUpperCase() || null;
-  if (selcal && !/^[A-Z]{2}-?[A-Z]{2}$/.test(selcal)) throw new Error("SELCAL is invalid.");
+  const rawSelcal = input.selcal?.trim().toUpperCase().replace("-", "") || null;
+  const selcalLetters = "ABCDEFGHJKLMNPQRS";
+  if (rawSelcal) {
+    if (rawSelcal.length !== 4 || [...rawSelcal].some((letter) => !selcalLetters.includes(letter))) throw new Error("SELCAL must use four valid ICAO characters (A-S, excluding I, N and O).");
+    if (new Set(rawSelcal).size !== 4) throw new Error("SELCAL cannot repeat a character.");
+    if (selcalLetters.indexOf(rawSelcal[0]) >= selcalLetters.indexOf(rawSelcal[1]) || selcalLetters.indexOf(rawSelcal[2]) >= selcalLetters.indexOf(rawSelcal[3])) throw new Error("Each SELCAL pair must place the lower character first.");
+  }
+  const selcal = rawSelcal ? `${rawSelcal.slice(0, 2)}-${rawSelcal.slice(2)}` : null;
   return { registration: normalizeRegistration(input.registration), aircraftType, selcal };
 }
 export const ASSIGNABLE_AIRCRAFT_STATUSES = new Set(["AVAILABLE"]);
