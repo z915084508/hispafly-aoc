@@ -22,7 +22,37 @@ type EventInput = {
   altitudeFeet?: number | null; groundSpeedKnots?: number | null; fuelKg?: number | null;
   numericValue?: number | null; textValue?: string | null;
 };
-export type TelemetryInput = { currentPhase: string; completed?: boolean; positions?: PositionInput[]; events?: EventInput[] };
+type CompletionInput = {
+  initialFuelKg?: number | null;
+  finalFuelKg?: number | null;
+  fuelUsedKg?: number | null;
+  landingRateFeetPerMinute?: number | null;
+};
+export type TelemetryInput = {
+  currentPhase: string;
+  completed?: boolean;
+  completion?: CompletionInput | null;
+  positions?: PositionInput[];
+  events?: EventInput[];
+};
+
+const nativeNetwork = (value: string | null | undefined) => value?.trim().toUpperCase() || "OFFLINE";
+const roundedNonNegative = (value: number | null | undefined) =>
+  value != null && Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
+
+function trustedCompletionFuel(completion: CompletionInput | null | undefined) {
+  if (!completion) return null;
+  const initialFuelKg = roundedNonNegative(completion.initialFuelKg);
+  const finalFuelKg = roundedNonNegative(completion.finalFuelKg);
+  const suppliedFuelUsedKg = roundedNonNegative(completion.fuelUsedKg);
+  const calculatedFuelUsedKg = initialFuelKg != null && finalFuelKg != null && initialFuelKg >= finalFuelKg
+    ? initialFuelKg - finalFuelKg
+    : null;
+  const fuelUsedKg = suppliedFuelUsedKg ?? calculatedFuelUsedKg;
+  if (fuelUsedKg == null) return null;
+  if (calculatedFuelUsedKg != null && Math.abs(calculatedFuelUsedKg - fuelUsedKg) > 10) return null;
+  return { initialFuelKg, finalFuelKg, fuelUsedKg };
+}
 
 async function completeNativePirepPostProcessing(pirepId: string) {
   const results = await Promise.allSettled([
@@ -120,42 +150,64 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
     ]);
     if (positions.length < 2) throw new Error("ACARS completion requires at least two recorded positions.");
     if (positions.at(-1)?.onGround !== true) throw new Error("ACARS completion requires a final on-ground position.");
-    const summary = telemetrySummary(positions, events);
-    const finalFuelKg = [...positions].reverse().find((item) => item.fuelKg != null)?.fuelKg ?? null;
+
+    const telemetry = telemetrySummary(positions, events);
+    const clientFuel = trustedCompletionFuel(body.completion);
+    const fuelUsedKg = clientFuel?.fuelUsedKg ?? telemetry.fuelUsedKg;
+    const finalFuelKg = clientFuel?.finalFuelKg ?? telemetry.lastFuelKg;
+    const fuelDataComplete = Boolean(clientFuel) || telemetry.fuelDataComplete;
+    const fuelDataSource = clientFuel ? "CLIENT_SESSION_SUMMARY" : telemetry.fuelDataComplete ? "FULL_POSITION_COVERAGE" : "INCOMPLETE_POSITION_COVERAGE";
+    const clientLandingRate = body.completion?.landingRateFeetPerMinute;
+    const landingRate = clientLandingRate != null && Number.isFinite(clientLandingRate)
+      ? Math.round(clientLandingRate)
+      : telemetry.landingRate;
     const completedAt = new Date();
     const flightDistanceNm = greatCircleDistanceNm(dispatch.flight.departureAirport, dispatch.flight.arrivalAirport);
-    const score = nativePirepScore(summary.landingRate);
+    const score = nativePirepScore(landingRate);
+    const passengers = dispatch.booking.passengers ?? 0;
+    const network = nativeNetwork(dispatch.booking.network);
     const fuelEconomics = await calculateFuelCostSnapshot({
       departure: dispatch.flight.departureIcao,
-      fuelUsedKg: summary.fuelUsedKg,
+      fuelUsedKg,
       at: completedAt,
     });
-    const passengerRevenueCents = dispatch.booking.passengers != null && flightDistanceNm != null
-      ? calculatePassengerRevenue(dispatch.booking.passengers, flightDistanceNm).revenueCents
+    const passengerRevenueCents = flightDistanceNm != null
+      ? calculatePassengerRevenue(passengers, flightDistanceNm).revenueCents
       : null;
+    const completionSummary = {
+      ...telemetry,
+      fuelUsedKg,
+      fuelDataComplete,
+      fuelDataSource,
+      clientInitialFuelKg: clientFuel?.initialFuelKg ?? null,
+      clientFinalFuelKg: clientFuel?.finalFuelKg ?? null,
+      landingRate,
+    };
     const pirep = await tx.pirep.create({
       data: {
         dataOrigin: "HISPAFLY_NATIVE", acarsSessionId: sessionId, pilotId,
         flightNumber: dispatch.flight.flightNumber, callsign: dispatch.flight.callsign,
         departure: dispatch.flight.departureIcao, arrival: dispatch.flight.arrivalIcao,
         aircraftType: dispatch.aircraft.aircraftType, aircraftRegistration: dispatch.aircraft.registration,
-        network: dispatch.booking.network, flightTimeMinutes: summary.flightTimeMinutes,
-        blockTimeMinutes: summary.blockTimeMinutes, landingRate: summary.landingRate,
-        score, points: score, fuelUsed: summary.fuelUsedKg, passengers: dispatch.booking.passengers,
-        cargoKg: dispatch.booking.cargoKg, luggageKg: dispatch.booking.luggageKg,
-        freightKg: dispatch.booking.freightKg, flightDistanceNm, passengerRevenueCents,
+        network, flightTimeMinutes: telemetry.flightTimeMinutes,
+        blockTimeMinutes: telemetry.blockTimeMinutes, landingRate,
+        score, points: score, fuelUsed: fuelUsedKg, passengers,
+        cargoKg: dispatch.booking.cargoKg ?? 0, luggageKg: dispatch.booking.luggageKg ?? 0,
+        freightKg: dispatch.booking.freightKg ?? 0, flightDistanceNm, passengerRevenueCents,
         fuelCostCents: fuelEconomics.fuelCostCents,
         fuelPricePerKgCents: fuelEconomics.fuelPricePerKgCents,
         fuelPriceRegion: fuelEconomics.fuelPriceRegion,
         fuelPriceSource: fuelEconomics.fuelPriceSource,
         fuelCalculationDetails: {
-          method: "fuelUsedKg_x_effectivePricePerKg",
-          fuelUsedKg: summary.fuelUsedKg,
+          method: fuelDataComplete ? "trusted_complete_fuel_x_effective_price" : "fuel_unavailable_incomplete_coverage",
+          fuelUsedKg,
+          fuelDataComplete,
+          fuelDataSource,
           ...fuelEconomics,
         } as Prisma.InputJsonValue,
         status: "accepted", acarsSoftware: current.acarsVersion,
         source: "HISPAFLY_ACARS", flownAt: completedAt, acceptedAt: completedAt,
-        rawData: { contractVersion: "1.0", sessionId, dispatchId: dispatch.id, summary, flightDistanceNm, score } as Prisma.InputJsonValue,
+        rawData: { contractVersion: "1.1", sessionId, dispatchId: dispatch.id, summary: completionSummary, flightDistanceNm, score } as Prisma.InputJsonValue,
       },
     });
     pirepId = pirep.id;
@@ -164,7 +216,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
     await tx.flight.update({ where: { id: dispatch.flight.id }, data: { status: "COMPLETED" } });
     await tx.aircraft.update({
       where: { id: dispatch.aircraft.id },
-      data: { operationalStatus: "AVAILABLE", currentAirportId: dispatch.flight.arrivalAirportId, totalFlightMinutes: { increment: summary.flightTimeMinutes ?? 0 }, totalCycles: { increment: 1 }, ...(finalFuelKg != null ? { fuelOnBoardKg: Math.max(0, Math.round(finalFuelKg)), fuelReportedAt: completedAt } : {}) },
+      data: { operationalStatus: "AVAILABLE", currentAirportId: dispatch.flight.arrivalAirportId, totalFlightMinutes: { increment: telemetry.flightTimeMinutes ?? 0 }, totalCycles: { increment: 1 }, ...(finalFuelKg != null ? { fuelOnBoardKg: Math.max(0, Math.round(finalFuelKg)), fuelReportedAt: completedAt } : {}) },
     });
     await tx.aircraftLocationSnapshot.upsert({
       where: { aircraftId: dispatch.aircraft.id },
@@ -172,7 +224,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
       update: { currentAirportId: dispatch.flight.arrivalAirportId, currentAirportIcao: dispatch.flight.arrivalIcao, currentAirportIata: dispatch.flight.arrivalAirport.iata, status: "AVAILABLE", source: "NATIVE_PIREP", reservedByDispatchId: null, lastBookingId: dispatch.booking.id, lastPirepId: pirep.id, lastReportAt: completedAt, lastLatitude: dispatch.flight.arrivalAirport.latitude, lastLongitude: dispatch.flight.arrivalAirport.longitude },
     });
     await tx.pilot.update({ where: { id: pilotId }, data: { currentAirportId: dispatch.flight.arrivalAirportId, positionUpdatedAt: completedAt, positionSource: "NATIVE_PIREP" } });
-    await tx.aocAuditLog.create({ data: { action: "NATIVE_ACARS_FLIGHT_COMPLETED", entityType: "Pirep", entityId: pirep.id, message: `${dispatch.flight.flightNumber} completed by HispaFly ACARS.`, metadata: { sessionId, dispatchId: dispatch.id, bookingId: dispatch.booking.id, flightId: dispatch.flight.id, aircraftId: dispatch.aircraft.id, arrivalIcao: dispatch.flight.arrivalIcao, summary, flightDistanceNm, score, fuelEconomics } as Prisma.InputJsonValue } });
+    await tx.aocAuditLog.create({ data: { action: "NATIVE_ACARS_FLIGHT_COMPLETED", entityType: "Pirep", entityId: pirep.id, message: `${dispatch.flight.flightNumber} completed by HispaFly ACARS.`, metadata: { sessionId, dispatchId: dispatch.id, bookingId: dispatch.booking.id, flightId: dispatch.flight.id, aircraftId: dispatch.aircraft.id, arrivalIcao: dispatch.flight.arrivalIcao, summary: completionSummary, flightDistanceNm, score, fuelEconomics } as Prisma.InputJsonValue } });
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   if (body.completed && pirepId) await completeNativePirepPostProcessing(pirepId);
   return { acceptedPositions: body.positions?.length ?? 0, acceptedEvents: body.events?.length ?? 0, completed: Boolean(body.completed), pirepId };

@@ -1,0 +1,122 @@
+.queue {
+  display: grid;
+  gap: 16px;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  background: #172438;
+  color: white;
+}
+
+.summary div {
+  display: grid;
+  gap: 8px;
+  padding: 4px 14px;
+  border-right: 1px solid rgba(255,255,255,.13);
+}
+
+.summary div:last-child { border-right: 0; }
+.summary span { color: #c5d0df; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+.summary strong { font-size: 24px; }
+
+.toolbar {
+  display: grid;
+  gap: 14px;
+}
+
+.archiveButton {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid #b42318;
+  border-radius: 8px;
+  background: #fff;
+  color: #b42318;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  cursor: pointer;
+}
+
+.archiveButton:hover:not(:disabled) {
+  background: #fff2f0;
+}
+
+.archiveButton:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.table input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #d71920;
+}
+
+.ready td:first-child { border-left: 4px solid #149669; }
+.warning td:first-child { border-left: 4px solid #e4a400; }
+.blocked td:first-child { border-left: 4px solid #d71920; }
+
+.issues {
+  margin-top: 7px;
+  max-width: 430px;
+  white-space: normal;
+}
+
+.issues summary {
+  cursor: pointer;
+  color: #566174;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.issues ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #566174;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.rowActions {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.rowActions button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #b42318;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.rowActions button:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.rowActions button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+@media (max-width: 1000px) {
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .summary div { border-right: 0; }
+}
+
+@media (max-width: 680px) {
+  .summary { grid-template-columns: 1fr 1fr; }
+  .summary strong { font-size: 20px; }
+  .toolbar :global(.button-row) { align-items: stretch; }
+  .toolbar :global(.button),
+  .archiveButton { width: 100%; justify-content: center; }
+}

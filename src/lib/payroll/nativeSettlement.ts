@@ -23,6 +23,15 @@ export async function ensureNativePayrollSettlement(pirepId: string): Promise<Na
       return { status: "skipped", reason: "PIREP is not an accepted native ACARS report." };
     }
 
+    const effectiveNetwork = pirep.network?.trim().toUpperCase() || "OFFLINE";
+    const effectivePassengers = pirep.passengers ?? 0;
+    if (pirep.network !== effectiveNetwork || pirep.passengers !== effectivePassengers) {
+      await tx.pirep.update({
+        where: { id: pirep.id },
+        data: { network: effectiveNetwork, passengers: effectivePassengers },
+      });
+    }
+
     let payroll = pirep.payrollRecord;
     let created = false;
     if (!payroll) {
@@ -31,13 +40,13 @@ export async function ensureNativePayrollSettlement(pirepId: string): Promise<Na
         orderBy: [{ effectiveFrom: "desc" }, { version: "desc" }],
       });
       if (!rule) return { status: "skipped", reason: "No active payroll rule." };
-      if (!pirep.aircraftType || pirep.flightTimeMinutes === null || !pirep.network || pirep.landingRate === null || pirep.score === null || !pirep.flownAt) {
+      if (!pirep.aircraftType || pirep.flightTimeMinutes === null || pirep.landingRate === null || pirep.score === null || !pirep.flownAt) {
         return { status: "skipped", reason: "PIREP is missing required payroll fields." };
       }
       const calculation = calculatePayroll({
         aircraftType: pirep.aircraftType,
         flightTimeMinutes: pirep.flightTimeMinutes,
-        network: pirep.network,
+        network: effectiveNetwork,
         landingRate: pirep.landingRate,
         score: pirep.score,
         status: pirep.status,
@@ -84,7 +93,7 @@ export async function ensureNativePayrollSettlement(pirepId: string): Promise<Na
           entityType: "PayrollRecord",
           entityId: payroll.id,
           message: `Native ACARS payroll settled for ${pirep.flightNumber ?? pirep.id}.`,
-          metadata: { pirepId: pirep.id, pilotId: pirep.pilotId, amountCents: payroll.amountCents, walletTransactionId: wallet.id } as Prisma.InputJsonValue,
+          metadata: { pirepId: pirep.id, pilotId: pirep.pilotId, amountCents: payroll.amountCents, walletTransactionId: wallet.id, network: effectiveNetwork } as Prisma.InputJsonValue,
         },
       });
     }

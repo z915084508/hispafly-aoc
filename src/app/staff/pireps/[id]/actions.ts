@@ -1,17 +1,22 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { greatCircleDistanceNm, nativePirepScore, telemetrySummary } from "@/lib/acars/completion";
 import { generateCompanyExpensesForPirep } from "@/lib/economy/companyExpenses";
 import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
+import { createOrUpdateFlightAnalysis } from "@/lib/flight-analysis/service";
+import { ensureNativePayrollSettlement } from "@/lib/payroll/nativeSettlement";
 import { prisma } from "@/lib/prisma";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
 import { requireStaffPermission } from "@/lib/staff/authorization";
 
 function finish(id: string, type: "success" | "error", message: string): never {
   revalidatePath(`/staff/pireps/${id}`);
+  revalidatePath(`/pilot/pireps/${id}`);
   revalidatePath("/staff/pireps");
+  revalidatePath("/pilot/dashboard");
   revalidatePath("/staff/expenses");
   redirect(`/staff/pireps/${id}?${type}=${encodeURIComponent(message)}`);
 }
@@ -23,6 +28,9 @@ async function authorize(id: string, action: string) {
     attemptedAction: action,
   });
 }
+
+const jsonRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
 export async function refreshVamsysPirepDetail(id: string) {
   await authorize(id, "attempt disabled historical PIREP refresh");
@@ -43,7 +51,10 @@ export async function reprocessPirepEconomy(id: string) {
     const nativeDispatch = pirep.acarsSession
       ? await prisma.flightDispatch.findUnique({
         where: { id: pirep.acarsSession.dispatchId },
-        include: { flight: { include: { departureAirport: true, arrivalAirport: true } } },
+        include: {
+          booking: true,
+          flight: { include: { departureAirport: true, arrivalAirport: true } },
+        },
       })
       : null;
     const nativeFlight = nativeDispatch?.flight;
@@ -52,9 +63,16 @@ export async function reprocessPirepEconomy(id: string) {
       : null);
     const score = pirep.score ?? (pirep.dataOrigin === "HISPAFLY_NATIVE" ? nativePirepScore(pirep.landingRate) : null);
     const points = pirep.points ?? score;
+    const passengers = pirep.passengers ?? nativeDispatch?.booking?.passengers ?? 0;
+    const network = pirep.network?.trim().toUpperCase()
+      || nativeDispatch?.booking?.network?.trim().toUpperCase()
+      || "OFFLINE";
 
     let fuelUsedKg = pirep.fuelUsed;
-    if (pirep.acarsSessionId && (fuelUsedKg == null || fuelUsedKg <= 0)) {
+    let fuelDataComplete: boolean | null = null;
+    let fuelDataSource: string | null = null;
+    let telemetry: ReturnType<typeof telemetrySummary> | null = null;
+    if (pirep.acarsSessionId) {
       const [positions, events] = await Promise.all([
         prisma.acarsPosition.findMany({
           where: { sessionId: pirep.acarsSessionId },
@@ -67,22 +85,64 @@ export async function reprocessPirepEconomy(id: string) {
           select: { type: true, numericValue: true },
         }),
       ]);
-      fuelUsedKg = telemetrySummary(positions, events).fuelUsedKg;
+      telemetry = telemetrySummary(positions, events);
+      fuelUsedKg = telemetry.fuelUsedKg;
+      fuelDataComplete = telemetry.fuelDataComplete;
+      fuelDataSource = telemetry.fuelDataComplete ? "FULL_POSITION_COVERAGE" : "INCOMPLETE_POSITION_COVERAGE";
     }
 
-    const passengerRevenueCents = pirep.passengers !== null && flightDistanceNm !== null
-      ? calculatePassengerRevenue(pirep.passengers, flightDistanceNm).revenueCents
+    const passengerRevenueCents = flightDistanceNm !== null
+      ? calculatePassengerRevenue(passengers, flightDistanceNm).revenueCents
       : null;
     const fuel = await calculateFuelCostSnapshot({
       departure: pirep.departure,
       fuelUsedKg,
       at: pirep.flownAt ?? pirep.acceptedAt,
     });
+    const existingRaw = jsonRecord(pirep.rawData);
+    const existingSummary = jsonRecord(existingRaw.summary);
+    const repairedRawData = {
+      ...existingRaw,
+      contractVersion: "1.1-reprocessed",
+      summary: {
+        ...existingSummary,
+        ...(telemetry ?? {}),
+        fuelUsedKg,
+        fuelDataComplete,
+        fuelDataSource,
+      },
+    } as Prisma.InputJsonValue;
+
     await prisma.pirep.update({
       where: { id },
-      data: { fuelUsed: fuelUsedKg, flightDistanceNm, score, points, passengerRevenueCents, ...fuel },
+      data: {
+        network,
+        passengers,
+        cargoKg: pirep.cargoKg ?? 0,
+        luggageKg: pirep.luggageKg ?? 0,
+        freightKg: pirep.freightKg ?? 0,
+        fuelUsed: fuelUsedKg,
+        flightDistanceNm,
+        score,
+        points,
+        passengerRevenueCents,
+        rawData: repairedRawData,
+        fuelCalculationDetails: {
+          method: fuelDataComplete === false ? "fuel_unavailable_incomplete_coverage" : "reprocessed_fuel_x_effective_price",
+          fuelUsedKg,
+          fuelDataComplete,
+          fuelDataSource,
+          ...fuel,
+        } as Prisma.InputJsonValue,
+        ...fuel,
+      },
     });
-    const expenses = await generateCompanyExpensesForPirep(id);
+
+    const [payroll, expenses, analysis] = await Promise.all([
+      ensureNativePayrollSettlement(id),
+      generateCompanyExpensesForPirep(id),
+      createOrUpdateFlightAnalysis(id),
+    ]);
     await prisma.aocAuditLog.create({
       data: {
         staffUserId: staff.id,
@@ -90,12 +150,12 @@ export async function reprocessPirepEconomy(id: string) {
         entityType: "Pirep",
         entityId: id,
         message: `${staff.name} reprocessed metrics and company economy for PIREP ${pirep.vamsysPirepId ?? pirep.id}.`,
-        metadata: { fuelUsedKg, flightDistanceNm, score, points, passengerRevenueCents, fuelCostCents: fuel.fuelCostCents, expensesGenerated: expenses.generated, expenseTotalCents: expenses.totalCents },
+        metadata: { network, passengers, fuelUsedKg, fuelDataComplete, fuelDataSource, flightDistanceNm, score, points, passengerRevenueCents, fuelCostCents: fuel.fuelCostCents, payroll, analysisId: analysis?.id ?? null, expensesGenerated: expenses.generated, expenseTotalCents: expenses.totalCents },
       },
     });
-    feedback = fuelUsedKg != null && fuelUsedKg > 0
-      ? { type: "success", message: "Métricas, combustible y economía recalculados con las reglas actuales." }
-      : { type: "error", message: "Las métricas se recalcularon, pero la telemetría no contiene lecturas válidas de combustible. Verifica que ACARS muestre combustible durante el próximo vuelo." };
+    feedback = fuelDataComplete === false
+      ? { type: "success", message: "Carga, red y nómina reparadas. La telemetría de combustible no cubre el vuelo completo, por lo que el combustible y su eficiencia se han excluido del informe." }
+      : { type: "success", message: "Métricas, combustible, nómina y economía recalculados con las reglas actuales." };
   } catch (error) {
     feedback = { type: "error", message: error instanceof Error ? error.message : "No se pudo reprocesar el PIREP." };
   }

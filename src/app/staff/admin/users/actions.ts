@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireStaffPermission } from "@/lib/staff/authorization";
 import { createStaff, setOverride, updateStaffProfile } from "@/lib/staff/admin/service";
-import { generateTemporaryPassword, hashStaffPassword } from "@/lib/staff/auth/password";
-import { setTemporaryStaffPassword } from "@/lib/staff/auth/credentials";
+import { generateTemporaryPassword, hashStaffPassword, verifyStaffPassword } from "@/lib/staff/auth/password";
+import { getStaffCredential, setTemporaryStaffPassword } from "@/lib/staff/auth/credentials";
 import { createStaffSession, getStaffRequestContext, revokeAllStaffSessions } from "@/lib/staff/auth/session";
 
 const text = (formData: FormData, key: string) => String(formData.get(key) ?? "").trim();
@@ -82,7 +82,17 @@ export async function generateTemporaryPasswordAction(
     if (target.isSystemOwner && !actor.isSystemOwner) throw new Error("Only the system owner may reset OWNER credentials.");
 
     const password = generateTemporaryPassword();
-    await setTemporaryStaffPassword(id, await hashStaffPassword(password), actor.id !== id);
+    const passwordHash = await hashStaffPassword(password);
+    if (!(await verifyStaffPassword(password, passwordHash))) {
+      throw new Error("The generated temporary password could not be verified.");
+    }
+
+    await setTemporaryStaffPassword(id, passwordHash, actor.id !== id);
+    const persistedCredential = await getStaffCredential(id);
+    if (!persistedCredential?.passwordHash || !(await verifyStaffPassword(password, persistedCredential.passwordHash))) {
+      throw new Error("The temporary password was not stored correctly. Please try again.");
+    }
+
     await revokeAllStaffSessions(id, "temporary_password_created");
     if (actor.id === id) {
       const context = await getStaffRequestContext();
@@ -95,10 +105,10 @@ export async function generateTemporaryPasswordAction(
         entityType: "StaffUser",
         entityId: id,
         message: `A temporary password was created for ${target.name}.`,
-        metadata: { targetStaffCode: target.staffCode, reason },
+        metadata: { targetStaffCode: target.staffCode, targetEmail: target.email, reason, persistenceVerified: true },
       },
     });
-    return { status: "success", message: "Temporary password created. It will only be shown once.", password };
+    return { status: "success", message: "Temporary password created and verified. It will only be shown once.", password };
   } catch (error) {
     return { status: "error", message: error instanceof Error ? error.message : "Unable to create a temporary password." };
   }

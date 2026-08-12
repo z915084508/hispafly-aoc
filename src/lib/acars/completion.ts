@@ -14,6 +14,9 @@ export type AirportCoordinates = {
   longitude: number | null;
 };
 
+const minutesBetween = (start?: Date, end?: Date) =>
+  start && end ? Math.max(0, (end.getTime() - start.getTime()) / 60_000) : null;
+
 export function telemetrySummary(positions: CompletionPosition[], events: CompletionEvent[]) {
   const ordered = [...positions].sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
   const airborne = ordered.filter((item) => item.onGround === false);
@@ -23,22 +26,52 @@ export function telemetrySummary(positions: CompletionPosition[], events: Comple
   const flightEnd = airborne.at(-1)?.recordedAt ?? blockEnd;
 
   // Some FSUIPC aircraft briefly report zero fuel while their custom systems
-  // initialise or disconnect. Treat those samples as unavailable rather than
-  // as a genuine empty-tank reading, otherwise an otherwise valid flight is
-  // finalized with 0 kg fuel burn.
-  const validFuelSamples = ordered.filter((item) => item.fuelKg != null && Number.isFinite(item.fuelKg) && item.fuelKg > 0);
-  const firstFuel = validFuelSamples.at(0)?.fuelKg ?? null;
-  const lastFuel = validFuelSamples.at(-1)?.fuelKg ?? null;
-  const fuelUsedKg = firstFuel != null && lastFuel != null && firstFuel >= lastFuel
+  // initialise or disconnect. Zero/invalid samples are unavailable, not an
+  // empty tank. Fuel burn is trusted only when valid samples cover essentially
+  // the complete recorded block period; a mid-flight fragment must not be used
+  // for economics or efficiency scoring.
+  const validFuelSamples = ordered.filter(
+    (item) => item.fuelKg != null && Number.isFinite(item.fuelKg) && item.fuelKg > 0,
+  );
+  const firstFuelSample = validFuelSamples.at(0);
+  const lastFuelSample = validFuelSamples.at(-1);
+  const firstFuel = firstFuelSample?.fuelKg ?? null;
+  const lastFuel = lastFuelSample?.fuelKg ?? null;
+  const observedFuelUsedKg = firstFuel != null && lastFuel != null && firstFuel >= lastFuel
     ? Math.round(firstFuel - lastFuel)
     : null;
 
-  const landing = [...events].reverse().find((item) => /LANDING|TOUCHDOWN/i.test(item.type) && item.numericValue != null);
-  const minutes = (start?: Date, end?: Date) => start && end ? Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000)) : null;
+  const blockCoverageMinutes = minutesBetween(blockStart, blockEnd);
+  const fuelCoverageMinutes = minutesBetween(firstFuelSample?.recordedAt, lastFuelSample?.recordedAt);
+  const firstSampleDelayMinutes = minutesBetween(blockStart, firstFuelSample?.recordedAt);
+  const lastSampleGapMinutes = minutesBetween(lastFuelSample?.recordedAt, blockEnd);
+  const fuelCoveragePercent = blockCoverageMinutes != null && blockCoverageMinutes > 0 && fuelCoverageMinutes != null
+    ? Math.round(Math.min(100, (fuelCoverageMinutes / blockCoverageMinutes) * 1000)) / 10
+    : null;
+  const fuelDataComplete = observedFuelUsedKg != null
+    && validFuelSamples.length >= 2
+    && (firstSampleDelayMinutes ?? Number.POSITIVE_INFINITY) <= 2
+    && (lastSampleGapMinutes ?? Number.POSITIVE_INFINITY) <= 2
+    && (fuelCoveragePercent ?? 0) >= 90;
+
+  const landing = [...events].reverse().find(
+    (item) => /LANDING|TOUCHDOWN/i.test(item.type) && item.numericValue != null,
+  );
+  const roundedMinutes = (start?: Date, end?: Date) => {
+    const value = minutesBetween(start, end);
+    return value == null ? null : Math.round(value);
+  };
+
   return {
-    blockTimeMinutes: minutes(blockStart, blockEnd),
-    flightTimeMinutes: minutes(flightStart, flightEnd),
-    fuelUsedKg,
+    blockTimeMinutes: roundedMinutes(blockStart, blockEnd),
+    flightTimeMinutes: roundedMinutes(flightStart, flightEnd),
+    fuelUsedKg: fuelDataComplete ? observedFuelUsedKg : null,
+    observedFuelUsedKg,
+    fuelDataComplete,
+    fuelSampleCount: validFuelSamples.length,
+    fuelCoveragePercent,
+    firstFuelKg: firstFuel,
+    lastFuelKg: lastFuel,
     landingRate: landing?.numericValue == null ? null : Math.round(landing.numericValue),
   };
 }
@@ -62,6 +95,12 @@ export function nativePirepScore(landingRate: number | null): number {
 
 export function validateTelemetryBatch(body: {
   currentPhase: unknown;
+  completion?: {
+    initialFuelKg?: number | null;
+    finalFuelKg?: number | null;
+    fuelUsedKg?: number | null;
+    landingRateFeetPerMinute?: number | null;
+  } | null;
   positions?: Array<{ sequenceNumber: number; recordedAt: string; latitude?: number | null; longitude?: number | null; headingDegrees?: number | null; fuelKg?: number | null }>;
   events?: Array<{ sequenceNumber: number; recordedAt: string }>;
 }) {
@@ -76,5 +115,14 @@ export function validateTelemetryBatch(body: {
     if (item.longitude != null && (item.longitude < -180 || item.longitude > 180)) throw new Error("Invalid telemetry longitude.");
     if (item.headingDegrees != null && (item.headingDegrees < 0 || item.headingDegrees >= 360)) throw new Error("Invalid telemetry heading.");
     if (item.fuelKg != null && item.fuelKg < 0) throw new Error("Invalid telemetry fuel quantity.");
+  }
+  if (body.completion) {
+    for (const value of [body.completion.initialFuelKg, body.completion.finalFuelKg, body.completion.fuelUsedKg]) {
+      if (value != null && (!Number.isFinite(value) || value < 0)) throw new Error("Invalid ACARS completion fuel quantity.");
+    }
+    const landingRate = body.completion.landingRateFeetPerMinute;
+    if (landingRate != null && (!Number.isFinite(landingRate) || Math.abs(landingRate) > 10_000)) {
+      throw new Error("Invalid ACARS completion landing rate.");
+    }
   }
 }

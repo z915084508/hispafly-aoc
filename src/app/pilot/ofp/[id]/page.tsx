@@ -67,7 +67,7 @@ export default async function PilotOfpPage({ params, searchParams }: { params: P
         <div><span>Alternate</span><strong>{show(summary.alternate)}</strong></div>
         <div><span>Block time</span><strong>{show(summary.blockTime)}</strong></div>
         <div><span>Air time</span><strong>{show(summary.airTime)}</strong></div>
-        <div><span>Pax</span><strong>{show(offer.passengers)}</strong></div>
+        <div><span>Pax</span><strong>{show(summary.passengers ?? offer.passengers)}</strong></div>
         <div><span>Cargo</span><strong>{show(offer.freightKg ?? offer.cargoKg ?? 0, " kg")}</strong></div>
         <div><span>ZFW</span><strong>{show(summary.zfw, " kg")}</strong></div>
         <div><span>TOW</span><strong>{show(summary.tow, " kg")}</strong></div>

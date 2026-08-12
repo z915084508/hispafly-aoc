@@ -1,5 +1,5 @@
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
-import { requirePilotSession } from "@/lib/pilot/session";
+import { requireAcarsTestAccess } from "@/lib/acars/access";
 import { formatReleaseSize, getLatestAcarsRelease } from "@/lib/software/acars-release";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ function releaseHighlights(body: string | null) {
 }
 
 export default async function PilotDownloadsPage() {
-  await requirePilotSession();
+  await requireAcarsTestAccess();
   const release = await getLatestAcarsRelease();
   const highlights = releaseHighlights(release?.notes ?? null);
 
