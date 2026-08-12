@@ -10,6 +10,7 @@ export async function cancelPilotBookingAction(formData: FormData) {
   try {
     await cancelNativeBooking(bookingId, pilot.id, String(formData.get("reason") ?? "") || "Cancelled by pilot");
     revalidatePath("/pilot/bookings");
+    revalidatePath("/pilot/flight-offers/self-dispatch");
     redirect(`/pilot/bookings/${bookingId}?success=Booking+cancelled`);
   } catch (error) {
     if (error && typeof error === "object" && "digest" in error) throw error;

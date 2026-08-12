@@ -1,4 +1,4 @@
-import { AocDataOrigin, NativeFlightStatus, PilotBookingStatus, Prisma } from "@prisma/client";
+import { AocDataOrigin, FlightDispatchStatus, NativeFlightStatus, PilotBookingStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { assertNativeIds, assertNativeOrigin } from "@/lib/native-cutover/write-gate";
@@ -208,13 +208,24 @@ export const createNativeBooking = claimScheduledFlight;
 export async function cancelNativeBooking(bookingId: string, pilotId: string, reason: string) {
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pilot-booking-cancel:${bookingId}`}))`;
-    const booking = await tx.pilotBooking.findFirst({ where: { id: bookingId, pilotId }, include: { dispatch: true, flight: true } });
+    const booking = await tx.pilotBooking.findFirst({ where: { id: bookingId, pilotId }, include: { dispatch: { include: { ofpBriefing: true } }, flight: true } });
     if (!booking) throw new Error("Booking does not exist.");
     if (booking.dataOrigin === AocDataOrigin.VAMSYS_LEGACY) throw new Error("Legacy bookings are read-only.");
-    const cancellable = new Set<PilotBookingStatus>([PilotBookingStatus.PENDING, PilotBookingStatus.CONFIRMED, PilotBookingStatus.BOOKED]);
-    if (!cancellable.has(booking.status) || booking.dispatch) throw new Error("Booking can no longer be cancelled directly.");
+    const cancellable = new Set<PilotBookingStatus>([PilotBookingStatus.PENDING, PilotBookingStatus.CONFIRMED, PilotBookingStatus.BOOKED, PilotBookingStatus.DISPATCH_PENDING, PilotBookingStatus.DISPATCHED]);
+    if (!cancellable.has(booking.status)) throw new Error("Booking can no longer be cancelled.");
     const now = new Date();
     if (booking.flight && booking.flight.scheduledDeparture <= now) throw new Error("A departed Flight cannot be cancelled here.");
+    if (booking.dispatch && new Set<FlightDispatchStatus>([FlightDispatchStatus.FLOWN, FlightDispatchStatus.REWARDED]).has(booking.dispatch.status)) throw new Error("An in-progress or completed Dispatch cannot be cancelled.");
+    if (booking.dispatch) {
+      const released = booking.dispatch.status === FlightDispatchStatus.RELEASED;
+      await tx.flightDispatch.update({ where: { id: booking.dispatch.id }, data: released ? { status: FlightDispatchStatus.VOIDED, voidedAt: now, voidReason: reason } : { status: FlightDispatchStatus.CANCELLED, cancelledAt: now, errorMessage: reason } });
+      if (booking.dispatch.ofpBriefing) await tx.dispatchRelease.updateMany({ where: { ofpBriefingId: booking.dispatch.ofpBriefing.id }, data: { status: released ? "VOIDED" : "CANCELLED" } });
+      if (booking.dispatch.flightOfferId) await tx.flightOffer.updateMany({ where: { id: booking.dispatch.flightOfferId }, data: { status: "CANCELLED" } });
+      if (booking.dispatch.aircraftId) {
+        await tx.aircraft.updateMany({ where: { id: booking.dispatch.aircraftId, operationalStatus: { in: ["RESERVED", "DISPATCHED"] } }, data: { operationalStatus: "AVAILABLE" } });
+        await tx.aircraftLocationSnapshot.updateMany({ where: { aircraftId: booking.dispatch.aircraftId, reservedByDispatchId: booking.dispatch.id }, data: { status: "AVAILABLE", reservedByDispatchId: null, lastReportAt: now } });
+      }
+    }
     const updated = await tx.pilotBooking.update({ where: { id: booking.id }, data: { status: PilotBookingStatus.CANCELLED, cancelledAt: now, cancellationReason: reason } });
     const terminal = new Set<NativeFlightStatus>([NativeFlightStatus.CANCELLED, NativeFlightStatus.COMPLETED]);
     if (booking.flight?.scheduleId && !terminal.has(booking.flight.status)) {
@@ -225,6 +236,7 @@ export async function cancelNativeBooking(bookingId: string, pilotId: string, re
       }
       await tx.aocAuditLog.create({ data: { action: "SCHEDULED_FLIGHT_BOOKING_CANCELLED", entityType: "PilotBooking", entityId: booking.id, message: "Pilot cancelled a scheduled Flight booking.", metadata: { pilotId, flightId: booking.flight.id, reason } } });
     } else {
+      if (booking.flight && !terminal.has(booking.flight.status)) await tx.flight.update({ where: { id: booking.flight.id }, data: { status: NativeFlightStatus.CANCELLED } });
       await tx.aocAuditLog.create({ data: { action: "PILOT_BOOKING_CANCELLED", entityType: "PilotBooking", entityId: booking.id, message: "Pilot cancelled a native booking.", metadata: { pilotId, reason } } });
     }
     return updated;

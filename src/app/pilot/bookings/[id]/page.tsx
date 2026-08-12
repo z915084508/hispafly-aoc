@@ -16,7 +16,7 @@ export default async function PilotBookingDetail({ params, searchParams }: { par
   const booking = await prisma.pilotBooking.findFirst({ where: { id, pilotId: pilot.id }, include: { flight: { include: { schedule: true } }, route: true, fleet: true, aircraft: { include: { currentAirport: true } }, dispatch: { include: { ofpBriefing: true } }, matchedPirep: true } });
   if (!booking) notFound();
   const eligibility = booking.flight ? await checkPilotEligibility(pilot.id, booking.flight) : null;
-  const cancellable = booking.dataOrigin !== "VAMSYS_LEGACY" && ["PENDING","CONFIRMED","BOOKED"].includes(booking.status) && !booking.dispatch;
+  const cancellable = booking.dataOrigin !== "VAMSYS_LEGACY" && ["PENDING","CONFIRMED","BOOKED","DISPATCH_PENDING","DISPATCHED"].includes(booking.status) && booking.selectedDepartureAt > new Date() && !booking.matchedPirep && !["FLOWN","REWARDED"].includes(booking.dispatch?.status ?? "");
   const dateTime = (value: Date | null) => value ? `${formatDate(value, locale, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC` : "—";
   const progress = booking.matchedPirep ? 4 : booking.dispatch?.ofpBriefing ? 3 : booking.dispatch ? 2 : 1;
   return <PilotPortalShell><div className="booking-detail-back"><Link href="/pilot/bookings">← My bookings</Link></div><PageHeading eyebrow={booking.dataOrigin === "VAMSYS_LEGACY" ? "HISTORICAL RECORD" : "HISPAFLY AOC BOOKING"} title={`${booking.flightNumber ?? "Flight"} · ${booking.departureIcao} → ${booking.arrivalIcao}`} copy={booking.dataOrigin === "VAMSYS_LEGACY" ? "Imported read-only record. No operational action is required." : `Current status: ${booking.status.replaceAll("_", " ")}`}/>
