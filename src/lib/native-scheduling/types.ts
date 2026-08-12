@@ -44,6 +44,7 @@ export type SchedulingAircraft = {
   id: string; nativeFleetId: string | null; operationalStatus: string; operationMode?: "FREE" | "SCHEDULED" | "FLEX"; archivedAt: Date | null;
   conditionSnapshot: { operationalStatus: string; maintenanceStatus: string } | null;
   nativeFleet: SchedulingFleet | null;
+  hubs?: Array<{ airportId: string }>;
 };
 export type ExistingSchedule = {
   id: string; routeId: string; daysOfWeek: number[]; departureTimeMinutesUtc: number;

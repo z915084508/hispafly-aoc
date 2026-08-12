@@ -33,6 +33,9 @@ assert.ok(codes(proposed(), context({ aircraft: { ...context().aircraft!, native
 assert.ok(codes(proposed(), context({ aircraft: { ...context().aircraft!, nativeFleet: { ...context().aircraft!.nativeFleet!, operationalStatus: "DRAFT" } } })).includes("AIRCRAFT_FLEET_NOT_OPERATIONAL"));
 
 assert.equal(validateProposedScheduleWithContext(proposed(), context({ existingSchedules: [schedule()] })).valid, true, "non-overlap, turnaround and continuity should pass");
+assert.equal(validateProposedScheduleWithContext(proposed(), context({ aircraft: { ...context().aircraft!, hubs: [{ airportId: "airport-a" }] } })).valid, true, "aircraft assigned to the departure HUB should pass");
+assert.ok(codes(proposed(), context({ aircraft: { ...context().aircraft!, hubs: [{ airportId: "airport-z" }] } })).includes("AIRCRAFT_HUB_MISMATCH"));
+assert.equal(validateProposedScheduleWithContext(proposed(), context({ aircraft: { ...context().aircraft!, hubs: [] } })).valid, true, "aircraft without HUB assignments remain compatible for migration safety");
 assert.ok(codes(proposed(), context({ existingSchedules: [schedule({ departureTimeMinutesUtc: 530 })] })).includes("AIRCRAFT_SCHEDULE_OVERLAP"));
 assert.ok(codes(proposed(), context({ existingSchedules: [schedule({ departureTimeMinutesUtc: 560 })] })).includes("INSUFFICIENT_TURNAROUND"));
 assert.equal(codes(proposed(), context({ existingSchedules: [schedule()] })).includes("AIRCRAFT_LOCATION_DISCONTINUITY"), false);

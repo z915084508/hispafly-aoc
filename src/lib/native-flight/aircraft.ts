@@ -9,6 +9,7 @@ const editable = Boolean;
 export type AircraftInput = {
   registration: string; aircraftType: string; fleetId: string; name?: string | null; serialNumber?: string | null;
   operationMode?: AircraftOperationMode;
+  hubAirportIds?: string[];
   selcal?: string | null; deliveryDate?: Date | null; inServiceDate?: Date | null; cabinConfiguration?: string | null;
   seatCapacity?: number | null; cargoCapacityKg?: number | null; internalNotes?: string | null; dataOrigin?: NativeOrigin;
 };
@@ -26,6 +27,7 @@ async function activeFleet(tx: Prisma.TransactionClient, id: string) {
 }
 export const findAircraftById = (id: string) => prisma.aircraft.findUnique({ where: { id }, include: {
   nativeFleet: true, currentAirport: true, locationSnapshot: true, conditionSnapshot: true,
+  hubs: { include: { airport: true }, orderBy: { airport: { icao: "asc" } } },
   maintenanceOrders: { orderBy: { createdAt: "desc" }, take: 10 },
   assignedFlights: { where: { status: { notIn: ["COMPLETED", "CANCELLED"] } }, orderBy: { scheduledDeparture: "asc" }, take: 10 },
   nativeBookings: { where: { status: "BOOKED" }, orderBy: { selectedDepartureAt: "asc" }, take: 10 },
@@ -48,23 +50,29 @@ export async function createNativeAircraft(input: AircraftInput, actor?: StaffId
   const data = aircraftData(input);
   return prisma.$transaction(async tx => {
     const fleet = await activeFleet(tx, input.fleetId);
+    const hubAirportIds = [...new Set(input.hubAirportIds ?? [])];
+    if (hubAirportIds.length !== await tx.airport.count({ where: { id: { in: hubAirportIds }, status: "ACTIVE", archivedAt: null } })) throw new Error("Every Aircraft HUB must be an active Airport.");
     if (await tx.aircraft.findFirst({ where: { registration: { equals: data.registration, mode: "insensitive" } } })) throw new Error("Aircraft registration already exists.");
-    const aircraft = await tx.aircraft.create({ data: { ...data, nativeFleetId: fleet.id, fleetName: fleet.name, operationalStatus: "UNKNOWN", status: "UNKNOWN", dataOrigin: input.dataOrigin ?? "HISPAFLY_NATIVE", syncStatus: "LOCAL_DRAFT" } });
+    const aircraft = await tx.aircraft.create({ data: { ...data, nativeFleetId: fleet.id, fleetName: fleet.name, operationalStatus: "UNKNOWN", status: "UNKNOWN", dataOrigin: input.dataOrigin ?? "HISPAFLY_NATIVE", syncStatus: "LOCAL_DRAFT", hubs: { create: hubAirportIds.map((airportId) => ({ airportId })) } } });
     await tx.aircraftLocationSnapshot.create({ data: { aircraftId: aircraft.id, vamsysAircraftId: `native:${aircraft.id}`, registration: aircraft.registration, aircraftType: aircraft.aircraftType, status: "UNKNOWN", source: "MANUAL" } });
-    if (actor) await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "AIRCRAFT_CREATED", entityType: "Aircraft", entityId: aircraft.id, message: `${actor.name} created Native aircraft ${aircraft.registration}.`, metadata: { fleetId: fleet.id } } });
+    if (actor) await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "AIRCRAFT_CREATED", entityType: "Aircraft", entityId: aircraft.id, message: `${actor.name} created Native aircraft ${aircraft.registration}.`, metadata: { fleetId: fleet.id, hubAirportIds } } });
     return aircraft;
   });
 }
 export async function updateNativeAircraft(id: string, input: AircraftInput, actor: StaffIdentity) {
   const data = aircraftData(input);
   return prisma.$transaction(async tx => {
-    const before = await tx.aircraft.findUnique({ where: { id } }); if (!before) throw new Error("Aircraft not found.");
+    const before = await tx.aircraft.findUnique({ where: { id }, include: { hubs: true } }); if (!before) throw new Error("Aircraft not found.");
     if (!editable(before.dataOrigin) || before.operationalStatus === "RETIRED") throw new Error("Retired aircraft are read-only.");
     const fleet = await activeFleet(tx, input.fleetId);
+    const hubAirportIds = [...new Set(input.hubAirportIds ?? [])];
+    if (hubAirportIds.length !== await tx.airport.count({ where: { id: { in: hubAirportIds }, status: "ACTIVE", archivedAt: null } })) throw new Error("Every Aircraft HUB must be an active Airport.");
     if (await tx.aircraft.findFirst({ where: { id: { not: id }, registration: { equals: data.registration, mode: "insensitive" } } })) throw new Error("Aircraft registration already exists.");
-    const aircraft = await tx.aircraft.update({ where: { id }, data: { ...data, nativeFleetId: fleet.id, fleetName: fleet.name } });
+    const aircraft = await tx.aircraft.update({ where: { id }, data: { ...data, nativeFleetId: fleet.id, fleetName: fleet.name, hubs: { deleteMany: {}, create: hubAirportIds.map((airportId) => ({ airportId })) } } });
     await tx.aircraftLocationSnapshot.updateMany({ where: { aircraftId: id }, data: { registration: aircraft.registration, aircraftType: aircraft.aircraftType } });
-    await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: before.operationMode !== aircraft.operationMode ? "AIRCRAFT_OPERATION_MODE_CHANGED" : before.nativeFleetId === fleet.id ? "AIRCRAFT_UPDATED" : "AIRCRAFT_FLEET_REASSIGNED", entityType: "Aircraft", entityId: id, message: `${actor.name} updated ${aircraft.registration}.`, metadata: { before: { registration: before.registration, fleetId: before.nativeFleetId, operationMode: before.operationMode }, after: { registration: aircraft.registration, fleetId: fleet.id, operationMode: aircraft.operationMode } } } });
+    const beforeHubIds = before.hubs.map(({ airportId }) => airportId).sort();
+    const hubsChanged = beforeHubIds.join(",") !== [...hubAirportIds].sort().join(",");
+    await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: hubsChanged ? "AIRCRAFT_HUBS_CHANGED" : before.operationMode !== aircraft.operationMode ? "AIRCRAFT_OPERATION_MODE_CHANGED" : before.nativeFleetId === fleet.id ? "AIRCRAFT_UPDATED" : "AIRCRAFT_FLEET_REASSIGNED", entityType: "Aircraft", entityId: id, message: `${actor.name} updated ${aircraft.registration}.`, metadata: { before: { registration: before.registration, fleetId: before.nativeFleetId, operationMode: before.operationMode, hubAirportIds: beforeHubIds }, after: { registration: aircraft.registration, fleetId: fleet.id, operationMode: aircraft.operationMode, hubAirportIds } } } });
     return aircraft;
   });
 }

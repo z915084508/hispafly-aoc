@@ -693,6 +693,7 @@ model Aircraft {
   locationSnapshot      AircraftLocationSnapshot?
   conditionSnapshot     AircraftConditionSnapshot?
   maintenanceOrders     AircraftMaintenanceOrder[]
+  hubs                  AircraftHub[]
   wearEvents            AircraftWearEvent[]
   createdAt             DateTime                    @default(now())
   updatedAt             DateTime                    @updatedAt
@@ -745,6 +746,7 @@ model Airport {
   scheduledDepartures Flight[]                   @relation("FlightDepartureAirport")
   scheduledArrivals   Flight[]                   @relation("FlightArrivalAirport")
   currentAircraft     Aircraft[]
+  hubAircraft         AircraftHub[]
   locationSnapshots   AircraftLocationSnapshot[]
   currentPilots       Pilot[]                    @relation("PilotCurrentAirport")
   jumpseatDepartures  PilotJumpseat[]            @relation("JumpseatDepartureAirport")
@@ -756,6 +758,17 @@ model Airport {
   @@index([region])
   @@index([dataOrigin])
   @@index([status])
+}
+
+model AircraftHub {
+  aircraftId String
+  airportId  String
+  aircraft   Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
+  airport    Airport  @relation(fields: [airportId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([aircraftId, airportId])
+  @@index([airportId])
 }
 
 model Route {

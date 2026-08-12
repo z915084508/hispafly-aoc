@@ -21,7 +21,7 @@ export const getFlightSchedule = (id: string) => prisma.flightSchedule.findUniqu
 export const listScheduleFormOptions = () => Promise.all([
   prisma.route.findMany({ include: { departureAirport: true, arrivalAirport: true, defaultFleet: true, fleetAssignments: { include: { fleet: true } }, fleetCompatibility: true }, orderBy: [{ flightNumber: "asc" }, { routeCode: "asc" }] }),
   prisma.fleet.findMany({ where: { archivedAt: null }, orderBy: { code: "asc" } }),
-  prisma.aircraft.findMany({ where: { archivedAt: null, operationMode: { in: ["SCHEDULED", "FLEX"] } }, include: { currentAirport: true, conditionSnapshot: true }, orderBy: { registration: "asc" } }),
+  prisma.aircraft.findMany({ where: { archivedAt: null, operationMode: { in: ["SCHEDULED", "FLEX"] }, operationalStatus: { notIn: ["MAINTENANCE", "FERRY_ONLY", "AOG", "SUSPENDED", "RETIRED"] } }, include: { currentAirport: true, conditionSnapshot: true, hubs: { include: { airport: true } } }, orderBy: { registration: "asc" } }),
 ]);
 
 export async function listAirportScheduleCoverage(airportId?: string) {
