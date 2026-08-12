@@ -7,7 +7,7 @@ const BUILT_IN_TESTER_EMAILS = new Set([
 
 type AcarsAccessUser = {
   email?: string | null;
-  pilot?: unknown;
+  pilot?: { acarsBetaAccess?: boolean | null } | null;
   roles?: Array<{ role?: { code?: string | null } | null }>;
 };
 
@@ -23,6 +23,7 @@ function configuredTesterEmails() {
 }
 
 export function hasAcarsTestAccess(user: AcarsAccessUser | null | undefined) {
+  if (user?.pilot?.acarsBetaAccess) return true;
   const email = normalizeEmail(user?.email);
   if (!email) return false;
 

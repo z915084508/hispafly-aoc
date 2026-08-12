@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { currentAuthUser } from "@/lib/auth/session";
 import { hasAcarsTestAccess } from "@/lib/acars/access";
 import { getAcarsAssignment } from "@/lib/native-flight/dispatch";
-
 export const dynamic = "force-dynamic";
 
 export async function GET() {

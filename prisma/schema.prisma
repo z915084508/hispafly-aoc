@@ -401,6 +401,7 @@ model Pilot {
   rank                       String?
   base                       String?
   status                     PilotStatus                 @default(active)
+  acarsBetaAccess            Boolean                     @default(false)
   walletBalanceCents         Int                         @default(0)
   currentAirportId           String?
   currentAirport             Airport?                    @relation("PilotCurrentAirport", fields: [currentAirportId], references: [id], onDelete: SetNull)

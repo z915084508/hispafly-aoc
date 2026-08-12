@@ -1,0 +1,1 @@
+ALTER TABLE "Pilot" ADD COLUMN "acarsBetaAccess" BOOLEAN NOT NULL DEFAULT false;

@@ -91,6 +91,7 @@
                      "area":  "Workspace",
                      "dashboard":  "Dashboard",
                      "pilots":  "Pilots",
+                     "acarsAccess": "ACARS Access",
                      "pireps":  "PIREPs",
                      "offers":  "Flight offers",
                      "bookings": "Bookings",
