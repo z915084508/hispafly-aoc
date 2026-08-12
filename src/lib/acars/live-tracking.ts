@@ -44,9 +44,9 @@ export async function getLiveFlights() {
   });
 }
 
-export async function getFlightTrack(sessionId: string) {
+export async function getFlightTrack(sessionId: string, pilotId?: string) {
   return prisma.acarsPosition.findMany({
-    where: { sessionId },
+    where: { sessionId, ...(pilotId ? { session: { pilotId } } : {}) },
     select: { sequenceNumber: true, recordedAt: true, latitude: true, longitude: true, altitudeFeet: true, groundSpeedKnots: true, phase: true },
     orderBy: { sequenceNumber: "asc" },
     take: 2000,

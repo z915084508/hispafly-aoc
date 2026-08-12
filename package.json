@@ -45,6 +45,7 @@
     "test:native-cutover": "node --experimental-strip-types src/lib/native-cutover/classification.test.ts && node --experimental-strip-types src/lib/native-cutover/write-gate.test.ts",
     "test:security": "node --experimental-strip-types src/lib/security/secretBox.test.ts",
     "test:identity": "node --experimental-strip-types src/lib/auth/password.test.ts",
+    "test:efb-cutover": "node --experimental-strip-types src/lib/efb-cutover/contract.test.ts",
     "test:live-tracking": "node --experimental-strip-types src/lib/acars/live-tracking.test.ts",
     "test:acars-completion": "node --experimental-strip-types src/lib/acars/completion.test.ts",
     "test:acars-access": "node --experimental-strip-types src/lib/acars/access.test.ts",
