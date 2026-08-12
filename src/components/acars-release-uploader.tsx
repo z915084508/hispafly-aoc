@@ -19,6 +19,7 @@ export function AcarsReleaseUploader() {
         const downloadUrl = String(form.get("downloadUrl") ?? "").trim();
         const notes = String(form.get("notes") ?? "").trim();
         const mandatory = form.get("mandatory") === "on";
+        const channel = form.get("channel") === "BETA" ? "BETA" : "STABLE";
 
         if (!/^\d+\.\d+\.\d+(?:[-.][0-9A-Za-z.-]+)?$/.test(version)) return setMessage("Use a version such as 1.0.0.");
         if (!downloadUrl.startsWith("https://") || !downloadUrl.toLowerCase().endsWith(".exe")) {
@@ -31,12 +32,12 @@ export function AcarsReleaseUploader() {
           const response = await fetch("/api/staff/software/acars/release", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ version, downloadUrl, notes, mandatory }),
+            body: JSON.stringify({ version, downloadUrl, notes, mandatory, channel }),
           });
           const result = await response.json() as { error?: string };
           if (!response.ok) throw new Error(result.error || "Release publication failed.");
           formElement.reset();
-          setMessage(`ACARS ${version} published successfully.`);
+          setMessage(`ACARS ${version} published to ${channel.toLowerCase()} successfully.`);
           router.refresh();
         } catch (error) {
           setMessage(error instanceof Error ? error.message : "Release publication failed.");
@@ -57,6 +58,13 @@ export function AcarsReleaseUploader() {
         <div className="field">
           <label htmlFor="acars-version">Version</label>
           <input id="acars-version" name="version" placeholder="1.0.0" required />
+        </div>
+        <div className="field">
+          <label htmlFor="acars-channel">Release channel</label>
+          <select id="acars-channel" name="channel" defaultValue="STABLE">
+            <option value="STABLE">Stable — all eligible pilots</option>
+            <option value="BETA">Beta / Early Access — BETA ACCESO only</option>
+          </select>
         </div>
         <div className="field">
           <label htmlFor="acars-download-url">Download URL</label>

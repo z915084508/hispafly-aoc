@@ -21,5 +21,7 @@ const assignmentRoute = readFileSync(
 assert.match(assignmentRoute, /passengers:\s*assignment\.passengers\s*\?\?\s*0/);
 assert.match(assignmentRoute, /cargoKg:\s*assignment\.cargoKg\s*\?\?\s*0/);
 assert.match(assignmentRoute, /assignment_unavailable/);
+assert.doesNotMatch(assignmentRoute, /hasAcars(?:Test|Beta)Access/);
+assert.doesNotMatch(assignmentRoute, /acars_beta_access_required/);
 
-console.log("Live tracking and ACARS assignment contract: 10 assertions passed.");
+console.log("Live tracking and ACARS assignment contract: 12 assertions passed.");

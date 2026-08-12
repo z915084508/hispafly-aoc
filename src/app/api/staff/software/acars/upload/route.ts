@@ -11,6 +11,7 @@ type UploadMetadata = {
   mandatory: boolean;
   fileSize: number;
   originalName: string;
+  channel?: "STABLE" | "BETA";
 };
 
 const VERSION_RE = /^\d+\.\d+\.\d+(?:[-.][0-9A-Za-z.-]+)?$/;
@@ -54,11 +55,12 @@ export async function POST(request: Request): Promise<NextResponse> {
           pathname: blob.pathname,
           publishedAt: new Date().toISOString(),
           publishedByStaffId: metadata.staffId,
+          channel: metadata.channel === "BETA" ? "BETA" : "STABLE",
         };
         const json = JSON.stringify(release, null, 2);
         await Promise.all([
           put(`software/acars/releases/${metadata.version}.json`, json, { access: "public", allowOverwrite: true, contentType: "application/json", cacheControlMaxAge: 60 }),
-          put("software/acars/latest.json", json, { access: "public", allowOverwrite: true, contentType: "application/json", cacheControlMaxAge: 60 }),
+          put(`software/acars/${release.channel.toLowerCase()}/latest.json`, json, { access: "public", allowOverwrite: true, contentType: "application/json", cacheControlMaxAge: 60 }),
         ]);
       },
     });
