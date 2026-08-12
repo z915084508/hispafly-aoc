@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   buildAirportBoardMovements,
   formatUtcMinutes,
@@ -51,4 +53,13 @@ const expired = buildAirportBoardMovements([
 ], "LEVC", monday);
 assert.equal(expired.length, 0);
 
-console.log("Airport Programacion board: 8 assertions passed.");
+const boardPage = readFileSync(fileURLToPath(new URL("../../app/staff/operations/airport-programacion/page.tsx", import.meta.url)), "utf8");
+const newPage = readFileSync(fileURLToPath(new URL("../../app/staff/operations/programacion/new/page.tsx", import.meta.url)), "utf8");
+const actions = readFileSync(fileURLToPath(new URL("../../app/staff/operations/programacion/actions.ts", import.meta.url)), "utf8");
+assert.match(boardPage, /PROGRAMAR ESTA RUTA/);
+assert.match(boardPage, /routeId=\$\{route\.id\}/);
+assert.match(newPage, /selectedRoute\?\.defaultFleetId/);
+assert.match(newPage, /airport-programacion/);
+assert.match(actions, /createdScheduleId/);
+
+console.log("Airport Programacion planning workflow: 13 assertions passed.");
