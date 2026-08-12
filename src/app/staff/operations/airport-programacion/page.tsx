@@ -6,7 +6,6 @@ import {
   buildAirportBoardMovements,
   formatUtcMinutes,
   parseAirportBoardDate,
-  timelinePositionPercent,
   type AirportBoardMovement,
 } from "@/lib/native-scheduling/airport-board";
 import { getTranslations } from "@/lib/i18n/server";
@@ -140,22 +139,7 @@ export default async function AirportProgramacionBoard({
       <SummaryCard label="Borradores" value={drafts} note="Estado DRAFT"/>
     </section>
 
-    <div className="airport-board-ruler" aria-label="Escala horaria UTC">
-      {[0, 3, 6, 9, 12, 15, 18, 21, 24].map((hour) => <span key={hour}>{String(hour).padStart(2, "0")}:00</span>)}
-    </div>
-
-    <div className="airport-board-columns">
-      <MovementColumn
-        title="Llegadas"
-        copy="Programaciones cuyo destino es el aeropuerto seleccionado"
-        movements={arrivals}
-      />
-      <MovementColumn
-        title="Salidas"
-        copy="Programaciones cuyo origen es el aeropuerto seleccionado"
-        movements={departures}
-      />
-    </div>
+    <div className="airport-board-columns"><AircraftOperationsTable title="Llegadas" direction="ARRIVAL" movements={arrivals}/><AircraftOperationsTable title="Salidas" direction="DEPARTURE" movements={departures}/></div>
 
     {query.saved && <div className="notice success">PROGRAMACIÓN guardada como borrador.{query.createdScheduleId && <> <Link href={`/staff/operations/programacion/${query.createdScheduleId}`}>Abrir detalle →</Link></>}</div>}
 
@@ -177,53 +161,21 @@ function SummaryCard({ label, value, note }: { label: string; value: number; not
   return <div className="airport-board-kpi"><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
 }
 
-function MovementColumn({
-  title,
-  copy,
-  movements,
-}: {
-  title: string;
-  copy: string;
-  movements: BoardMovement[];
-}) {
-  return <section className="airport-movement-column">
-    <header><div><h2>{title}</h2><p>{copy}</p></div><strong>{movements.length}</strong></header>
-    {!movements.length
-      ? <div className="airport-board-empty">No hay Programación para esta fecha y este filtro.</div>
-      : <div className="airport-movement-list">{movements.map((movement) => <MovementCard key={`${movement.direction}-${movement.schedule.id}`} movement={movement}/>)}</div>}
-  </section>;
+function AircraftOperationsTable({ title, direction, movements }: { title: string; direction: "ARRIVAL" | "DEPARTURE"; movements: BoardMovement[] }) {
+  const grouped = new Map<string, { registration: string; mode: string; fleet: string; movements: BoardMovement[] }>();
+  for (const movement of movements) {
+    const aircraft = movement.schedule.assignedAircraft;
+    const key = aircraft?.id ?? "unassigned";
+    const row = grouped.get(key) ?? { registration: aircraft?.registration ?? "SIN ASIGNAR", mode: aircraft?.operationMode ?? "—", fleet: movement.schedule.defaultFleet?.code ?? movement.schedule.defaultFleet?.name ?? "Libre", movements: [] };
+    row.movements.push(movement);
+    grouped.set(key, row);
+  }
+  const rows = [...grouped.values()].sort((left, right) => left.registration === "SIN ASIGNAR" ? 1 : right.registration === "SIN ASIGNAR" ? -1 : left.registration.localeCompare(right.registration));
+  const movementLabel = direction === "ARRIVAL" ? "Vuelos de llegada" : "Vuelos de salida";
+  return <section className="airport-movement-column"><header><div><h2>{title}</h2><p>Una fila por aeronave.</p></div><strong>{rows.length}</strong></header>{!rows.length ? <div className="airport-board-empty">No hay PROGRAMACIÓN para esta fecha y este filtro.</div> : <div className="table-wrap"><table><thead><tr><th>Aeronave</th><th>Modo</th><th>Flota</th><th>{movementLabel}</th><th>Estado</th></tr></thead><tbody>{rows.map((row) => <tr key={row.registration}><td><strong>{row.registration}</strong></td><td><span className="badge">{row.mode}</span></td><td>{row.fleet}</td><td><MovementList movements={row.movements}/></td><td>{row.movements.some((movement)=>movement.schedule.status === "DRAFT") ? <span className="airport-schedule-status draft">BORRADOR</span> : <span className="airport-schedule-status active">PUBLICADA</span>}</td></tr>)}</tbody></table></div>}</section>;
 }
 
-function MovementCard({ movement }: { movement: BoardMovement }) {
-  const { schedule } = movement;
-  const time = formatUtcMinutes(movement.timeMinutesUtc);
-  const position = timelinePositionPercent(movement.timeMinutesUtc);
-  const directionClass = movement.direction === "ARRIVAL" ? "arrival" : "departure";
-  const fleet = schedule.defaultFleet?.code ?? schedule.defaultFleet?.name ?? "Flota libre";
-  const aircraft = schedule.assignedAircraft?.registration ?? "Sin aeronave";
-
-  return <article className={`airport-movement-card ${directionClass}`}>
-    <div className="airport-movement-head">
-      <div className="airport-movement-time"><strong>{time}</strong><span>UTC</span></div>
-      <span className={`airport-schedule-status ${schedule.status.toLowerCase()}`}>{STATUS_LABELS[schedule.status] ?? schedule.status}</span>
-    </div>
-    <div className="airport-movement-flight">
-      <strong>{schedule.route.flightNumber ?? schedule.code}</strong>
-      <span>{schedule.route.callsign ?? schedule.code}</span>
-    </div>
-    <div className="airport-movement-route">
-      <strong>{schedule.route.departure}</strong><span>→</span><strong>{schedule.route.arrival}</strong>
-    </div>
-    <div className="airport-movement-meta">
-      <div><span>Programación</span><strong>{schedule.code}</strong></div>
-      <div><span>Flota</span><strong>{fleet}</strong></div>
-      <div><span>Aeronave</span><strong>{aircraft}</strong></div>
-    </div>
-    <div className="airport-time-progress" aria-label={`${time} UTC dentro del día`}>
-      <span className="airport-time-progress-fill" style={{ width: `${position}%` }}/>
-      <i className="airport-time-progress-marker" style={{ left: `${position}%` }}/>
-    </div>
-    <div className="airport-time-progress-scale"><span>00:00</span><strong>{time}</strong><span>24:00</span></div>
-    <div className="airport-movement-actions"><Link href={`/staff/operations/programacion/${schedule.id}`}>ABRIR PROGRAMACIÓN →</Link></div>
-  </article>;
+function MovementList({ movements }: { movements: BoardMovement[] }) {
+  if (!movements.length) return <span className="meta">—</span>;
+  return <div>{movements.map((movement) => <div key={`${movement.direction}-${movement.schedule.id}`}><Link href={`/staff/operations/programacion/${movement.schedule.id}`}><strong>{formatUtcMinutes(movement.timeMinutesUtc)}</strong> · {movement.schedule.route.flightNumber ?? movement.schedule.code} · {movement.schedule.route.departure} → {movement.schedule.route.arrival}</Link></div>)}</div>;
 }

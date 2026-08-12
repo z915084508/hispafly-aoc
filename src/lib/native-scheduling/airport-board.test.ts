@@ -57,9 +57,14 @@ const boardPage = readFileSync(fileURLToPath(new URL("../../app/staff/operations
 const newPage = readFileSync(fileURLToPath(new URL("../../app/staff/operations/programacion/new/page.tsx", import.meta.url)), "utf8");
 const actions = readFileSync(fileURLToPath(new URL("../../app/staff/operations/programacion/actions.ts", import.meta.url)), "utf8");
 assert.match(boardPage, /PROGRAMAR ESTA RUTA/);
+assert.match(boardPage, /AircraftOperationsTable/);
+assert.match(boardPage, /title="Llegadas" direction="ARRIVAL"/);
+assert.match(boardPage, /title="Salidas" direction="DEPARTURE"/);
+assert.match(boardPage, /Una fila por aeronave/);
+assert.match(boardPage, /SIN ASIGNAR/);
 assert.match(boardPage, /routeId=\$\{route\.id\}/);
 assert.match(newPage, /selectedRoute\?\.defaultFleetId/);
 assert.match(newPage, /airport-programacion/);
 assert.match(actions, /createdScheduleId/);
 
-console.log("Airport Programacion planning workflow: 13 assertions passed.");
+console.log("Airport Programacion planning workflow: 18 assertions passed.");
