@@ -36,7 +36,7 @@ export function RouteForm({ action, route, airports, fleets, submitLabel }: {
   const [departureAirportId, setDepartureAirportId] = useState(route?.departureAirportId ?? "");
   const [arrivalAirportId, setArrivalAirportId] = useState(route?.arrivalAirportId ?? "");
   const [defaultFleetId, setDefaultFleetId] = useState(route?.defaultFleetId ?? "");
-  const [createReturnRoute, setCreateReturnRoute] = useState(false);
+  const [createReturnRoute, setCreateReturnRoute] = useState(!editing);
   const [routeCode, setRouteCode] = useState(route?.routeCode ?? "");
   const [durationMinutes, setDurationMinutes] = useState(route?.scheduledDurationMinutes?.toString() ?? "");
   const [preview, setPreview] = useState<AutomationPreview | null>(null);
@@ -102,7 +102,7 @@ export function RouteForm({ action, route, airports, fleets, submitLabel }: {
 
     <fieldset>
       <legend><span>02</span>Airport pair</legend>
-      <p className="route-form-help">Country and coordinate data are used to classify the market and estimate block time.</p>
+      <p className="route-form-help">Una conexión se considera completa cuando existen ambos sentidos. Al crear la ida, recomendamos crear también la vuelta.</p>
       <div className="route-form-grid">
         <label>Departure airport<select name="departureAirportId" required value={departureAirportId} disabled={editing} onChange={(event) => { const next = event.target.value; setDepartureAirportId(next); refreshPreview({ departureAirportId: next }); }}><option value="">Select departure</option>{airports.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>{editing && <input type="hidden" name="departureAirportId" value={departureAirportId}/>}<small>{editing ? "Locked after identity allocation" : "Select the operating origin"}</small></label>
         <label>Arrival airport<select name="arrivalAirportId" required value={arrivalAirportId} disabled={editing} onChange={(event) => { const next = event.target.value; setArrivalAirportId(next); refreshPreview({ arrivalAirportId: next }); }}><option value="">Select arrival</option>{airports.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>{editing && <input type="hidden" name="arrivalAirportId" value={arrivalAirportId}/>}<small>{editing ? "Locked after identity allocation" : "Select the operating destination"}</small></label>
@@ -111,7 +111,7 @@ export function RouteForm({ action, route, airports, fleets, submitLabel }: {
       </div>
       {!editing && <label className={styles.returnToggle}>
         <input type="checkbox" name="createReturnRoute" value="yes" checked={createReturnRoute} onChange={(event) => { const next = event.target.checked; setCreateReturnRoute(next); refreshPreview({ createReturnRoute: next }); }}/>
-        <span><strong>Create return route at the same time</strong><small>The outbound receives an even number and the return receives the next odd number. Both are created in one transaction.</small></span>
+        <span><strong>Crear también la ruta de regreso (recomendado)</strong><small>La ida recibe un número par y la vuelta el siguiente impar. Ambas se crean juntas y forman una sola conexión de ida y vuelta.</small></span>
       </label>}
       {!editing && createReturnRoute && preview?.return && <div className={styles.returnPreview}>
         <div><span>Outbound</span><strong>{preview.outboundRouteCode}</strong><small>{preview.outbound.flightNumber} · {preview.outbound.callsign}</small></div>

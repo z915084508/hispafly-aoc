@@ -54,9 +54,12 @@ const expired = buildAirportBoardMovements([
 assert.equal(expired.length, 0);
 
 const boardPage = readFileSync(fileURLToPath(new URL("../../app/staff/operations/airport-programacion/page.tsx", import.meta.url)), "utf8");
+const routeCatalog = readFileSync(fileURLToPath(new URL("../../components/programacion/airport-route-catalog.tsx", import.meta.url)), "utf8");
 const newPage = readFileSync(fileURLToPath(new URL("../../app/staff/operations/programacion/new/page.tsx", import.meta.url)), "utf8");
 const actions = readFileSync(fileURLToPath(new URL("../../app/staff/operations/programacion/actions.ts", import.meta.url)), "utf8");
-assert.match(boardPage, /PROGRAMAR ESTA RUTA/);
+assert.match(routeCatalog, /PROGRAMAR ESTE TRAMO/);
+assert.match(routeCatalog, /groupRoutePairs/);
+assert.match(routeCatalog, /Falta configurar el tramo inverso/);
 assert.match(boardPage, /AircraftOperationsTable/);
 assert.match(boardPage, /title="Llegadas" direction="ARRIVAL"/);
 assert.match(boardPage, /title="Salidas" direction="DEPARTURE"/);

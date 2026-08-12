@@ -11,6 +11,7 @@ import {
 import { getTranslations } from "@/lib/i18n/server";
 import { getCurrentStaff } from "@/lib/staff/currentStaff";
 import { staffHasPermission } from "@/lib/staff/permissions";
+import { AirportRouteCatalog } from "@/components/programacion/airport-route-catalog";
 
 const scheduleInclude = {
   route: true,
@@ -144,13 +145,11 @@ export default async function AirportProgramacionBoard({
     {query.saved && <div className="notice success">PROGRAMACIÓN guardada como borrador.{query.createdScheduleId && <> <Link href={`/staff/operations/programacion/${query.createdScheduleId}`}>Abrir detalle →</Link></>}</div>}
 
     <section className="airport-movement-column">
-      <header><div><h2>Red de rutas de {selectedAirport?.icao ?? "aeropuerto"}</h2><p>Selecciona una ruta, define el horario y asigna primero la flota. La aeronave concreta sigue siendo opcional.</p></div><strong>{airportRoutes.length}</strong></header>
-      {!airportRoutes.length ? <div className="airport-board-empty">Este aeropuerto no tiene rutas operativas configuradas.</div> : <div className="airport-movement-list">{airportRoutes.map((route) => {
-        const direction = route.departureAirportId === selectedAirport?.id ? "SALIDA" : "LLEGADA";
+      <header><div><h2>Red de rutas de {selectedAirport?.icao ?? "aeropuerto"}</h2><p>Cada conexión de ida y vuelta se muestra como una sola ruta. Selecciona el tramo que quieres programar.</p></div><strong>{new Set(airportRoutes.map((route) => [route.departure, route.arrival].sort().join("-"))).size}</strong></header>
+      {!airportRoutes.length ? <div className="airport-board-empty">Este aeropuerto no tiene rutas operativas configuradas.</div> : <AirportRouteCatalog canCreate={canCreate} routes={airportRoutes.map((route) => {
         const returnTo = `/staff/operations/airport-programacion?airportId=${selectedAirport?.id}&date=${dateValue(selectedDate)}`;
-        const target = `/staff/operations/programacion/new?routeId=${route.id}&effectiveFrom=${dateValue(selectedDate)}&returnTo=${encodeURIComponent(returnTo)}`;
-        return <article className="airport-movement-card" key={route.id}><div className="airport-movement-head"><strong>{route.flightNumber ?? route.routeCode ?? "Sin número"}</strong><span className="airport-schedule-status active">{direction}</span></div><div className="airport-movement-route"><strong>{route.departure}</strong><span>→</span><strong>{route.arrival}</strong></div><div className="airport-movement-meta"><div><span>Flota propuesta</span><strong>{route.defaultFleet?.code ?? route.defaultFleet?.name ?? "Sin flota fija"}</strong></div><div><span>PROGRAMACIÓN actual</span><strong>{route.schedules.length || "NINGUNA"}</strong></div></div>{canCreate && <div className="airport-movement-actions"><Link className="button" href={target}>PROGRAMAR ESTA RUTA →</Link></div>}</article>;
-      })}</div>}
+        return { id: route.id, flightNumber: route.flightNumber, routeCode: route.routeCode, departure: route.departure, arrival: route.arrival, fleet: route.defaultFleet?.code ?? route.defaultFleet?.name ?? "Sin flota fija", scheduleCount: route.schedules.length, direction: route.departureAirportId === selectedAirport?.id ? "SALIDA" as const : "LLEGADA" as const, target: `/staff/operations/programacion/new?routeId=${route.id}&effectiveFrom=${dateValue(selectedDate)}&returnTo=${encodeURIComponent(returnTo)}` };
+      })}/>} {/* route catalog */}
     </section>
 
     <p className="airport-board-note">El tablero se construye exclusivamente con FlightSchedule y Route. No consulta posiciones ACARS, retrasos, puertas ni puestos de estacionamiento. Las llegadas posteriores a medianoche se asignan correctamente al día de llegada.</p>
