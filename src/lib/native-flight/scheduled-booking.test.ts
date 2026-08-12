@@ -21,5 +21,7 @@ assert.ok(detail.includes("La reserva no crea Dispatch ni OFP") && detail.includ
 assert.ok(board.includes("CREATE MY FLIGHT") && board.includes("/pilot/flight-offers/self-dispatch") && board.includes("loadPilotDepartures"));
 assert.ok(selfDispatchForm.includes("routes.filter((item) => item.departure === departure).map((item) => item.arrival)"), "Destination choices must be route-driven, not hidden by current aircraft availability.");
 assert.ok(selfDispatchPage.includes('operationMode: { in: ["FREE", "FLEX"] }'), "Self-dispatch must exclude SCHEDULED aircraft.");
+assert.ok(selfDispatchPage.includes("OCCUPIED_BOOKING_STATUSES") && selfDispatchPage.includes("nativeBookings: { none:"), "Booked flight identities must disappear from self-dispatch choices.");
+assert.ok(readFileSync(fileURLToPath(new URL("./self-dispatch.ts", import.meta.url)), "utf8").includes("self-dispatch-route:"), "Self-dispatch must serialize booking by route identity.");
 assert.ok(!source.includes("flightOffer.create") && !source.includes("ofpBriefing.create") && !source.includes("acarsSession.create"));
 console.log("Scheduled Flight atomic booking contracts passed (24 focused assertions).");

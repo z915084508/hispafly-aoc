@@ -11,11 +11,12 @@ import { PilotJumpseatForm } from "@/components/pilot-jumpseat-form";
 import { setInitialCrewPositionAction } from "./actions";
 
 export const dynamic = "force-dynamic";
+const OCCUPIED_BOOKING_STATUSES = ["PENDING", "CONFIRMED", "DISPATCH_PENDING", "DISPATCHED", "IN_PROGRESS", "BOOKED"] as const;
 export default async function NativeSelfDispatchPage({ searchParams }: { searchParams: Promise<{ error?: string; success?: string }> }) {
   const pilot = await requirePilotSession();
   const [query, position, routes, aircraft, airports] = await Promise.all([
     searchParams, resolvePilotPosition(pilot.id),
-    prisma.route.findMany({ where: { active: true, operationalStatus: "ACTIVE", archivedAt: null, departureAirportId: { not: null }, arrivalAirportId: { not: null }, scheduledDurationMinutes: { gt: 0 } }, include: { fleetAssignments: true }, orderBy: [{ departure: "asc" }, { arrival: "asc" }, { flightNumber: "asc" }] }),
+    prisma.route.findMany({ where: { active: true, operationalStatus: "ACTIVE", archivedAt: null, departureAirportId: { not: null }, arrivalAirportId: { not: null }, scheduledDurationMinutes: { gt: 0 }, nativeBookings: { none: { status: { in: [...OCCUPIED_BOOKING_STATUSES] } } } }, include: { fleetAssignments: true }, orderBy: [{ departure: "asc" }, { arrival: "asc" }, { flightNumber: "asc" }] }),
     prisma.aircraftLocationSnapshot.findMany({ where: { status: "AVAILABLE", currentAirportId: { not: null }, aircraftId: { not: null }, aircraft: { archivedAt: null, operationMode: { in: ["FREE", "FLEX"] }, nativeFleetId: { not: null }, nativeFleet: { operationalStatus: "ACTIVE" }, OR: [{ conditionSnapshot: null }, { conditionSnapshot: { operationalStatus: { notIn: ["AOG", "IN_MAINTENANCE"] }, maintenanceStatus: { notIn: ["REQUIRED", "IN_PROGRESS", "WAITING_MAINTENANCE"] } } }] } }, include: { currentAirport: true, aircraft: true }, orderBy: { registration: "asc" } }),
     prisma.airport.findMany({ where: { status: "ACTIVE", archivedAt: null, latitude: { not: null }, longitude: { not: null } }, orderBy: { icao: "asc" } }),
   ]);

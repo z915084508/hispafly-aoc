@@ -17,11 +17,14 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
   if (!["vatsim", "ivao", "poscon", "offline"].includes(input.network)) throw new Error("Select a supported flight network.");
   if ((input.userRoute?.length ?? 0) > 2_000) throw new Error("Operational route is too long.");
   return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`self-dispatch-route:${input.routeId}`}))`;
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`self-dispatch:${input.aircraftId}`}))`;
     const duplicate = await tx.pilotBooking.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
     if (duplicate) return duplicate;
     const route = await tx.route.findUnique({ where: { id: input.routeId }, include: { departureAirport: true, arrivalAirport: true, fleetAssignments: true, fleetCompatibility: true } });
     if (!route || !route.active || route.operationalStatus !== "ACTIVE" || route.archivedAt) throw new Error("The selected route is not operationally available.");
+    const occupiedRoute = await tx.pilotBooking.findFirst({ where: { routeId: route.id, status: { in: ACTIVE_BOOKING_STATUSES } }, select: { id: true } });
+    if (occupiedRoute) throw new Error(`${route.flightNumber ?? route.routeCode ?? "This flight"} has already been booked by another crew.`);
     assertNativeOrigin("Self-dispatch route", route.dataOrigin);
     assertNativeIds("Self-dispatch route", { routeId: route.id, departureAirportId: route.departureAirportId, arrivalAirportId: route.arrivalAirportId });
     if (!route.departureAirport || !route.arrivalAirport) throw new Error("The route airport identity is incomplete.");
