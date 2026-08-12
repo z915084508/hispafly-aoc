@@ -19,8 +19,8 @@ export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbr
   const [userRoute, setUserRoute] = useState("");
   const route = routes.find((item) => item.id === routeId) ?? null;
   const aircraftAtDeparture = useMemo(() => aircraft.filter((item) => item.airportIcao === departure), [aircraft, departure]);
-  const arrivalChoices = useMemo(() => [...new Set(routes.filter((item) => item.departure === departure && aircraftAtDeparture.some((plane) => !item.fleetIds.length || item.fleetIds.includes(plane.fleetId))).map((item) => item.arrival))].sort(), [aircraftAtDeparture, departure, routes]);
-  const routeChoices = routes.filter((item) => item.departure === departure && item.arrival === arrival && aircraftAtDeparture.some((plane) => !item.fleetIds.length || item.fleetIds.includes(plane.fleetId)));
+  const arrivalChoices = useMemo(() => [...new Set(routes.filter((item) => item.departure === departure).map((item) => item.arrival))].sort(), [departure, routes]);
+  const routeChoices = routes.filter((item) => item.departure === departure && item.arrival === arrival);
   const compatibleAircraft = route ? aircraftAtDeparture.filter((item) => !route.fleetIds.length || route.fleetIds.includes(item.fleetId)) : [];
   const selectedAircraft = aircraft.find((item) => item.id === aircraftId) ?? null;
   const passengers = selectedAircraft ? Math.max(1, Math.min(selectedAircraft.seatCapacity, Math.round(selectedAircraft.seatCapacity * loadFactor / 100))) : 0;
@@ -32,7 +32,7 @@ export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbr
     setRouteId(nextRoute?.id ?? ""); setAircraftId(""); setAltitude(nextRoute?.altitude ? String(nextRoute.altitude) : ""); setUserRoute(nextRoute?.userRoute ?? "");
   }
   function chooseArrival(value: string) {
-    setArrival(value); const matches = routes.filter((item) => item.departure === departure && item.arrival === value && aircraftAtDeparture.some((plane) => !item.fleetIds.length || item.fleetIds.includes(plane.fleetId))); applyRoute(matches.length === 1 ? matches[0] : null);
+    setArrival(value); const matches = routes.filter((item) => item.departure === departure && item.arrival === value); applyRoute(matches.length === 1 ? matches[0] : null);
   }
 
   return <form className="pilot-booking-form native-self-dispatch" action={createNativeSelfDispatchAction}>
