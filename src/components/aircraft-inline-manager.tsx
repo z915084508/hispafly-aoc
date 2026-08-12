@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { hubsAction, locationAction, statusAction } from "@/app/staff/aircraft/actions";
+import { isHispaFlyHub } from "@/lib/native-flight/hubs";
 
 type Airport = { id: string; icao: string; name: string | null };
 type BaseProps = { aircraftId: string; returnTo: string; canManage: boolean };
@@ -10,9 +11,10 @@ const Hidden = ({ aircraftId, returnTo }: Pick<BaseProps,"aircraftId"|"returnTo"
 
 export function InlineHubs({ aircraftId, returnTo, canManage, airports, hubs }: BaseProps & { airports: Airport[]; hubs: Array<{ airportId: string; airport: { icao: string } }> }) {
   const [editing, setEditing] = useState(false);
+  const hubAirports = airports.filter((airport) => isHispaFlyHub(airport.icao));
   const label = hubs.length ? hubs.map(({ airport }) => airport.icao).join(" · ") : "Unrestricted";
   if (!canManage || !editing) return <button className="aircraft-inline-value" type="button" disabled={!canManage} onClick={() => setEditing(true)}>{label}</button>;
-  return <form action={hubsAction} className="aircraft-inline-editor"><Hidden aircraftId={aircraftId} returnTo={returnTo}/><select name="hubAirportIds" multiple size={5} defaultValue={hubs.map(({ airportId }) => airportId)}>{airports.map((airport) => <option key={airport.id} value={airport.id}>{airport.icao} · {airport.name ?? "Unnamed"}</option>)}</select><div><button className="button">Save</button><button type="button" className="button secondary" onClick={() => setEditing(false)}>Cancel</button></div></form>;
+  return <form action={hubsAction} className="aircraft-inline-editor"><Hidden aircraftId={aircraftId} returnTo={returnTo}/><select name="hubAirportIds" multiple size={4} defaultValue={hubs.map(({ airportId }) => airportId)}>{hubAirports.map((airport) => <option key={airport.id} value={airport.id}>{airport.icao} · {airport.name ?? "Unnamed"}</option>)}</select><div><button className="button">Save</button><button type="button" className="button secondary" onClick={() => setEditing(false)}>Cancel</button></div></form>;
 }
 
 export function InlineLocation({ aircraftId, returnTo, canManage, airports, airportId, label, status }: BaseProps & { airports: Airport[]; airportId: string | null; label: string; status: string }) {

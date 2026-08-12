@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { StaffIdentity } from "@/lib/staff/currentStaff";
 import type { NativeOrigin } from "./airport";
 import { nonNegative, normalizeAircraftInput } from "./fleet-aircraft-rules";
+import { HISPAFLY_HUB_ICAOS } from "./hubs";
 const actorId = (actor: StaffIdentity) => actor.id === "development-staff" ? null : actor.id;
 // Provenance is migration metadata; internal Aircraft identity is operational.
 const editable = Boolean;
@@ -51,7 +52,7 @@ export async function createNativeAircraft(input: AircraftInput, actor?: StaffId
   return prisma.$transaction(async tx => {
     const fleet = await activeFleet(tx, input.fleetId);
     const hubAirportIds = [...new Set(input.hubAirportIds ?? [])];
-    if (hubAirportIds.length !== await tx.airport.count({ where: { id: { in: hubAirportIds }, status: "ACTIVE", archivedAt: null } })) throw new Error("Every Aircraft HUB must be an active Airport.");
+    if (hubAirportIds.length !== await tx.airport.count({ where: { id: { in: hubAirportIds }, icao: { in: [...HISPAFLY_HUB_ICAOS] }, status: "ACTIVE", archivedAt: null } })) throw new Error("Aircraft HUBS are limited to LEMD, LEVC, LEPA and LEBL.");
     if (await tx.aircraft.findFirst({ where: { registration: { equals: data.registration, mode: "insensitive" } } })) throw new Error("Aircraft registration already exists.");
     const aircraft = await tx.aircraft.create({ data: { ...data, nativeFleetId: fleet.id, fleetName: fleet.name, operationalStatus: "UNKNOWN", status: "UNKNOWN", dataOrigin: input.dataOrigin ?? "HISPAFLY_NATIVE", syncStatus: "LOCAL_DRAFT", hubs: { create: hubAirportIds.map((airportId) => ({ airportId })) } } });
     await tx.aircraftLocationSnapshot.create({ data: { aircraftId: aircraft.id, vamsysAircraftId: `native:${aircraft.id}`, registration: aircraft.registration, aircraftType: aircraft.aircraftType, status: "UNKNOWN", source: "MANUAL" } });
@@ -66,7 +67,7 @@ export async function updateNativeAircraft(id: string, input: AircraftInput, act
     if (!editable(before.dataOrigin) || before.operationalStatus === "RETIRED") throw new Error("Retired aircraft are read-only.");
     const fleet = await activeFleet(tx, input.fleetId);
     const hubAirportIds = [...new Set(input.hubAirportIds ?? [])];
-    if (hubAirportIds.length !== await tx.airport.count({ where: { id: { in: hubAirportIds }, status: "ACTIVE", archivedAt: null } })) throw new Error("Every Aircraft HUB must be an active Airport.");
+    if (hubAirportIds.length !== await tx.airport.count({ where: { id: { in: hubAirportIds }, icao: { in: [...HISPAFLY_HUB_ICAOS] }, status: "ACTIVE", archivedAt: null } })) throw new Error("Aircraft HUBS are limited to LEMD, LEVC, LEPA and LEBL.");
     if (await tx.aircraft.findFirst({ where: { id: { not: id }, registration: { equals: data.registration, mode: "insensitive" } } })) throw new Error("Aircraft registration already exists.");
     const aircraft = await tx.aircraft.update({ where: { id }, data: { ...data, nativeFleetId: fleet.id, fleetName: fleet.name, hubs: { deleteMany: {}, create: hubAirportIds.map((airportId) => ({ airportId })) } } });
     await tx.aircraftLocationSnapshot.updateMany({ where: { aircraftId: id }, data: { registration: aircraft.registration, aircraftType: aircraft.aircraftType } });
@@ -82,7 +83,7 @@ export async function setAircraftHubs(id: string, hubAirportIds: string[], actor
     const aircraft = await tx.aircraft.findUnique({ where: { id }, include: { hubs: true } });
     if (!aircraft) throw new Error("Aircraft not found.");
     if (!editable(aircraft.dataOrigin) || aircraft.operationalStatus === "RETIRED") throw new Error("This Aircraft is read-only.");
-    if (uniqueHubIds.length !== await tx.airport.count({ where: { id: { in: uniqueHubIds }, status: "ACTIVE", archivedAt: null } })) throw new Error("Every Aircraft HUB must be an active Airport.");
+    if (uniqueHubIds.length !== await tx.airport.count({ where: { id: { in: uniqueHubIds }, icao: { in: [...HISPAFLY_HUB_ICAOS] }, status: "ACTIVE", archivedAt: null } })) throw new Error("Aircraft HUBS are limited to LEMD, LEVC, LEPA and LEBL.");
     const before = aircraft.hubs.map(({ airportId }) => airportId).sort();
     await tx.aircraft.update({ where: { id }, data: { hubs: { deleteMany: {}, create: uniqueHubIds.map((airportId) => ({ airportId })) } } });
     await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "AIRCRAFT_HUBS_CHANGED", entityType: "Aircraft", entityId: id, message: `${actor.name} changed ${aircraft.registration} operational HUBS.`, metadata: { before, after: [...uniqueHubIds].sort() } } });
