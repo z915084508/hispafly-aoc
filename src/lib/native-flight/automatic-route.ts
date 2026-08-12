@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { StaffIdentity } from "@/lib/staff/currentStaff";
-import { periodsOverlap, validateDuration, validateEffectivePeriod } from "./management-rules";
+import { validateDuration, validateEffectivePeriod } from "./management-rules";
 import {
   buildRoutePairCode,
   classifyRouteMarket,
@@ -88,35 +88,6 @@ function planningDefaults(refs: Awaited<ReturnType<typeof loadReferences>>, requ
   return { distanceNm: null, durationMinutes, source: "MANUAL_DURATION" } as const;
 }
 
-async function findConflicts(
-  tx: Prisma.TransactionClient,
-  departureAirportId: string,
-  arrivalAirportId: string,
-  routeCode: string,
-  effectiveFrom?: Date | null,
-  effectiveUntil?: Date | null,
-) {
-  const candidates = await tx.route.findMany({
-    where: {
-      operationalStatus: { not: "ARCHIVED" },
-      OR: [
-        { routeCode },
-        { departureAirportId, arrivalAirportId },
-      ],
-    },
-    select: { id: true, routeCode: true, flightNumber: true, effectiveFrom: true, effectiveUntil: true },
-  });
-  return candidates
-    .filter((candidate) => periodsOverlap(effectiveFrom, effectiveUntil, candidate.effectiveFrom, candidate.effectiveUntil))
-    .map((candidate) => candidate.routeCode ?? candidate.flightNumber ?? candidate.id);
-}
-
-function assertConflicts(conflicts: string[], input: AutomaticRouteInput, direction: string) {
-  if (!conflicts.length) return;
-  if (!input.overrideConflicts) throw new Error(`A ${direction} route already overlaps this airport pair or route code: ${conflicts.join(", ")}.`);
-  if (!input.overrideReason?.trim()) throw new Error("A reason is required to override route conflict warnings.");
-}
-
 async function usedIdentities(tx: Prisma.TransactionClient) {
   const [routes, reservations] = await Promise.all([
     tx.route.findMany({ select: { flightNumber: true, callsign: true } }),
@@ -166,18 +137,6 @@ async function createInTransaction(tx: Prisma.TransactionClient, input: Automati
   const outboundCode = buildRoutePairCode(refs.departure, refs.arrival);
   const returnCode = buildRoutePairCode(refs.arrival, refs.departure);
   const identities = nextRouteIdentities(marketType, await usedIdentities(tx), Boolean(input.createReturnRoute));
-
-  const outboundConflicts = await findConflicts(
-    tx, refs.departure.id, refs.arrival.id, outboundCode, input.effectiveFrom, input.effectiveUntil,
-  );
-  assertConflicts(outboundConflicts, input, "departure");
-
-  if (input.createReturnRoute) {
-    const returnConflicts = await findConflicts(
-      tx, refs.arrival.id, refs.departure.id, returnCode, input.effectiveFrom, input.effectiveUntil,
-    );
-    assertConflicts(returnConflicts, input, "return");
-  }
 
   const outbound = await tx.route.create({ data: routeData(input, refs, {
     departure: refs.departure,

@@ -62,13 +62,12 @@ async function conflictWarnings(tx: Prisma.TransactionClient, input: NativeRoute
     id: routeId ? { not: routeId } : undefined,
     operationalStatus: { not: "ARCHIVED" },
     OR: [
-      { routeCode: basics.routeCode },
       ...(basics.flightNumber ? [{ flightNumber: basics.flightNumber }] : []),
-      { departureAirportId: input.departureAirportId, arrivalAirportId: input.arrivalAirportId },
+      ...(basics.callsign ? [{ callsign: basics.callsign }] : []),
     ],
-  }, select: { id: true, routeCode: true, flightNumber: true, departureAirportId: true, arrivalAirportId: true, effectiveFrom: true, effectiveUntil: true } });
+  }, select: { id: true, routeCode: true, flightNumber: true, callsign: true, departureAirportId: true, arrivalAirportId: true, effectiveFrom: true, effectiveUntil: true } });
   return candidates.filter((candidate) => periodsOverlap(input.effectiveFrom, input.effectiveUntil, candidate.effectiveFrom, candidate.effectiveUntil))
-    .map((candidate) => `${candidate.routeCode ?? candidate.flightNumber ?? candidate.id} overlaps this route's identity, airport pair or effective period.`);
+    .map((candidate) => `${candidate.flightNumber ?? candidate.callsign ?? candidate.id} duplicates an existing flight identity during the effective period.`);
 }
 
 function routeData(input: NativeRouteInput, refs: Awaited<ReturnType<typeof validateReferences>>) {
