@@ -12,7 +12,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const [aircraft, query, fleets, hubs] = await Promise.all([
     findAircraftById(id),
     searchParams,
-    prisma.fleet.findMany({ where: { operationalStatus: "ACTIVE", dataOrigin: { not: "VAMSYS_LEGACY" } }, select: { id: true, code: true, name: true }, orderBy: { code: "asc" } }),
+    prisma.fleet.findMany({ where: { operationalStatus: "ACTIVE", dataOrigin: { not: "VAMSYS_LEGACY" } }, select: { id: true, code: true, name: true, type: true, typicalSeatCapacity: true, maxPassengers: true, maxCargoKg: true }, orderBy: { code: "asc" } }),
     prisma.airport.findMany({ where: { status: "ACTIVE", archivedAt: null, icao: { in: [...HISPAFLY_HUB_ICAOS] } }, select: { id: true, icao: true, name: true }, orderBy: { icao: "asc" } }),
   ]);
   if (!aircraft) notFound();

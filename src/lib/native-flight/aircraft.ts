@@ -16,6 +16,7 @@ export type AircraftInput = {
 };
 function aircraftData(input: AircraftInput) {
   const normalized = normalizeAircraftInput(input);
+  if (!/^EC-[A-Z]{3}$/.test(normalized.registration)) throw new Error("Aircraft registration must use EC-XXX with three letters.");
   return { ...normalized, operationMode: input.operationMode ?? "FLEX", name: input.name?.trim() || null, serialNumber: input.serialNumber?.trim() || null,
     deliveryDate: input.deliveryDate ?? null, inServiceDate: input.inServiceDate ?? null, cabinConfiguration: input.cabinConfiguration?.trim() || null,
     seatCapacity: nonNegative(input.seatCapacity, "Seat capacity"), cargoCapacityKg: nonNegative(input.cargoCapacityKg, "Cargo capacity"),
@@ -54,6 +55,8 @@ export async function createNativeAircraft(input: AircraftInput, actor?: StaffId
     const hubAirportIds = [...new Set(input.hubAirportIds ?? [])];
     if (hubAirportIds.length !== await tx.airport.count({ where: { id: { in: hubAirportIds }, icao: { in: [...HISPAFLY_HUB_ICAOS] }, status: "ACTIVE", archivedAt: null } })) throw new Error("Aircraft HUBS are limited to LEMD, LEVC, LEPA and LEBL.");
     if (await tx.aircraft.findFirst({ where: { registration: { equals: data.registration, mode: "insensitive" } } })) throw new Error("Aircraft registration already exists.");
+    if (data.selcal && await tx.aircraft.findFirst({ where: { selcal: { equals: data.selcal, mode: "insensitive" } } })) throw new Error("Aircraft SELCAL already exists.");
+    if (data.serialNumber && await tx.aircraft.findFirst({ where: { serialNumber: { equals: data.serialNumber, mode: "insensitive" } } })) throw new Error("Aircraft serial number already exists.");
     const aircraft = await tx.aircraft.create({ data: { ...data, nativeFleetId: fleet.id, fleetName: fleet.name, operationalStatus: "UNKNOWN", status: "UNKNOWN", dataOrigin: input.dataOrigin ?? "HISPAFLY_NATIVE", syncStatus: "LOCAL_DRAFT", hubs: { create: hubAirportIds.map((airportId) => ({ airportId })) } } });
     await tx.aircraftLocationSnapshot.create({ data: { aircraftId: aircraft.id, vamsysAircraftId: `native:${aircraft.id}`, registration: aircraft.registration, aircraftType: aircraft.aircraftType, status: "UNKNOWN", source: "MANUAL" } });
     if (actor) await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "AIRCRAFT_CREATED", entityType: "Aircraft", entityId: aircraft.id, message: `${actor.name} created Native aircraft ${aircraft.registration}.`, metadata: { fleetId: fleet.id, hubAirportIds } } });
