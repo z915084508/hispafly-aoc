@@ -17,6 +17,7 @@ export async function bookNativeFlightAction(formData: FormData) {
     });
     revalidatePath("/pilot/flight-offers");
     revalidatePath("/pilot/bookings");
+    revalidatePath("/pilot/roster");
     redirect(`/pilot/bookings/${booking.id}?success=Booking+confirmed`);
   } catch (error) {
     if (error && typeof error === "object" && "digest" in error) throw error;

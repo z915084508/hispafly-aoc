@@ -8,8 +8,8 @@ export const dynamic = "force-dynamic";
 
 const labels = {
   AVAILABLE: "DISPONIBLE",
-  MY_BOOKING: "TU RESERVA",
-  RESERVED: "RESERVADO",
+  MY_BOOKING: "YOUR FLIGHT",
+  RESERVED: "RESERVED",
   UPCOMING: "PRÓXIMAMENTE",
   CLOSED: "CERRADO",
   CANCELLED: "CANCELADO",

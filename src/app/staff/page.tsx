@@ -13,12 +13,13 @@ export default async function StaffDashboard() {
   const money = (cents: number) => formatCurrency(cents, locale);
   const integer = (value: number) => formatNumber(value, locale, { maximumFractionDigits: 0 });
   const decimal = (value: number) => formatNumber(value, locale, { maximumFractionDigits: 1 });
-  const [summary, activeOffers, dispatchedOffers, completedDispatches, rewardTotal] = await Promise.all([
+  const [summary, activeOffers, dispatchedOffers, completedDispatches, rewardTotal, recentPilots] = await Promise.all([
     getDashboardSummary(),
     prisma.flightOffer.count({ where: { status: "PUBLISHED", validUntil: { gt: new Date() } } }),
     prisma.flightOffer.count({ where: { status: "DISPATCHED" } }),
     prisma.flightDispatch.count({ where: { status: { in: ["FLOWN", "REWARDED"] } } }),
     prisma.walletTransaction.aggregate({ where: { flightDispatchId: { not: null } }, _sum: { amountCents: true } }),
+    prisma.pilot.findMany({ where: { status: "active" }, include: { authUser: { select: { emailVerifiedAt: true, status: true } } }, orderBy: { createdAt: "desc" }, take: 8 }),
   ]);
   const annual = summary.annualCompany;
   const monthlyStats = [
@@ -73,6 +74,10 @@ export default async function StaffDashboard() {
         <div><strong>{summary.approvedPaymentCount}</strong><span>Aprobadas para pago FINANCE</span></div>
         <div><strong>{summary.paidThisMonthCount}</strong><span>Pagadas este mes por fecha de pago</span></div>
       </div>
+    </section>
+    <section className="card dashboard-section">
+      <div className="card-header"><h2 className="card-title">Recent Pilot Incorporations</h2><span className="meta">Latest active pilots</span></div>
+      {recentPilots.length ? <div className="table-wrap"><table><thead><tr><th>Pilot</th><th>Callsign</th><th>Base</th><th>Joined / activated</th><th>Status</th></tr></thead><tbody>{recentPilots.map((pilot) => <tr key={pilot.id}><td><strong>{pilot.displayName}</strong><br/>{pilot.email ?? "—"}</td><td>{pilot.callsign ?? "—"}</td><td>{pilot.base ?? "—"}</td><td>{(pilot.authUser?.emailVerifiedAt ?? pilot.createdAt).toISOString().slice(0,10)}</td><td><span className="badge">{pilot.authUser?.status === "ACTIVE" ? "ACTIVE" : pilot.status.toUpperCase()}</span></td></tr>)}</tbody></table></div> : <div className="empty-state">No active pilots yet.</div>}
     </section>
     <section className="card ranking-card">
       <div className="card-header"><h2 className="card-title">Top 5 pilotos por nómina pagada</h2><span className="meta">Mes actual</span></div>

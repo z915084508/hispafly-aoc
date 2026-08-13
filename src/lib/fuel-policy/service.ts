@@ -4,6 +4,7 @@ import { writeAuditLogSafely } from "@/lib/audit/log";
 import { baseFuelDiscountPercent } from "@/lib/dispatch/loadFactor";
 import { latestFuelPrice, regionFromIcao } from "@/lib/economy/fuel";
 import { calculateTankeringRecommendation } from "./tankering";
+import { resolveTaxiFuelKg } from "./rules";
 
 export interface AppliedFuelPolicy {
   profileId: string;
@@ -97,7 +98,7 @@ export async function buildAppliedFuelPolicy(input: {
   const applied: AppliedFuelPolicy = {
     profileId: profile.id, name: profile.name, routeType,
     contingencyRule: profile.contingencyRule, finalReserveRule: profile.finalReserveRule,
-    taxiFuelKg: profile.taxiFuelKg, minFobKg: profile.minFobKg, minArrivalFuelKg: profile.minArrivalFuelKg,
+    taxiFuelKg: resolveTaxiFuelKg(profile.taxiFuelKg, performance?.taxiFuelKg), minFobKg: profile.minFobKg, minArrivalFuelKg: profile.minArrivalFuelKg,
     atcFuelMinutes: profile.atcFuelMinutes, weatherFuelMinutes: 0,
     melFuelKg, extraFuelKg, addedFuelLabel: maintenanceFuelRequired ? "OPN" : extraFuelKg ? "OPN" : null,
     tankeringAllowed: profile.tankeringAllowed, tankering,

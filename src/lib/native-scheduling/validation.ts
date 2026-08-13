@@ -14,6 +14,32 @@ const hardBlockedAircraftStates = new Set(["MAINTENANCE", "FERRY_ONLY", "AOG", "
 const blockedConditionStates = new Set(["AOG", "IN_MAINTENANCE"]);
 const blockedMaintenanceStates = new Set(["REQUIRED", "WAITING_MAINTENANCE", "IN_PROGRESS"]);
 
+const DAY = 86_400_000;
+const firstOperatingDate = (proposed: ProposedFlightSchedule) => {
+  for (let offset = 0; offset < 7; offset++) {
+    const date = new Date(Date.UTC(proposed.effectiveFrom.getUTCFullYear(), proposed.effectiveFrom.getUTCMonth(), proposed.effectiveFrom.getUTCDate()) + offset * DAY);
+    if (proposed.daysOfWeek.includes(utcDayOfWeek(date))) return date;
+  }
+  return null;
+};
+
+function expectedAircraftPositionAtStart(proposed: ProposedFlightSchedule, context: ScheduleValidationContext) {
+  const firstDate = firstOperatingDate(proposed);
+  if (!firstDate || !proposed.assignedAircraftId) return null;
+  const firstDeparture = new Date(firstDate.getTime() + proposed.departureTimeMinutesUtc * 60_000);
+  let latestConnection: { endsAt: Date; airportId: string | null } | null = null;
+  for (const schedule of context.existingSchedules) {
+    if (schedule.assignedAircraftId !== proposed.assignedAircraftId || ["ARCHIVED", "EXPIRED", "SUSPENDED"].includes(schedule.status)) continue;
+    for (let offset = -8; offset <= 0; offset++) {
+      const date = new Date(firstDate.getTime() + offset * DAY);
+      if (!schedule.daysOfWeek.includes(utcDayOfWeek(date)) || date < schedule.effectiveFrom || (schedule.effectiveUntil && date > schedule.effectiveUntil)) continue;
+      const endsAt = new Date(date.getTime() + (schedule.departureTimeMinutesUtc + schedule.scheduledDurationMinutes) * 60_000);
+      if (endsAt <= firstDeparture && (!latestConnection || endsAt > latestConnection.endsAt)) latestConnection = { endsAt, airportId: schedule.route.arrivalAirportId };
+    }
+  }
+  return latestConnection ? { airportId: latestConnection.airportId, source: "PREVIOUS_SCHEDULE" } : { airportId: context.aircraft?.currentAirportId ?? null, source: "CURRENT_POSITION" };
+}
+
 export function validateProposedScheduleWithContext(proposed: ProposedFlightSchedule, context: ScheduleValidationContext, options: { includeExistingGeneratedFlights?: boolean } = {}): ScheduleValidationResult {
   const errors: ScheduleValidationIssue[] = [], warnings: ScheduleValidationIssue[] = [];
   const uniqueDays = new Set<number>();
@@ -60,12 +86,11 @@ export function validateProposedScheduleWithContext(proposed: ProposedFlightSche
     const aircraft = context.aircraft;
     if (!aircraft) errors.push(issue("AIRCRAFT_NOT_FOUND", "The assigned aircraft does not exist.", proposed, { aircraftId: proposed.assignedAircraftId }));
     else {
-      // Deliberately do not inspect currentAirportId or AircraftLocationSnapshot here.
-      // Those are execution-time constraints checked by Booking/Dispatch, not by a
-      // future weekly Programacion.
       if (aircraft.archivedAt) errors.push(issue("AIRCRAFT_ARCHIVED", "The assigned aircraft is archived and cannot be scheduled.", proposed, { aircraftId: aircraft.id }));
       if (aircraft.operationMode === "FREE") errors.push(issue("AIRCRAFT_FREE_ONLY", "FREE aircraft cannot be assigned to PROGRAMACION. Select a SCHEDULED or FLEX aircraft.", proposed, { aircraftId: aircraft.id }));
-      if (route?.departureAirportId && aircraft.hubs?.length && !aircraft.hubs.some(({ airportId }) => airportId === route.departureAirportId)) errors.push(issue("AIRCRAFT_HUB_MISMATCH", "The assigned aircraft is not based at the departure HUB for this PROGRAMACION.", proposed, { aircraftId: aircraft.id, details: { departureAirportId: route.departureAirportId, hubAirportIds: aircraft.hubs.map(({ airportId }) => airportId) } }));
+      const expectedPosition = expectedAircraftPositionAtStart(proposed, context);
+      const firstDay = firstOperatingDate(proposed);
+      if (route?.departureAirportId && expectedPosition?.airportId && expectedPosition.airportId !== route.departureAirportId) errors.push(issue("AIRCRAFT_POSITION_MISMATCH", "The aircraft expected position at the start of this PROGRAMACION does not match the first departure airport.", proposed, { aircraftId: aircraft.id, dayOfWeek: firstDay ? utcDayOfWeek(firstDay) : undefined, details: { departureAirportId: route.departureAirportId, expectedAirportId: expectedPosition.airportId, positionSource: expectedPosition.source } }));
       if (hardBlockedAircraftStates.has(aircraft.operationalStatus)) errors.push(issue("AIRCRAFT_NOT_OPERATIONAL", `The assigned aircraft has blocking operational status ${aircraft.operationalStatus}.`, proposed, { aircraftId: aircraft.id, details: { operationalStatus: aircraft.operationalStatus } }));
       if (aircraft.operationalStatus === "UNKNOWN") warnings.push(warning("AIRCRAFT_OPERATIONAL_STATUS_UNKNOWN", "The aircraft current operational state is unknown. This does not block future scheduling; verify availability before operation.", proposed, { aircraftId: aircraft.id, details: { operationalStatus: aircraft.operationalStatus } }));
       if (!aircraft.nativeFleet) errors.push(issue("AIRCRAFT_NATIVE_FLEET_MISSING", "The assigned aircraft is not linked to a Native fleet.", proposed, { aircraftId: aircraft.id }));
