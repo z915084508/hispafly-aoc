@@ -7,7 +7,7 @@ export async function registerAction(form:FormData){
   const password=v(form,"password"),email=v(form,"email");
   if(password!==v(form,"confirmPassword"))redirect("/register?error=passwords_do_not_match");
   try{
-    const result=await registerPilot({firstName:v(form,"firstName"),lastName:v(form,"lastName"),email,username:v(form,"username"),password,callsign:v(form,"callsign")});
+    const result=await registerPilot({firstName:v(form,"firstName"),lastName:v(form,"lastName"),email,username:v(form,"username"),password,callsign:v(form,"callsign"),hubAirportId:v(form,"hubAirportId")});
     await deliverIdentityToken({type:"verify_email",email:result.user.email,token:result.token});
   }catch(error){
     if(error instanceof Error&&error.message.includes("Unique constraint")){
