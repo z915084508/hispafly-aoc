@@ -10,6 +10,7 @@ import { requirePilotSession } from "@/lib/pilot/session";
 import { prisma } from "@/lib/prisma";
 import { finalizeSignedOFPAction, generateSimbriefOFPAction } from "../actions";
 import { cancelFlightDispatchAction } from "../../flight-offers/actions";
+import { cancelPilotBookingAction } from "../../bookings/actions";
 import { normalizeFlightIdentity } from "@/lib/dispatch/flightIdentity";
 import { safeSimbriefPdfUrl } from "@/lib/simbrief/pdf";
 import { summarizeSimbriefOfp } from "@/lib/simbrief/response";
@@ -26,7 +27,7 @@ export default async function PilotOfpPage({ params, searchParams }: { params: P
   const { id } = await params;
   const messages = await searchParams;
   const { t } = await getTranslations();
-  const ofp = await prisma.ofpBriefing.findFirst({ where: { id, flightDispatch: { pilotId: pilot.id } }, include: { flightDispatch: { include: { flightOffer: true } }, dispatchRelease: true } });
+  const ofp = await prisma.ofpBriefing.findFirst({ where: { id, flightDispatch: { pilotId: pilot.id } }, include: { flightDispatch: { include: { flightOffer: true, booking: { include: { flight: true, matchedPirep: true } } } }, dispatchRelease: true } });
   if (!ofp) notFound();
   const dispatch = ofp.flightDispatch, offer = dispatch.flightOffer;
   const identity = normalizeFlightIdentity({ flightNumber: offer.flightNumber, callsign: offer.callsign });
@@ -50,6 +51,12 @@ export default async function PilotOfpPage({ params, searchParams }: { params: P
   const dispatchExpired = Boolean(dispatch.expiresAt && dispatch.expiresAt <= new Date());
   const vatsimUnlocked = !dispatchExpired && ofp.status === "SIGNED" && vatsimPrefileUnlocked(dispatch.dataOrigin, dispatch.status, ofp.dispatchRelease?.status);
   const nativeDispatch = dispatch.dataOrigin === "HISPAFLY_NATIVE";
+  const booking = dispatch.booking;
+  const canCancelReleasedDispatch = nativeDispatch
+    && dispatch.status === "RELEASED"
+    && Boolean(booking)
+    && !booking?.matchedPirep
+    && booking!.selectedDepartureAt > new Date();
 
   return <PilotPortalShell>
     <PageHeading eyebrow="FLIGHT OPERATIONS" title={`OFP ${identity.commercialFlightNumber || offer.title}`} copy={`${offer.departureIcao} → ${offer.arrivalIcao} · Version ${ofp.version}`} />
@@ -91,6 +98,15 @@ export default async function PilotOfpPage({ params, searchParams }: { params: P
         {dispatch.vamsysBookingId && <p><strong>vAMSYS Booking:</strong> {dispatch.vamsysBookingId}</p>}
       </> : ofp.status === "AWAITING_SIGNATURE" ? <OfpSignaturePad ofpId={ofp.id}/> : <div className="notice">{t("ofp.generateBeforeSigning")}</div>}
       {dispatch.status === "DISPATCHING" && <form action={cancelFlightDispatchAction}><input type="hidden" name="dispatchId" value={ofp.flightDispatchId}/><button className="action-button reject" type="submit">Cancel pre-dispatch</button></form>}
+      {canCancelReleasedDispatch && booking && <div className="notice">
+        <p><strong>Cancel this released flight</strong></p>
+        <p>This voids the released Dispatch and OFP, releases the aircraft, and returns a scheduled flight to the reservation list.</p>
+        <form action={cancelPilotBookingAction}>
+          <input type="hidden" name="bookingId" value={booking.id}/>
+          <label>Cancellation reason<input name="reason" required minLength={3}/></label>
+          <button className="button danger" type="submit">CANCEL DISPATCH AND RESERVATION</button>
+        </form>
+      </div>}
     </section>
     {!vatsimUnlocked && <div className="notice">{dispatchExpired ? "This Dispatch plan has expired and can no longer be imported into VATSIM." : ofp.status !== "SIGNED" ? "Review and sign the OFP before VATSIM prefiling." : nativeDispatch ? "Complete the Native Dispatch Release before opening the VATSIM prefile form." : "Historical dispatches cannot create a new operational VATSIM plan."}</div>}
     <VatsimFlightPlanPanel ofpId={ofp.id} fields={vatsimPrefile.fields} icaoText={vatsimPrefile.icaoText} missing={vatsimPrefile.missing} unlocked={vatsimUnlocked}/>
