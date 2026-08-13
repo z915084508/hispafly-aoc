@@ -5,12 +5,14 @@ import { createAuthSession } from "./session";
 import { hashPassword, verifyPassword } from "./password";
 const normalize=(email:string)=>email.trim().toLowerCase(),hashToken=(token:string)=>createHash("sha256").update(token).digest("base64url");
 const normalizeUsername=(username:string)=>username.trim().toLowerCase();
-export interface RegisterPilotInput{firstName:string;lastName:string;email:string;username:string;password:string;callsign?:string;}
+export interface RegisterPilotInput{firstName:string;lastName:string;email:string;username:string;password:string;callsign?:string;hubAirportId:string;}
 export async function registerPilot(input:RegisterPilotInput){
   const email=normalize(input.email),username=normalizeUsername(input.username),firstName=input.firstName.trim(),lastName=input.lastName.trim(),callsign=input.callsign?.trim().toUpperCase()||null;
   if(!firstName||!lastName||!/^[a-z0-9._-]{3,30}$/.test(username)||!/^\S+@\S+\.\S+$/.test(email))throw new Error("Invalid registration details.");
+  const hub=await prisma.airport.findFirst({where:{id:input.hubAirportId,status:"ACTIVE",archivedAt:null,icao:{in:["LEMD","LEVC","LEPA","LEBL"]}},select:{id:true,icao:true}});
+  if(!hub)throw new Error("Invalid Pilot HUB.");
   const passwordHash=await hashPassword(input.password),token=randomBytes(32).toString("base64url");
-  const user=await prisma.$transaction(async tx=>{const role=await tx.authRole.findUnique({where:{code:"PILOT"}});if(!role)throw new Error("PILOT role is not installed.");return tx.authUser.create({data:{email,username,passwordHash,displayName:`${firstName} ${lastName}`,status:"PENDING_VERIFICATION",roles:{create:{roleId:role.id}},pilot:{create:{firstName,lastName,displayName:`${firstName} ${lastName}`,email,username,callsign,status:"inactive"}},verificationTokens:{create:{tokenHash:hashToken(token),expiresAt:new Date(Date.now()+24*60*60*1000)}}},include:{pilot:true}})});
+  const user=await prisma.$transaction(async tx=>{const role=await tx.authRole.findUnique({where:{code:"PILOT"}});if(!role)throw new Error("PILOT role is not installed.");return tx.authUser.create({data:{email,username,passwordHash,displayName:`${firstName} ${lastName}`,status:"PENDING_VERIFICATION",roles:{create:{roleId:role.id}},pilot:{create:{firstName,lastName,displayName:`${firstName} ${lastName}`,email,username,callsign,status:"inactive",hubId:hub.icao,base:hub.icao,currentAirportId:hub.id,positionUpdatedAt:new Date(),positionSource:"REGISTRATION_HUB"}},verificationTokens:{create:{tokenHash:hashToken(token),expiresAt:new Date(Date.now()+24*60*60*1000)}}},include:{pilot:true}})});
   await writeAuditLogSafely({action:"IDENTITY_REGISTERED",entityType:"AuthUser",entityId:user.id,message:"A new Hispafly Pilot account registered."});return {user,token};
 }
 export async function issueEmailVerification(email:string){
