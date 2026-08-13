@@ -1,6 +1,7 @@
 import { currentAuthUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { efbErrorResponse, efbJson, efbOptions } from "@/lib/efb-performance/http";
+import { getPilotRoster } from "@/lib/roster/service";
 
 export const dynamic = "force-dynamic";
 export function OPTIONS(request: Request) { return efbOptions(request); }
@@ -26,6 +27,13 @@ export async function GET(request: Request, context: { params: Promise<{ segment
     if (resource === "statistics") {
       const result = await prisma.pirep.aggregate({ where: { pilotId: pilot.id, status: "accepted" }, _count: { id: true }, _sum: { flightTimeMinutes: true, blockTimeMinutes: true, flightDistanceNm: true } });
       return efbJson(request, { data: { flights: result._count.id, flight_time_minutes: result._sum.flightTimeMinutes || 0, block_time_minutes: result._sum.blockTimeMinutes || 0, distance_nm: result._sum.flightDistanceNm || 0 } });
+    }
+    if (resource === "roster" || resource === "next-flight") {
+      const url = new URL(request.url);
+      const parseDate = (value: string | null) => value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00.000Z`) : undefined;
+      const rows = await getPilotRoster(pilot.id, { from: resource === "next-flight" ? new Date() : parseDate(url.searchParams.get("from")), to: parseDate(url.searchParams.get("to")) });
+      const data = rows.map((row) => ({ id: row.id, flight_instance_id: row.flightInstanceId, flight_number: row.flightNumber, callsign: row.callsign, departure: row.departure, arrival: row.arrival, departure_time: row.departureTime, arrival_time: row.arrivalTime, aircraft_registration: row.aircraftRegistration, status: row.status }));
+      return efbJson(request, { data: resource === "next-flight" ? (data[0] ?? null) : data, meta: { source: "HISPAFLY_AOC", roster_owner: "AOC_PILOT_BOOKING" } });
     }
     if (resource === "bookings") {
       const rows = await prisma.pilotBooking.findMany({ where: { pilotId: pilot.id, dataOrigin: "HISPAFLY_NATIVE", status: { in: [...activeBookingStatuses] } }, include: { aircraft: true, dispatch: { include: { ofpBriefing: true } } }, orderBy: { selectedDepartureAt: "desc" }, take: 50 });
