@@ -13,13 +13,16 @@ export default async function StaffDashboard() {
   const money = (cents: number) => formatCurrency(cents, locale);
   const integer = (value: number) => formatNumber(value, locale, { maximumFractionDigits: 0 });
   const decimal = (value: number) => formatNumber(value, locale, { maximumFractionDigits: 1 });
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
   const [summary, activeOffers, dispatchedOffers, completedDispatches, rewardTotal, recentPilots] = await Promise.all([
     getDashboardSummary(),
     prisma.flightOffer.count({ where: { status: "PUBLISHED", validUntil: { gt: new Date() } } }),
     prisma.flightOffer.count({ where: { status: "DISPATCHED" } }),
     prisma.flightDispatch.count({ where: { status: { in: ["FLOWN", "REWARDED"] } } }),
     prisma.walletTransaction.aggregate({ where: { flightDispatchId: { not: null } }, _sum: { amountCents: true } }),
-    prisma.pilot.findMany({ include: { authUser: { select: { emailVerifiedAt: true, status: true } } }, orderBy: { createdAt: "desc" }, take: 8 }),
+    prisma.pilot.findMany({ where: { OR: [{ createdAt: { gte: monthStart, lt: monthEnd } }, { authUser: { emailVerifiedAt: { gte: monthStart, lt: monthEnd } } }] }, include: { authUser: { select: { emailVerifiedAt: true, status: true } } }, orderBy: { createdAt: "desc" } }),
   ]);
   const annual = summary.annualCompany;
   const monthlyStats = [
@@ -76,7 +79,7 @@ export default async function StaffDashboard() {
       </div>
     </section>
     <section className="card dashboard-section">
-      <div className="card-header"><h2 className="card-title">Recent Pilot Incorporations</h2><span className="meta">Latest registrations and activations</span></div>
+      <div className="card-header"><h2 className="card-title">Recent Pilot Incorporations</h2><span className="meta">Current month registrations and activations</span></div>
       {recentPilots.length ? <div className="table-wrap"><table><thead><tr><th>Pilot</th><th>Callsign</th><th>Base</th><th>Joined / activated</th><th>Status</th></tr></thead><tbody>{recentPilots.map((pilot) => <tr key={pilot.id}><td><strong>{pilot.displayName}</strong><br/>{pilot.email ?? "—"}</td><td>{pilot.callsign ?? "—"}</td><td>{pilot.base ?? "—"}</td><td>{(pilot.authUser?.emailVerifiedAt ?? pilot.createdAt).toISOString().slice(0,10)}</td><td><span className="badge">{pilot.authUser?.status === "ACTIVE" ? "ACTIVE" : pilot.status.toUpperCase()}</span></td></tr>)}</tbody></table></div> : <div className="empty-state">No active pilots yet.</div>}
     </section>
     <section className="card ranking-card">
