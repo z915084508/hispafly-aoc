@@ -27,7 +27,7 @@
     "test:simbrief-ofp-v2": "node --experimental-strip-types src/lib/simbrief/ofp-v2.test.ts",
     "test:vatsim-prefile": "node --experimental-strip-types src/lib/vatsim/prefile.test.ts",
     "test:dispatch-release": "node --experimental-strip-types src/lib/dispatch-release/rules.test.ts",
-    "test:fuel-policy": "node --experimental-strip-types src/lib/fuel-policy/tankering.test.ts",
+    "test:fuel-policy": "node --experimental-strip-types src/lib/fuel-policy/tankering.test.ts && node --experimental-strip-types src/lib/fuel-policy/service.test.ts",
     "test:flight-analysis": "node --experimental-strip-types src/lib/flight-analysis/calculations.test.ts",
     "test:maintenance": "node --experimental-strip-types src/lib/aircraft-maintenance/condition.test.ts",
     "test:performance-csv": "node --experimental-strip-types src/lib/fleet-performance/csv.test.ts",
