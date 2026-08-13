@@ -27,7 +27,7 @@ export default async function PilotBookingDetail({ params, searchParams }: { par
       {eligibility?.warnings.map((warning) => <div className="notice" key={warning}>{warning}</div>)}
       <div className="booking-detail-actions">{booking.dispatch?.ofpBriefing && <a className="button" href={`/pilot/ofp/${booking.dispatch.ofpBriefing.id}`}>Open OFP</a>}
       {booking.cancellationReason && <p>Cancellation: {booking.cancellationReason}</p>}
-      {booking.status === "CONFIRMED" && !booking.dispatch && <form action={createPilotDispatchAction}><input type="hidden" name="bookingId" value={booking.id}/><input type="hidden" name="idempotencyKey" value={randomUUID()}/><button className="button">PREPARAR DISPATCH</button></form>}
+      {booking.status === "CONFIRMED" && !booking.dispatch && !booking.flight?.scheduleId && <form action={createPilotDispatchAction}><input type="hidden" name="bookingId" value={booking.id}/><input type="hidden" name="idempotencyKey" value={randomUUID()}/><button className="button">PREPARAR DISPATCH</button></form>}
       {booking.dispatch && <a className="button secondary" href={`/pilot/dispatch/${booking.dispatch.id}`}>Open Dispatch</a>}</div>
       {cancellable && <form action={cancelPilotBookingAction}><input type="hidden" name="bookingId" value={booking.id}/><label>Cancellation reason<input name="reason" required/></label><button className="button danger">Cancel booking</button></form>}
     </section>

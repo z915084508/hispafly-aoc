@@ -9,7 +9,7 @@ export async function bookNativeFlightAction(formData: FormData) {
   const pilot = await requirePilotSession();
   const flightId = String(formData.get("flightId") ?? "");
   try {
-    const booking = await createNativeBooking({
+    await createNativeBooking({
       pilotId: pilot.id,
       flightId,
       aircraftId: String(formData.get("aircraftId") ?? "") || null,
@@ -18,7 +18,7 @@ export async function bookNativeFlightAction(formData: FormData) {
     revalidatePath("/pilot/flight-offers");
     revalidatePath("/pilot/bookings");
     revalidatePath("/pilot/roster");
-    redirect(`/pilot/bookings/${booking.id}?success=Booking+confirmed`);
+    redirect("/pilot/roster?success=Flight+reserved");
   } catch (error) {
     if (error && typeof error === "object" && "digest" in error) throw error;
     redirect(`/pilot/flight-offers/${flightId}?error=${encodeURIComponent(error instanceof Error ? error.message : "Booking failed")}`);
