@@ -28,13 +28,17 @@ assert.ok(unknownAircraftState.warnings.some(({ code }) => code === "AIRCRAFT_OP
 assert.equal(unknownAircraftState.errors.some(({ code }) => code === "AIRCRAFT_NOT_OPERATIONAL"), false);
 
 const aircraftAtAnotherAirport = { ...context().aircraft!, currentAirportId: "airport-z" };
-assert.equal(validateProposedScheduleWithContext(proposed(), context({ aircraft: aircraftAtAnotherAirport })).valid, true, "current aircraft position must not block a future Programacion");
+const positionMismatch = validateProposedScheduleWithContext(proposed(), context({ aircraft: aircraftAtAnotherAirport }));
+assert.ok(positionMismatch.errors.some(({ code }) => code === "AIRCRAFT_POSITION_MISMATCH"));
+assert.equal(positionMismatch.days[0]?.valid, false, "the start-position conflict must be mapped to the first operating day");
+assert.ok(positionMismatch.days[0]?.issues.some(({ code }) => code === "AIRCRAFT_POSITION_MISMATCH"));
 assert.ok(codes(proposed(), context({ aircraft: { ...context().aircraft!, nativeFleet: null } })).includes("AIRCRAFT_NATIVE_FLEET_MISSING"));
 assert.ok(codes(proposed(), context({ aircraft: { ...context().aircraft!, nativeFleet: { ...context().aircraft!.nativeFleet!, operationalStatus: "DRAFT" } } })).includes("AIRCRAFT_FLEET_NOT_OPERATIONAL"));
 
 assert.equal(validateProposedScheduleWithContext(proposed(), context({ existingSchedules: [schedule()] })).valid, true, "non-overlap, turnaround and continuity should pass");
 assert.equal(validateProposedScheduleWithContext(proposed(), context({ aircraft: { ...context().aircraft!, hubs: [{ airportId: "airport-a" }] } })).valid, true, "aircraft assigned to the departure HUB should pass");
-assert.ok(codes(proposed(), context({ aircraft: { ...context().aircraft!, hubs: [{ airportId: "airport-z" }] } })).includes("AIRCRAFT_HUB_MISMATCH"));
+assert.equal(validateProposedScheduleWithContext(proposed(), context({ aircraft: { ...context().aircraft!, currentAirportId: "airport-a", hubs: [{ airportId: "airport-z" }] } })).valid, true, "HUB assignment alone must not create a position conflict");
+assert.equal(validateProposedScheduleWithContext(proposed(), context({ aircraft: aircraftAtAnotherAirport, existingSchedules: [schedule()] })).valid, true, "a valid preceding connection overrides the current position");
 assert.equal(validateProposedScheduleWithContext(proposed(), context({ aircraft: { ...context().aircraft!, hubs: [] } })).valid, true, "aircraft without HUB assignments remain compatible for migration safety");
 assert.ok(codes(proposed(), context({ existingSchedules: [schedule({ departureTimeMinutesUtc: 530 })] })).includes("AIRCRAFT_SCHEDULE_OVERLAP"));
 assert.ok(codes(proposed(), context({ existingSchedules: [schedule({ departureTimeMinutesUtc: 560 })] })).includes("INSUFFICIENT_TURNAROUND"));
