@@ -32,6 +32,7 @@ export async function checkPilotEligibility(
   pilotId: string,
   flight: { id: string; scheduledDeparture: Date; scheduledArrival: Date },
   db: DbClient = prisma,
+  options: { allowExistingActiveDispatch?: boolean } = {},
 ): Promise<EligibilityResult> {
   const checkedAt = new Date();
   const blockingReasons: string[] = [];
@@ -58,11 +59,13 @@ export async function checkPilotEligibility(
     select: { id: true },
   });
   if (conflict) blockingReasons.push("Pilot has an overlapping booking or turnaround conflict.");
-  const activeDispatch = await db.flightDispatch.findFirst({
-    where: { pilotId, status: { in: ["DISPATCHING", "DISPATCHED", "RELEASED"] } },
-    select: { id: true },
-  });
-  if (activeDispatch) blockingReasons.push("Pilot already has an active dispatch.");
+  if (!options.allowExistingActiveDispatch) {
+    const activeDispatch = await db.flightDispatch.findFirst({
+      where: { pilotId, status: { in: ["DISPATCHING", "DISPATCHED", "RELEASED"] } },
+      select: { id: true },
+    });
+    if (activeDispatch) blockingReasons.push("Pilot already has an active dispatch.");
+  }
   return { allowed: blockingReasons.length === 0, blockingReasons, warnings, checkedAt };
 }
 
@@ -144,7 +147,7 @@ export async function claimScheduledFlight(input: {
     }
     const pilot = await tx.pilot.findUnique({ where: { id: input.pilotId }, select: { currentAirportId: true } });
     if (!pilot?.currentAirportId || pilot.currentAirportId !== flight.departureAirportId) throw new Error("Tu posición actual no coincide con el aeropuerto de salida de este vuelo.");
-    const eligibility = await checkPilotEligibility(input.pilotId, flight, tx);
+    const eligibility = await checkPilotEligibility(input.pilotId, flight, tx, { allowExistingActiveDispatch: true });
     if (!eligibility.allowed) throw new Error(eligibility.blockingReasons.join(" "));
     const aircraftId = flight.assignedAircraftId ?? input.aircraftId ?? null;
     if (flight.assignedAircraftId && input.aircraftId && input.aircraftId !== flight.assignedAircraftId) {

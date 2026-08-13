@@ -14,10 +14,11 @@ for (const contract of [
   "currentAirportId !== flight.departureAirportId", "flight.assignedAircraftId ?? input.aircraftId", "fixed aircraft assignment",
   "nativeFleetId !== flight.fleetId", "currentAirportId !== flight.departureAirportId", "flightDispatch.findFirst",
   "SCHEDULED_FLIGHT_BOOKED", "NativeFlightStatus.BOOKED", "SCHEDULED_FLIGHT_BOOKING_CANCELLED",
+  "allowExistingActiveDispatch: true",
   "NativeFlightStatus.OPEN_FOR_BOOKING", "NativeFlightStatus.SCHEDULED", "NativeFlightStatus.EXPIRED",
 ]) assert.ok(source.includes(contract), `Missing scheduled booking contract: ${contract}`);
-assert.ok(action.includes("createNativeBooking") && action.includes("/pilot/bookings/"));
-assert.ok(detail.includes("La reserva no crea Dispatch ni OFP") && detail.includes("required"));
+assert.ok(action.includes("createNativeBooking") && action.includes("/pilot/roster?success="));
+assert.ok(detail.includes("No crea Dispatch ni OFP") && detail.includes("allowExistingActiveDispatch: true") && detail.includes("required"));
 assert.ok(board.includes("CREATE MY FLIGHT") && board.includes("/pilot/flight-offers/self-dispatch") && board.includes("loadPilotDepartures"));
 assert.ok(selfDispatchForm.includes("routes.filter((item) => item.departure === departure).map((item) => item.arrival)"), "Destination choices must be route-driven, not hidden by current aircraft availability.");
 assert.ok(selfDispatchPage.includes('operationMode: { in: ["FREE", "FLEX"] }'), "Self-dispatch must exclude SCHEDULED aircraft.");
