@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 const activeStatuses: PilotBookingStatus[] = ["PENDING", "CONFIRMED", "DISPATCH_PENDING", "DISPATCHED", "IN_PROGRESS", "BOOKED"];
 const completedStatuses: PilotBookingStatus[] = ["COMPLETED", "FLOWN"];
 const failedStatuses: PilotBookingStatus[] = ["CANCELLED", "EXPIRED", "FAILED", "REJECTED"];
+const closedDispatchStatuses = new Set(["CANCELLED", "VOIDED", "EXPIRED"]);
 const statusTone = (status: PilotBookingStatus) => completedStatuses.includes(status) ? "green" : failedStatuses.includes(status) ? "red" : "amber";
 
 export default async function PilotBookingsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
@@ -21,16 +22,19 @@ export default async function PilotBookingsPage({ searchParams }: { searchParams
     include: { flight: true, fleet: true, aircraft: true, dispatch: { include: { ofpBriefing: true } }, matchedPirep: true },
     orderBy: { selectedDepartureAt: "desc" }, take: 150,
   });
-  const current = bookings.filter((booking) => activeStatuses.includes(booking.status));
-  const history = bookings.filter((booking) => !activeStatuses.includes(booking.status));
+  const isClosedOperation = (booking: typeof bookings[number]) => failedStatuses.includes(booking.status) || closedDispatchStatuses.has(booking.dispatch?.status ?? "");
+  const current = bookings.filter((booking) => activeStatuses.includes(booking.status) && !isClosedOperation(booking));
+  const history = bookings.filter((booking) => !activeStatuses.includes(booking.status) || isClosedOperation(booking));
   const dateTime = (value: Date) => `${formatDate(value, locale, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC`;
   const bookingCard = (booking: typeof bookings[number]) => {
+    const operationClosed = isClosedOperation(booking);
+    const displayStatus: PilotBookingStatus = operationClosed && activeStatuses.includes(booking.status) ? "CANCELLED" : booking.status;
     const progress = booking.matchedPirep ? 4 : booking.dispatch?.ofpBriefing ? 3 : booking.dispatch ? 2 : 1;
     return <article className="pilot-booking-card" key={booking.id}>
-      <div className="pilot-booking-card-main"><div className="pilot-booking-identity"><span>{booking.flightNumber ?? booking.callsign ?? "Flight"}</span><strong>{booking.departureIcao} <b>→</b> {booking.arrivalIcao}</strong></div><div className="pilot-booking-badges"><Badge tone={statusTone(booking.status)}>{booking.status.replaceAll("_", " ")}</Badge><Badge tone={booking.dataOrigin === "VAMSYS_LEGACY" ? "gray" : "blue"}>{booking.dataOrigin === "VAMSYS_LEGACY" ? "HISTORY" : "AOC"}</Badge></div></div>
+      <div className="pilot-booking-card-main"><div className="pilot-booking-identity"><span>{booking.flightNumber ?? booking.callsign ?? "Flight"}</span><strong>{booking.departureIcao} <b>→</b> {booking.arrivalIcao}</strong></div><div className="pilot-booking-badges"><Badge tone={statusTone(displayStatus)}>{displayStatus.replaceAll("_", " ")}</Badge><Badge tone={booking.dataOrigin === "VAMSYS_LEGACY" ? "gray" : "blue"}>{booking.dataOrigin === "VAMSYS_LEGACY" ? "HISTORY" : "AOC"}</Badge></div></div>
       <div className="pilot-booking-facts"><div><span>Departure</span><strong>{dateTime(booking.selectedDepartureAt)}</strong></div><div><span>Fleet / aircraft</span><strong>{booking.fleet?.code ?? booking.vamsysFleetId ?? "Fleet pending"} · {booking.aircraft?.registration ?? booking.aircraftRegistration ?? "Aircraft pending"}</strong></div><div><span>Dispatch</span><strong>{booking.dispatch?.status?.replaceAll("_", " ") ?? (booking.dataOrigin === "VAMSYS_LEGACY" ? "Historical record" : "Ready to prepare")}</strong></div></div>
-      {booking.dataOrigin !== "VAMSYS_LEGACY" && <div className="booking-progress" aria-label={`Operation workflow step ${progress} of 4`}>{["Booked", "Dispatch", "OFP", "Completed"].map((step, index) => <div className={index < progress ? "done" : ""} key={step}><i>{index < progress ? "✓" : index + 1}</i><span>{step}</span></div>)}</div>}
-      <div className="pilot-booking-card-footer"><span>{booking.dataOrigin === "VAMSYS_LEGACY" ? "Imported historical operation · no action required" : booking.dispatch?.ofpBriefing ? "OFP is ready for review" : booking.dispatch ? "Continue in Dispatch" : "Open operation to prepare Dispatch"}</span><Link className="action-button approve" href={`/pilot/bookings/${booking.id}`}>{booking.dataOrigin === "VAMSYS_LEGACY" ? "View record" : "Continue"}</Link></div>
+      {booking.dataOrigin !== "VAMSYS_LEGACY" && (operationClosed ? <div className="notice">Operation closed · no further Dispatch, OFP or ACARS action is required.</div> : <div className="booking-progress" aria-label={`Operation workflow step ${progress} of 4`}>{["Booked", "Dispatch", "OFP", "Completed"].map((step, index) => <div className={index < progress ? "done" : ""} key={step}><i>{index < progress ? "✓" : index + 1}</i><span>{step}</span></div>)}</div>)}
+      <div className="pilot-booking-card-footer"><span>{booking.dataOrigin === "VAMSYS_LEGACY" ? "Imported historical operation · no action required" : operationClosed ? "Cancelled operation · retained in history" : booking.dispatch?.ofpBriefing ? "OFP is ready for review" : booking.dispatch ? "Continue in Dispatch" : "Open operation to prepare Dispatch"}</span><Link className="action-button approve" href={`/pilot/bookings/${booking.id}`}>{booking.dataOrigin === "VAMSYS_LEGACY" || operationClosed ? "View record" : "Continue"}</Link></div>
     </article>;
   };
   return <PilotPortalShell>
