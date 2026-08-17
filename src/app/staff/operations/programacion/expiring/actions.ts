@@ -4,10 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { generateFlightsForSchedule } from "@/lib/native-scheduling/publication";
 import { renewFlightScheduleExpiry } from "@/lib/native-scheduling/expiration";
-import { requireStaffPermission } from "@/lib/staff/permissions";
+import { requireStaffPermission } from "@/lib/staff/authorization";
 
 export async function renewProgramacionExpiryAction(form: FormData) {
-  const staff = await requireStaffPermission("SCHEDULE_STATUS_MANAGE");
   const id = String(form.get("id") ?? "").trim();
   const horizon = [30, 60, 90, 180].includes(Number(form.get("horizon"))) ? Number(form.get("horizon")) : 60;
   if (!id) redirect(`/staff/operations/programacion/expiring?horizon=${horizon}&error=missing-id`);
@@ -17,6 +16,7 @@ export async function renewProgramacionExpiryAction(form: FormData) {
   let target: string;
 
   try {
+    const staff = await requireStaffPermission("SCHEDULE_STATUS_MANAGE", { entityType: "FlightSchedule", entityId: id, attemptedAction: "renew Programación expiry" });
     const updated = await renewFlightScheduleExpiry({ scheduleId: id, actor: staff, mode, extendDays });
     let generated = 0;
     let generationWarning = false;
