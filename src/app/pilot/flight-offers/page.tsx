@@ -2,6 +2,8 @@ import Link from "next/link";
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { loadPilotDepartures } from "@/lib/native-flight/departures-service";
+import { listPilotDeliveryTasks } from "@/lib/native-flight/delivery-crew";
+import { acceptAircraftDeliveryAction } from "./actions";
 import styles from "./flight-offers.module.css";
 
 export const dynamic = "force-dynamic";
@@ -25,10 +27,13 @@ const dateFromIso = (value: string) => new Date(`${value}T12:00:00.000Z`);
 export default async function PilotFlightOffersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ date?: string; error?: string }>;
 }) {
   const [session, query] = await Promise.all([requirePilotSession(), searchParams]);
-  const result = await loadPilotDepartures(session.id, query.date);
+  const [result, deliveryTasks] = await Promise.all([
+    loadPilotDepartures(session.id, query.date),
+    listPilotDeliveryTasks(session.id),
+  ]);
   const airport = result.pilot.currentAirport;
 
   const utc = (date: Date) =>
@@ -74,6 +79,13 @@ export default async function PilotFlightOffersPage({
       timeZone: "UTC",
     }).format(dateFromIso(value));
 
+  const defaultDeliveryDeparture = (planned: Date | null) => {
+    const minimum = new Date(Date.now() + 60 * 60_000);
+    if (!planned) return minimum.toISOString().slice(0, 16);
+    const candidate = new Date(`${planned.toISOString().slice(0, 10)}T12:00:00.000Z`);
+    return (candidate > minimum ? candidate : minimum).toISOString().slice(0, 16);
+  };
+
   type Departure = (typeof result.flights)[number];
 
   const statusClass = (state: Departure["availability"]["state"]) => {
@@ -81,6 +93,12 @@ export default async function PilotFlightOffersPage({
     if (state === "RESERVED" || state === "UPCOMING") return styles.statusPending;
     if (state === "CANCELLED" || state === "CLOSED") return styles.statusUnavailable;
     return styles.statusNeutral;
+  };
+
+  const deliveryStatusClass = (state: (typeof deliveryTasks)[number]["state"]) => {
+    if (state === "AVAILABLE" || state === "MY_BOOKING" || state === "ARRIVED") return styles.statusAvailable;
+    if (state === "RESERVED") return styles.statusPending;
+    return styles.statusUnavailable;
   };
 
   const action = (flight: Departure) => {
@@ -120,6 +138,82 @@ export default async function PilotFlightOffersPage({
         </div>
       </header>
 
+      {query.error && <div className="feedback error">{query.error}</div>}
+
+      {deliveryTasks.length > 0 && (
+        <section className={styles.departuresSection}>
+          <header className={styles.departuresHeader}>
+            <div>
+              <span className={styles.cardEyebrow}>SPECIAL OPERATIONS</span>
+              <h2>Aircraft Delivery</h2>
+              <p>Acepta una entrega de aeronave. Al aceptar, HISPAFLY reposicionará automáticamente a la tripulación al aeropuerto de entrega mediante Company Jumpseat · EUR 0.00.</p>
+            </div>
+          </header>
+          <div className={styles.departuresCard}>
+            <div className={styles.tableWrap}>
+              <table className={styles.departuresTable}>
+                <thead>
+                  <tr>
+                    <th>AERONAVE</th>
+                    <th>RUTA DELIVERY</th>
+                    <th>POSICIÓN</th>
+                    <th>REPOSITION</th>
+                    <th>ESTADO</th>
+                    <th>ACCIÓN</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deliveryTasks.map((task) => (
+                    <tr key={task.aircraftId}>
+                      <td>
+                        <strong className={styles.primaryValue}>{task.registration}</strong>
+                        <small>{task.fleetCode ?? task.aircraftType} · {task.aircraftType}</small>
+                      </td>
+                      <td>
+                        <strong className={styles.airportCode}>{task.delivery.originIcao} → {task.delivery.destinationIcao}</strong>
+                        <small>{task.deliveryDate ? `Planned ${task.deliveryDate.toISOString().slice(0, 10)}` : "Delivery date open"}</small>
+                      </td>
+                      <td>
+                        <strong className={styles.primaryValue}>{task.currentIcao}</strong>
+                        <small>Aircraft current position</small>
+                      </td>
+                      <td>
+                        <strong className={styles.primaryValue}>EUR 0.00</strong>
+                        <small>{task.pilotCurrentIcao === task.delivery.originIcao ? `Crew already at ${task.delivery.originIcao}` : `Company Jumpseat → ${task.delivery.originIcao}`}</small>
+                      </td>
+                      <td>
+                        <span className={`${styles.statusBadge} ${deliveryStatusClass(task.state)}`}>
+                          {task.state === "AVAILABLE" ? "AVAILABLE" : task.state === "MY_BOOKING" ? "YOUR DELIVERY" : task.state === "RESERVED" ? "RESERVED" : task.state === "ARRIVED" ? "AWAITING ENTRY INTO SERVICE" : "AIRCRAFT POSITION MISMATCH"}
+                        </span>
+                        {task.state === "RESERVED" && task.bookingPilotName && <small>{task.bookingPilotName}</small>}
+                      </td>
+                      <td>
+                        {task.state === "AVAILABLE" ? (
+                          <form action={acceptAircraftDeliveryAction}>
+                            <input type="hidden" name="aircraftId" value={task.aircraftId} />
+                            <label>
+                              <small>SALIDA PREVISTA · UTC</small>
+                              <input type="datetime-local" name="departureAtUtc" required defaultValue={defaultDeliveryDeparture(task.deliveryDate)} />
+                            </label>
+                            <button className={styles.reserveButton}>ACEPTAR DELIVERY</button>
+                          </form>
+                        ) : task.state === "MY_BOOKING" && task.bookingId ? (
+                          <Link className={styles.reserveButton} href={`/pilot/bookings/${task.bookingId}`}>ABRIR MI DELIVERY</Link>
+                        ) : task.state === "ARRIVED" ? (
+                          <span>STAFF ENTER SERVICE</span>
+                        ) : (
+                          <span>NO DISPONIBLE</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className={styles.modeGrid}>
         <article className={`${styles.modeCard} ${styles.scheduledMode}`}>
           <div>
@@ -150,7 +244,7 @@ export default async function PilotFlightOffersPage({
           <div>
             <span className={styles.cardEyebrow}>POSICIÓN DE TRIPULACIÓN</span>
             <h2>Establece tu aeropuerto actual</h2>
-            <p>Necesitas una posición válida antes de reservar o crear una operación.</p>
+            <p>Necesitas una posición válida antes de reservar o crear una operación normal. Las tareas DELIVERY pueden reposicionarte automáticamente si existe una posición de tripulación válida o una base registrada.</p>
           </div>
           <Link className="button" href="/pilot/flight-offers/self-dispatch">
             ESTABLECER POSICIÓN
