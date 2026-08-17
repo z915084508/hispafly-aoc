@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { StaffIdentity } from "@/lib/staff/identity";
+import type { StaffIdentity } from "@/lib/staff/currentStaff";
 
 const DAY = 86_400_000;
 const MANAGEABLE_STATUSES = ["ACTIVE", "SUSPENDED", "EXPIRED"] as const;
@@ -24,7 +24,7 @@ export type ExpiringScheduleRow = {
     departure: string;
     arrival: string;
   };
-  defaultFleet: { code: string | null; name: string } | null;
+  defaultFleet: { code: string | null; name: string | null } | null;
   assignedAircraft: { registration: string | null } | null;
 };
 
@@ -104,12 +104,12 @@ export async function renewFlightScheduleExpiry(input: {
       select: { id: true, code: true, status: true, effectiveUntil: true },
     });
     await tx.aocAuditLog.create({ data: {
-      staffUserId: input.actor.id,
+      staffUserId: input.actor.id === "development-staff" ? null : input.actor.id,
       action: "SCHEDULE_RENEWED",
       entityType: "FlightSchedule",
       entityId: current.id,
-      message: `Programación ${current.code} renovada`,
-      details: {
+      message: `${input.actor.name} renovó la programación ${current.code}.`,
+      metadata: {
         before: { status: current.status, effectiveUntil: current.effectiveUntil?.toISOString() ?? null },
         after: { status: row.status, effectiveUntil: row.effectiveUntil?.toISOString() ?? null },
         mode: input.mode,
