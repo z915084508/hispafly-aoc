@@ -1,6 +1,7 @@
 import { PilotPortalShell } from "@/components/pilot-portal-shell";
 import { hasAcarsBetaAccess, requireAcarsPilotAccess } from "@/lib/acars/access";
 import { formatReleaseSize, getLatestAcarsRelease } from "@/lib/software/acars-release";
+import { getLatestLiveryReleases } from "@/lib/software/livery-release";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +22,10 @@ function releaseHighlights(body: string | null) {
 
 export default async function PilotDownloadsPage() {
   const user = await requireAcarsPilotAccess();
-  const [release, betaRelease] = await Promise.all([
+  const [release, betaRelease, liveries] = await Promise.all([
     getLatestAcarsRelease("STABLE"),
     hasAcarsBetaAccess(user) ? getLatestAcarsRelease("BETA") : Promise.resolve(null),
+    getLatestLiveryReleases(),
   ]);
   const highlights = releaseHighlights(release?.notes ?? null);
 
@@ -31,14 +33,14 @@ export default async function PilotDownloadsPage() {
     <section className="card" style={{ padding: "32px", marginBottom: "18px", background: "linear-gradient(135deg, #ffffff 0%, #fff7f7 100%)" }}>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.3fr) minmax(280px, .7fr)", gap: "28px", alignItems: "center" }}>
         <div>
-          <p className="eyebrow">SOFTWARE OFICIAL</p>
-          <h1 style={{ margin: "8px 0 12px", fontSize: "clamp(2rem, 4vw, 3.6rem)" }}>HispaFly ACARS</h1>
-          <p className="page-copy" style={{ maxWidth: "760px" }}>El cliente oficial para conectar tu simulador, recibir el Dispatch y enviar automáticamente la telemetría y el PIREP.</p>
-          <div className="form-actions" style={{ marginTop: "20px" }}><span className="badge green">VERSIÓN ESTABLE</span><span className="badge blue">WINDOWS 10/11 · 64 BIT</span><span className="badge gray">REQUIERE FSUIPC7</span></div>
+          <p className="eyebrow">HISPAFLY DOWNLOAD CENTER</p>
+          <h1 style={{ margin: "8px 0 12px", fontSize: "clamp(2rem, 4vw, 3.6rem)" }}>Software & Liveries</h1>
+          <p className="page-copy" style={{ maxWidth: "760px" }}>Descarga el cliente oficial ACARS y los paquetes de pintura publicados por HISPAFLY para la flota virtual.</p>
+          <div className="form-actions" style={{ marginTop: "20px" }}><span className="badge green">OFFICIAL</span><span className="badge blue">VERCEL BLOB</span><span className="badge gray">PILOT PORTAL</span></div>
         </div>
         <div className="card" style={{ padding: "22px", background: "#17202b", color: "white", minHeight: "180px", display: "grid", alignContent: "space-between" }}>
-          <div><span className="meta" style={{ color: "#c9d2dc" }}>ACARS CLIENT</span><h2 style={{ margin: "8px 0" }}>Dispatch conectado</h2></div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end" }}><span style={{ color: "#c9d2dc" }}>FSUIPC · Telemetry · PIREP</span><strong style={{ fontSize: "2rem" }}>↓</strong></div>
+          <div><span className="meta" style={{ color: "#c9d2dc" }}>DOWNLOAD CENTER</span><h2 style={{ margin: "8px 0" }}>ACARS + Aircraft liveries</h2></div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end" }}><span style={{ color: "#c9d2dc" }}>Official HISPAFLY resources</span><strong style={{ fontSize: "2rem" }}>↓</strong></div>
         </div>
       </div>
     </section>
@@ -47,6 +49,7 @@ export default async function PilotDownloadsPage() {
     {release?.mandatory && <div className="feedback error">Esta versión está marcada como actualización obligatoria. Instálala antes de iniciar el próximo vuelo.</div>}
 
     <section className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 18 }}>
+      <div className="card-header" style={{ padding: "24px 28px 0" }}><div><p className="eyebrow">SOFTWARE OFICIAL</p><h2 className="card-title">HispaFly ACARS</h2></div><span className="badge blue">WINDOWS</span></div>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, .75fr) minmax(300px, 1.2fr) minmax(260px, .9fr)" }}>
         <div style={{ padding: 28, borderRight: "1px solid var(--border, #e3e7ee)" }}>
           <span className="meta">ÚLTIMA VERSIÓN</span><strong style={{ display: "block", fontSize: "3rem", margin: "8px 0 18px" }}>{release?.version ?? "—"}</strong>
@@ -69,7 +72,7 @@ export default async function PilotDownloadsPage() {
     </section>
 
     <section className="card" style={{ padding: 26, marginBottom: 18 }}>
-      <div className="card-header"><h2 className="card-title">Guía rápida de instalación</h2></div>
+      <div className="card-header"><h2 className="card-title">Guía rápida de instalación ACARS</h2></div>
       <div className="detail-grid" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
         <div className="card" style={{ padding: 20 }}><span className="badge red">1</span><h3>Requisitos</h3><p>Instala MSFS 2020/2024 y FSUIPC7.</p></div>
         <div className="card" style={{ padding: 20 }}><span className="badge red">2</span><h3>Instalación</h3><p>Cierra ACARS y ejecuta el instalador descargado.</p></div>
@@ -77,6 +80,33 @@ export default async function PilotDownloadsPage() {
         <div className="card" style={{ padding: 20 }}><span className="badge red">4</span><h3>Comprobación</h3><p>Verifica FSUIPC, fase, combustible y Dispatch.</p></div>
       </div>
       <div className="notice" style={{ marginTop: 18 }}>Mantén ACARS abierto hasta confirmar que el vuelo y la telemetría final se han sincronizado.</div>
+    </section>
+
+    <section className="card" style={{ padding: 26, marginBottom: 18 }}>
+      <div className="card-header">
+        <div><p className="eyebrow">AIRCRAFT LIVERIES</p><h2 className="card-title">Official HISPAFLY liveries</h2><p className="meta">Paquetes publicados por Staff para Microsoft Flight Simulator.</p></div>
+        <span className="badge red">{liveries.length} AVAILABLE</span>
+      </div>
+      {liveries.length ? <div className="detail-grid" style={{ marginTop: 18, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+        {liveries.map((livery) => <article className="card" style={{ padding: 22 }} key={livery.product}>
+          <div className="card-header">
+            <div>
+              <p className="eyebrow">{livery.simulator === "MSFS2024" ? "MSFS 2024" : "MSFS 2020"}</p>
+              <h3 className="card-title">{livery.aircraftType} · {livery.addon}</h3>
+              <p className="meta">{livery.registration ? `Registration ${livery.registration}` : "HISPAFLY fleet livery"}</p>
+            </div>
+            <span className="badge green">v{livery.version}</span>
+          </div>
+          <div className="workflow-summary" style={{ marginTop: 14 }}>
+            <div><span>Package</span><strong style={{ fontSize: 13 }}>{livery.fileName}</strong></div>
+            <div><span>Size</span><strong>{formatReleaseSize(livery.fileSize)}</strong></div>
+            <div><span>Published</span><strong>{formatDate(livery.publishedAt)}</strong></div>
+          </div>
+          {livery.notes && <p className="page-copy" style={{ marginTop: 14, whiteSpace: "pre-line" }}>{livery.notes}</p>}
+          <div className="form-actions" style={{ marginTop: 16 }}><a className="button" href={livery.downloadUrl}>↓ Descargar livery</a></div>
+        </article>)}
+      </div> : <div className="notice" style={{ marginTop: 16 }}>Todavía no hay liveries publicadas. Cuando Staff registre un paquete en Vercel Blob aparecerá automáticamente aquí.</div>}
+      <div className="notice" style={{ marginTop: 18 }}>Descomprime el paquete y sigue las instrucciones incluidas por el autor. Verifica que la versión corresponda a tu simulador y al add-on indicado.</div>
     </section>
 
     {betaRelease && <section className="card" style={{ padding: 26, marginBottom: 18 }}>
