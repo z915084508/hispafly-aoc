@@ -3,6 +3,7 @@ import { AocDataOrigin, NativeFlightStatus, PilotBookingStatus, Prisma } from "@
 import { prisma } from "@/lib/prisma";
 import { assertNativeIds, assertNativeOrigin } from "@/lib/native-cutover/write-gate";
 import { checkPilotEligibility } from "./booking";
+import { aircraftIsInDelivery } from "./aircraft-delivery";
 import { fleetIsAuthorized, validateSelfDispatchWindow } from "./self-dispatch-rules";
 import { resolveAircraftState } from "./aircraft-state";
 
@@ -46,6 +47,7 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
     const aircraft = await tx.aircraft.findUnique({ where: { id: input.aircraftId }, include: { nativeFleet: true, conditionSnapshot: true, locationSnapshot: true } });
     if (!aircraft) throw new Error("The selected aircraft does not exist.");
     assertNativeOrigin("Self-dispatch aircraft", aircraft.dataOrigin);
+    if (aircraftIsInDelivery(aircraft.rawData)) throw new Error("This aircraft is in DELIVERY lifecycle and is restricted to delivery/ferry operations.");
     if (aircraft.operationMode === "SCHEDULED") throw new Error("This aircraft is reserved for PROGRAMACION and cannot be used for a free flight.");
     const aircraftState = resolveAircraftState(aircraft);
     if (!aircraftState.available) throw new Error("The selected aircraft is not available.");
