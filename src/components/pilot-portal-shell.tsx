@@ -46,7 +46,7 @@ export async function PilotPortalShell({ children }: { children: React.ReactNode
         <nav className="nav-list">{operationNavItems.map(([key, href]) => <Link className="nav-item" href={href} key={href}>{t(`pilotNav.${key}`)}</Link>)}</nav>
 
         <div className="nav-label">SOFTWARE</div>
-        <nav className="nav-list"><Link className="nav-item" href="/pilot/downloads">Descargar ACARS</Link></nav>
+        <nav className="nav-list"><Link className="nav-item" href="/pilot/downloads">Download Center</Link></nav>
 
         <div className="nav-label">{t("pilotNav.economy")}</div>
         <nav className="nav-list">{economyNavItems.map(([key, href]) => <Link className="nav-item" href={href} key={href}>{t(`pilotNav.${key}`)}</Link>)}</nav>
