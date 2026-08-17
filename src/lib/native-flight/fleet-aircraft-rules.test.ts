@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { aircraftIsInDelivery, normalizeAircraftDelivery, readAircraftDelivery, writeAircraftDelivery } from "./aircraft-delivery.ts";
 import { aircraftRegistrationKey, aircraftSelcalKey } from "./aircraft-identity.ts";
 import { ASSIGNABLE_AIRCRAFT_STATUSES, nonNegative, normalizeAircraftInput, normalizeFleetInput } from "./fleet-aircraft-rules.ts";
 assert.deepEqual(normalizeFleetInput({ code: " a32n ", type: "a20n", iataType: "32n" }), { code: "A32N", type: "A20N", iataType: "32N" });
@@ -8,11 +9,18 @@ assert.equal(aircraftRegistrationKey("EC-BCX"), aircraftRegistrationKey("ECBCX")
 assert.equal(aircraftRegistrationKey(" ec-bcx "), "ECBCX");
 assert.equal(aircraftSelcalKey("AB-CD"), aircraftSelcalKey("ABCD"));
 assert.equal(aircraftSelcalKey(" ab cd "), "ABCD");
+const delivery = normalizeAircraftDelivery({ active: true, originIcao: " lppt ", destinationIcao: "levc", postDeliveryOperationMode: "scheduled" });
+assert.deepEqual(delivery, { active: true, originIcao: "LPPT", destinationIcao: "LEVC", postDeliveryOperationMode: "SCHEDULED", completedAt: null });
+const deliveryRaw = writeAircraftDelivery({ imported: true }, delivery!);
+assert.equal(aircraftIsInDelivery(deliveryRaw), true);
+assert.equal(readAircraftDelivery(deliveryRaw)?.destinationIcao, "LEVC");
+assert.equal((deliveryRaw as { imported?: boolean }).imported, true);
+assert.throws(() => normalizeAircraftDelivery({ active: true, originIcao: "LEVC", destinationIcao: "LEVC", postDeliveryOperationMode: "SCHEDULED" }), /different/);
 assert.throws(() => nonNegative(-1, "Capacity"), /non-negative/);
 assert.equal(ASSIGNABLE_AIRCRAFT_STATUSES.has("AVAILABLE"), true);
 for (const blocked of ["RESERVED", "IN_FLIGHT", "AOG", "RETIRED"]) assert.equal(ASSIGNABLE_AIRCRAFT_STATUSES.has(blocked), false);
 const availability = readFileSync(new URL("./availability.ts", import.meta.url), "utf8");
-for (const check of ["conditionSnapshot", "routeFleetCompatibility", "pilotBooking", "flightDispatch", "currentAirportId"]) assert.match(availability, new RegExp(check));
+for (const check of ["conditionSnapshot", "routeFleetCompatibility", "pilotBooking", "flightDispatch", "currentAirportId", "DELIVERY lifecycle"]) assert.match(availability, new RegExp(check));
 assert.doesNotMatch(availability, /@\/lib\/vamsys|fetch\(/);
 const schema = readFileSync(new URL("../../../prisma/schema.prisma", import.meta.url), "utf8");
 assert.match(schema, /enum NativeAircraftStatus/);

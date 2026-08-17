@@ -1,3 +1,4 @@
+import { aircraftIsInDelivery } from "../native-flight/aircraft-delivery.ts";
 import { fleetIsAuthorized } from "../native-flight/self-dispatch-rules.ts";
 import { MAX_SCHEDULE_DURATION_MINUTES, MINUTES_PER_DAY, SCHEDULE_DURATION_TOLERANCE_MINUTES } from "./constants.ts";
 import { validateAircraftScheduleConflicts } from "./conflicts.ts";
@@ -87,6 +88,7 @@ export function validateProposedScheduleWithContext(proposed: ProposedFlightSche
     if (!aircraft) errors.push(issue("AIRCRAFT_NOT_FOUND", "The assigned aircraft does not exist.", proposed, { aircraftId: proposed.assignedAircraftId }));
     else {
       if (aircraft.archivedAt) errors.push(issue("AIRCRAFT_ARCHIVED", "The assigned aircraft is archived and cannot be scheduled.", proposed, { aircraftId: aircraft.id }));
+      if (aircraftIsInDelivery(aircraft.rawData)) errors.push(issue("AIRCRAFT_DELIVERY_ONLY", "Aircraft in DELIVERY lifecycle cannot be assigned to normal PROGRAMACION until delivery is completed.", proposed, { aircraftId: aircraft.id }));
       if (aircraft.operationMode === "FREE") errors.push(issue("AIRCRAFT_FREE_ONLY", "FREE aircraft cannot be assigned to PROGRAMACION. Select a SCHEDULED or FLEX aircraft.", proposed, { aircraftId: aircraft.id }));
       const expectedPosition = expectedAircraftPositionAtStart(proposed, context);
       const firstDay = firstOperatingDate(proposed);

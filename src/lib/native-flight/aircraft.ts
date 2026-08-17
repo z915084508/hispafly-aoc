@@ -2,6 +2,7 @@ import type { AircraftOperationMode, NativeAircraftStatus, Prisma } from "@prism
 import { prisma } from "@/lib/prisma";
 import type { StaffIdentity } from "@/lib/staff/currentStaff";
 import type { NativeOrigin } from "./airport";
+import { normalizeAircraftDelivery, readAircraftDelivery, writeAircraftDelivery, type AircraftDeliveryMetadata } from "./aircraft-delivery";
 import { aircraftRegistrationKey, aircraftSelcalKey, aircraftSerialNumberKey } from "./aircraft-identity";
 import { nonNegative, normalizeAircraftInput } from "./fleet-aircraft-rules";
 import { HISPAFLY_HUB_ICAOS } from "./hubs";
@@ -14,11 +15,14 @@ export type AircraftInput = {
   hubAirportIds?: string[];
   selcal?: string | null; deliveryDate?: Date | null; inServiceDate?: Date | null; cabinConfiguration?: string | null;
   seatCapacity?: number | null; cargoCapacityKg?: number | null; internalNotes?: string | null; dataOrigin?: NativeOrigin;
+  delivery?: { active: boolean; originIcao?: string | null; destinationIcao?: string | null; postDeliveryOperationMode?: string | null };
 };
 function aircraftData(input: AircraftInput) {
   const normalized = normalizeAircraftInput(input);
   if (!/^EC-[A-Z]{3}$/.test(normalized.registration)) throw new Error("Aircraft registration must use EC-XXX with three letters.");
-  return { ...normalized, operationMode: input.operationMode ?? "FLEX", name: input.name?.trim() || null, serialNumber: input.serialNumber?.trim() || null,
+  const operationMode = input.operationMode ?? "FLEX";
+  if (!["FREE", "SCHEDULED", "FLEX"].includes(operationMode)) throw new Error("Aircraft operation mode is invalid.");
+  return { ...normalized, operationMode, name: input.name?.trim() || null, serialNumber: input.serialNumber?.trim() || null,
     deliveryDate: input.deliveryDate ?? null, inServiceDate: input.inServiceDate ?? null, cabinConfiguration: input.cabinConfiguration?.trim() || null,
     seatCapacity: nonNegative(input.seatCapacity, "Seat capacity"), cargoCapacityKg: nonNegative(input.cargoCapacityKg, "Cargo capacity"),
     internalNotes: input.internalNotes?.trim() || null };
@@ -27,6 +31,16 @@ async function activeFleet(tx: Prisma.TransactionClient, id: string) {
   const fleet = await tx.fleet.findUnique({ where: { id } });
   if (!fleet || fleet.operationalStatus !== "ACTIVE") throw new Error("Aircraft must use an active Fleet.");
   return fleet;
+}
+async function resolveDelivery(tx: Prisma.TransactionClient, input?: AircraftInput["delivery"]) {
+  const delivery = normalizeAircraftDelivery(input ?? { active: false });
+  if (!delivery) return { delivery: null, originAirport: null, destinationAirport: null };
+  const [originAirport, destinationAirport] = await Promise.all([
+    tx.airport.findUnique({ where: { icao: delivery.originIcao } }),
+    tx.airport.findUnique({ where: { icao: delivery.destinationIcao } }),
+  ]);
+  if (!destinationAirport || destinationAirport.status !== "ACTIVE" || destinationAirport.archivedAt) throw new Error("Delivery destination must be an active Airport in the AOC database.");
+  return { delivery, originAirport: originAirport?.status === "ACTIVE" && !originAirport.archivedAt ? originAirport : null, destinationAirport };
 }
 type AircraftIdentitySnapshot = { id?: string; registration?: string | null; selcal?: string | null; serialNumber?: string | null };
 async function assertUniqueAircraftIdentity(tx: Prisma.TransactionClient, data: { registration: string; selcal?: string | null; serialNumber?: string | null }, previous?: AircraftIdentitySnapshot) {
@@ -52,6 +66,7 @@ export const findAircraftById = (id: string) => prisma.aircraft.findUnique({ whe
   nativeBookings: { where: { status: "BOOKED" }, orderBy: { selectedDepartureAt: "asc" }, take: 10 },
   nativeDispatches: { where: { status: { in: ["DISPATCHING", "DISPATCHED"] } }, orderBy: { createdAt: "desc" }, take: 10 },
 } });
+export function getAircraftDelivery(rawData: unknown): AircraftDeliveryMetadata | null { return readAircraftDelivery(rawData); }
 export async function listAircraft(input: { search?: string; fleetId?: string; airportId?: string; status?: NativeAircraftStatus; maintenanceStatus?: string; dataOrigin?: string; page?: number }) {
   const page = Math.max(1, input.page ?? 1), search = input.search?.trim();
   const where: Prisma.AircraftWhereInput = {
@@ -72,26 +87,83 @@ export async function createNativeAircraft(input: AircraftInput, actor?: StaffId
     const hubAirportIds = [...new Set(input.hubAirportIds ?? [])];
     if (hubAirportIds.length !== await tx.airport.count({ where: { id: { in: hubAirportIds }, icao: { in: [...HISPAFLY_HUB_ICAOS] }, status: "ACTIVE", archivedAt: null } })) throw new Error("Aircraft HUBS are limited to LEMD, LEVC, LEPA and LEBL.");
     await assertUniqueAircraftIdentity(tx, data);
-    const aircraft = await tx.aircraft.create({ data: { ...data, nativeFleetId: fleet.id, fleetName: fleet.name, operationalStatus: "UNKNOWN", status: "UNKNOWN", dataOrigin: input.dataOrigin ?? "HISPAFLY_NATIVE", syncStatus: "LOCAL_DRAFT", hubs: { create: hubAirportIds.map((airportId) => ({ airportId })) } } });
-    await tx.aircraftLocationSnapshot.create({ data: { aircraftId: aircraft.id, vamsysAircraftId: `native:${aircraft.id}`, registration: aircraft.registration, aircraftType: aircraft.aircraftType, status: "UNKNOWN", source: "MANUAL" } });
-    if (actor) await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "AIRCRAFT_CREATED", entityType: "Aircraft", entityId: aircraft.id, message: `${actor.name} created Native aircraft ${aircraft.registration}.`, metadata: { fleetId: fleet.id, hubAirportIds } } });
+    const { delivery, originAirport } = await resolveDelivery(tx, input.delivery);
+    const operationalStatus: NativeAircraftStatus = delivery ? "FERRY_ONLY" : "UNKNOWN";
+    const aircraft = await tx.aircraft.create({ data: {
+      ...data,
+      ...(delivery ? { inServiceDate: null, rawData: writeAircraftDelivery(null, delivery) as Prisma.InputJsonValue, currentAirportId: originAirport?.id ?? null } : {}),
+      nativeFleetId: fleet.id, fleetName: fleet.name, operationalStatus, status: operationalStatus, dataOrigin: input.dataOrigin ?? "HISPAFLY_NATIVE", syncStatus: "LOCAL_DRAFT",
+      hubs: { create: hubAirportIds.map((airportId) => ({ airportId })) },
+    } });
+    await tx.aircraftLocationSnapshot.create({ data: {
+      aircraftId: aircraft.id, vamsysAircraftId: `native:${aircraft.id}`, registration: aircraft.registration, aircraftType: aircraft.aircraftType,
+      currentAirportId: originAirport?.id ?? null, currentAirportIcao: delivery?.originIcao ?? null, currentAirportIata: originAirport?.iata ?? null,
+      lastLatitude: originAirport?.latitude ?? null, lastLongitude: originAirport?.longitude ?? null, status: delivery ? "UNKNOWN" : "UNKNOWN", source: "MANUAL",
+      notes: delivery ? `Pending delivery ${delivery.originIcao} → ${delivery.destinationIcao}` : null,
+    } });
+    if (actor) await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: delivery ? "AIRCRAFT_CREATED_FOR_DELIVERY" : "AIRCRAFT_CREATED", entityType: "Aircraft", entityId: aircraft.id, message: delivery ? `${actor.name} created Native aircraft ${aircraft.registration} in DELIVERY lifecycle.` : `${actor.name} created Native aircraft ${aircraft.registration}.`, metadata: { fleetId: fleet.id, hubAirportIds, delivery } } });
     return aircraft;
   });
 }
 export async function updateNativeAircraft(id: string, input: AircraftInput, actor: StaffIdentity) {
   const data = aircraftData(input);
   return prisma.$transaction(async tx => {
-    const before = await tx.aircraft.findUnique({ where: { id }, include: { hubs: true } }); if (!before) throw new Error("Aircraft not found.");
+    const before = await tx.aircraft.findUnique({ where: { id }, include: { hubs: true, locationSnapshot: true } }); if (!before) throw new Error("Aircraft not found.");
     if (!editable(before.dataOrigin) || before.operationalStatus === "RETIRED") throw new Error("Retired aircraft are read-only.");
     const fleet = await activeFleet(tx, input.fleetId);
     const hubAirportIds = [...new Set(input.hubAirportIds ?? [])];
     if (hubAirportIds.length !== await tx.airport.count({ where: { id: { in: hubAirportIds }, icao: { in: [...HISPAFLY_HUB_ICAOS] }, status: "ACTIVE", archivedAt: null } })) throw new Error("Aircraft HUBS are limited to LEMD, LEVC, LEPA and LEBL.");
     await assertUniqueAircraftIdentity(tx, data, { id, registration: before.registration, selcal: before.selcal, serialNumber: before.serialNumber });
-    const aircraft = await tx.aircraft.update({ where: { id }, data: { ...data, nativeFleetId: fleet.id, fleetName: fleet.name, hubs: { deleteMany: {}, create: hubAirportIds.map((airportId) => ({ airportId })) } } });
-    await tx.aircraftLocationSnapshot.updateMany({ where: { aircraftId: id }, data: { registration: aircraft.registration, aircraftType: aircraft.aircraftType } });
+    const existingDelivery = readAircraftDelivery(before.rawData);
+    const { delivery, originAirport } = await resolveDelivery(tx, input.delivery);
+    if (existingDelivery?.active && !delivery) throw new Error("Complete the delivery workflow before changing this aircraft to normal operations.");
+    const startingDelivery = !existingDelivery?.active && Boolean(delivery);
+    const rawData = delivery ? writeAircraftDelivery(before.rawData, delivery) as Prisma.InputJsonValue : before.rawData ?? undefined;
+    const aircraft = await tx.aircraft.update({ where: { id }, data: {
+      ...data,
+      ...(delivery ? { rawData } : {}),
+      ...(startingDelivery ? { currentAirportId: originAirport?.id ?? null, operationalStatus: "FERRY_ONLY", status: "FERRY_ONLY", inServiceDate: null } : {}),
+      nativeFleetId: fleet.id, fleetName: fleet.name, hubs: { deleteMany: {}, create: hubAirportIds.map((airportId) => ({ airportId })) },
+    } });
+    await tx.aircraftLocationSnapshot.updateMany({ where: { aircraftId: id }, data: {
+      registration: aircraft.registration, aircraftType: aircraft.aircraftType,
+      ...(startingDelivery ? { currentAirportId: originAirport?.id ?? null, currentAirportIcao: delivery?.originIcao ?? null, currentAirportIata: originAirport?.iata ?? null, lastLatitude: originAirport?.latitude ?? null, lastLongitude: originAirport?.longitude ?? null, status: "UNKNOWN", source: "MANUAL", notes: `Pending delivery ${delivery?.originIcao} → ${delivery?.destinationIcao}` } : {}),
+    } });
     const beforeHubIds = before.hubs.map(({ airportId }) => airportId).sort();
     const hubsChanged = beforeHubIds.join(",") !== [...hubAirportIds].sort().join(",");
-    await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: hubsChanged ? "AIRCRAFT_HUBS_CHANGED" : before.operationMode !== aircraft.operationMode ? "AIRCRAFT_OPERATION_MODE_CHANGED" : before.nativeFleetId === fleet.id ? "AIRCRAFT_UPDATED" : "AIRCRAFT_FLEET_REASSIGNED", entityType: "Aircraft", entityId: id, message: `${actor.name} updated ${aircraft.registration}.`, metadata: { before: { registration: before.registration, fleetId: before.nativeFleetId, operationMode: before.operationMode, hubAirportIds: beforeHubIds }, after: { registration: aircraft.registration, fleetId: fleet.id, operationMode: aircraft.operationMode, hubAirportIds } } } });
+    const deliveryChanged = JSON.stringify(existingDelivery) !== JSON.stringify(delivery);
+    await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: deliveryChanged ? "AIRCRAFT_DELIVERY_UPDATED" : hubsChanged ? "AIRCRAFT_HUBS_CHANGED" : before.operationMode !== aircraft.operationMode ? "AIRCRAFT_OPERATION_MODE_CHANGED" : before.nativeFleetId === fleet.id ? "AIRCRAFT_UPDATED" : "AIRCRAFT_FLEET_REASSIGNED", entityType: "Aircraft", entityId: id, message: `${actor.name} updated ${aircraft.registration}.`, metadata: { before: { registration: before.registration, fleetId: before.nativeFleetId, operationMode: before.operationMode, hubAirportIds: beforeHubIds, delivery: existingDelivery }, after: { registration: aircraft.registration, fleetId: fleet.id, operationMode: aircraft.operationMode, hubAirportIds, delivery } } } });
+    return aircraft;
+  });
+}
+export async function completeAircraftDelivery(id: string, actor: StaffIdentity) {
+  return prisma.$transaction(async tx => {
+    const before = await tx.aircraft.findUnique({ where: { id }, include: { currentAirport: true, locationSnapshot: true, conditionSnapshot: true } });
+    if (!before) throw new Error("Aircraft not found.");
+    if (!editable(before.dataOrigin) || before.operationalStatus === "RETIRED") throw new Error("This Aircraft is read-only.");
+    const delivery = readAircraftDelivery(before.rawData);
+    if (!delivery?.active) throw new Error("Aircraft is not in an active delivery lifecycle.");
+    const destination = await tx.airport.findUnique({ where: { icao: delivery.destinationIcao } });
+    if (!destination || destination.status !== "ACTIVE" || destination.archivedAt) throw new Error("Delivery destination is not an active AOC Airport.");
+    const currentIcao = (before.currentAirport?.icao ?? before.locationSnapshot?.currentAirportIcao ?? "").toUpperCase();
+    if (currentIcao !== delivery.destinationIcao) throw new Error(`Aircraft must be at ${delivery.destinationIcao} before delivery can be completed.`);
+    if (before.conditionSnapshot && (["AOG", "IN_MAINTENANCE"].includes(before.conditionSnapshot.operationalStatus) || ["REQUIRED", "IN_PROGRESS", "WAITING_MAINTENANCE"].includes(before.conditionSnapshot.maintenanceStatus))) throw new Error("Aircraft maintenance condition blocks entry into service.");
+    const [flightConflict, bookingConflict, dispatchConflict] = await Promise.all([
+      tx.flight.findFirst({ where: { assignedAircraftId: id, status: { notIn: ["COMPLETED", "CANCELLED"] } }, select: { id: true } }),
+      tx.pilotBooking.findFirst({ where: { aircraftId: id, status: "BOOKED" }, select: { id: true } }),
+      tx.flightDispatch.findFirst({ where: { aircraftId: id, status: { in: ["DISPATCHING", "DISPATCHED"] } }, select: { id: true } }),
+    ]);
+    if (flightConflict || bookingConflict || dispatchConflict) throw new Error("Complete the active delivery flight, booking, or Dispatch before entering the aircraft into service.");
+    const completedDelivery: AircraftDeliveryMetadata = { ...delivery, active: false, completedAt: new Date().toISOString() };
+    const aircraft = await tx.aircraft.update({ where: { id }, data: {
+      rawData: writeAircraftDelivery(before.rawData, completedDelivery) as Prisma.InputJsonValue,
+      currentAirportId: destination.id,
+      operationMode: delivery.postDeliveryOperationMode as AircraftOperationMode,
+      operationalStatus: "AVAILABLE", status: "AVAILABLE",
+      inServiceDate: before.inServiceDate ?? new Date(),
+    } });
+    await tx.aircraftLocationSnapshot.updateMany({ where: { aircraftId: id }, data: { currentAirportId: destination.id, currentAirportIcao: destination.icao, currentAirportIata: destination.iata, lastLatitude: destination.latitude, lastLongitude: destination.longitude, status: "AVAILABLE", source: "MANUAL", notes: `Delivery completed at ${destination.icao}`, lastReportAt: new Date() } });
+    await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "AIRCRAFT_DELIVERY_COMPLETED", entityType: "Aircraft", entityId: id, message: `${actor.name} completed delivery of ${aircraft.registration} at ${destination.icao} and entered it into service.`, metadata: { delivery, postDeliveryOperationMode: delivery.postDeliveryOperationMode } } });
     return aircraft;
   });
 }

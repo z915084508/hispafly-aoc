@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { aircraftIsInDelivery } from "./aircraft-delivery";
 import { resolveAircraftState } from "./aircraft-state";
 export type AircraftAvailabilityResult = { allowed: boolean; blockingReasons: string[]; warnings: string[]; checkedAt: Date };
 export async function checkAircraftAvailability(input: { aircraftId: string; routeId?: string | null; departureAirportId?: string | null; startsAt: Date; endsAt: Date; ferryFlight?: boolean }): Promise<AircraftAvailabilityResult> {
@@ -7,10 +8,12 @@ export async function checkAircraftAvailability(input: { aircraftId: string; rou
   const aircraft = await prisma.aircraft.findUnique({ where: { id: input.aircraftId }, include: { nativeFleet: true, currentAirport: true, conditionSnapshot: true, locationSnapshot: true } });
   if (!aircraft) return { allowed: false, blockingReasons: ["Aircraft does not exist."], warnings, checkedAt };
   const aircraftState = resolveAircraftState(aircraft);
-  if (!aircraftState.available && !(input.ferryFlight && aircraft.operationalStatus === "FERRY_ONLY")) blockingReasons.push(`Aircraft state is not assignable.`);
+  const deliveryActive = aircraftIsInDelivery(aircraft.rawData);
+  if (!aircraftState.available && !(input.ferryFlight && (aircraft.operationalStatus === "FERRY_ONLY" || deliveryActive))) blockingReasons.push(`Aircraft state is not assignable.`);
   if (!aircraft.nativeFleet || aircraft.nativeFleet.operationalStatus !== "ACTIVE") blockingReasons.push("Aircraft Fleet is not active.");
   if (aircraft.conditionSnapshot && (["AOG", "IN_MAINTENANCE"].includes(aircraft.conditionSnapshot.operationalStatus) || ["REQUIRED", "IN_PROGRESS", "WAITING_MAINTENANCE"].includes(aircraft.conditionSnapshot.maintenanceStatus))) blockingReasons.push("Maintenance status blocks normal assignment.");
-  if (aircraft.operationalStatus === "FERRY_ONLY" && !input.ferryFlight) blockingReasons.push("Aircraft is restricted to maintenance ferry operations.");
+  if (deliveryActive && !input.ferryFlight) blockingReasons.push("Aircraft is in DELIVERY lifecycle and is restricted to delivery/ferry operations.");
+  if (aircraft.operationalStatus === "FERRY_ONLY" && !input.ferryFlight) blockingReasons.push("Aircraft is restricted to ferry operations.");
   if (input.departureAirportId && aircraftState.currentAirportId !== input.departureAirportId) blockingReasons.push("Aircraft is not at the required departure airport.");
   if (!aircraftState.currentAirportId) warnings.push("Aircraft current airport is unknown.");
   if (aircraftState.stale) warnings.push("Aircraft location is older than 72 hours.");

@@ -43,6 +43,7 @@ export type SchedulingFleet = { id: string; operationalStatus: string; active: b
 export type SchedulingAircraft = {
   id: string; nativeFleetId: string | null; operationalStatus: string; operationMode?: "FREE" | "SCHEDULED" | "FLEX"; archivedAt: Date | null;
   currentAirportId?: string | null;
+  rawData?: unknown;
   conditionSnapshot: { operationalStatus: string; maintenanceStatus: string } | null;
   nativeFleet: SchedulingFleet | null;
   hubs?: Array<{ airportId: string }>;
