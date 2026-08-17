@@ -14,6 +14,7 @@ export async function renewProgramacionExpiryAction(form: FormData) {
 
   const mode = form.get("mode") === "NO_EXPIRY" ? "NO_EXPIRY" : "EXTEND";
   const extendDays = mode === "EXTEND" ? Number(form.get("extendDays")) : undefined;
+  let target: string;
 
   try {
     const updated = await renewFlightScheduleExpiry({ scheduleId: id, actor: staff, mode, extendDays });
@@ -31,9 +32,11 @@ export async function renewProgramacionExpiryAction(form: FormData) {
     revalidatePath("/staff/operations/programacion/expiring");
     revalidatePath("/staff/flights");
     revalidatePath("/pilot/flight-offers");
-    redirect(`/staff/operations/programacion/expiring?horizon=${horizon}&renewed=1&generated=${generated}${generationWarning ? "&generationWarning=1" : ""}`);
+    target = `/staff/operations/programacion/expiring?horizon=${horizon}&renewed=1&generated=${generated}${generationWarning ? "&generationWarning=1" : ""}`;
   } catch (error) {
     const message = error instanceof Error ? error.message : "No se pudo renovar la programación.";
-    redirect(`/staff/operations/programacion/expiring?horizon=${horizon}&error=${encodeURIComponent(message)}`);
+    target = `/staff/operations/programacion/expiring?horizon=${horizon}&error=${encodeURIComponent(message)}`;
   }
+
+  redirect(target);
 }
