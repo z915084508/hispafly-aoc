@@ -103,13 +103,18 @@ export async function renewFlightScheduleExpiry(input: {
       data: { effectiveUntil: nextUntil, status: nextStatus, archivedAt: null },
       select: { id: true, code: true, status: true, effectiveUntil: true },
     });
-    await tx.staffAuditLog.create({ data: {
-      staffId: input.actor.id,
+    await tx.aocAuditLog.create({ data: {
+      staffUserId: input.actor.id,
       action: "SCHEDULE_RENEWED",
-      targetType: "FlightSchedule",
-      targetId: current.id,
-      before: { status: current.status, effectiveUntil: current.effectiveUntil?.toISOString() ?? null },
-      after: { status: row.status, effectiveUntil: row.effectiveUntil?.toISOString() ?? null, mode: input.mode, extendDays: input.extendDays ?? null },
+      entityType: "FlightSchedule",
+      entityId: current.id,
+      message: `Programación ${current.code} renovada`,
+      details: {
+        before: { status: current.status, effectiveUntil: current.effectiveUntil?.toISOString() ?? null },
+        after: { status: row.status, effectiveUntil: row.effectiveUntil?.toISOString() ?? null },
+        mode: input.mode,
+        extendDays: input.extendDays ?? null,
+      },
     } });
     return row;
   });
