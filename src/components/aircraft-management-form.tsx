@@ -132,7 +132,7 @@ export function AircraftManagementForm({ action, fleets, airports, value }: {
       <div className="route-form-grid">
         <label>Name<input name="name" defaultValue={value?.name ?? ""} /></label>
         <label>{operationMode === "DELIVERY" ? "Planned delivery date" : "Delivery date"}<input name="deliveryDate" type="date" defaultValue={date(value?.deliveryDate)} /></label>
-        <label>In-service date<input name="inServiceDate" type="date" defaultValue={date(value?.inServiceDate)} /></label>
+        <label>In-service date<input name="inServiceDate" type="date" disabled={operationMode === "DELIVERY"} defaultValue={operationMode === "DELIVERY" ? "" : date(value?.inServiceDate)} />{operationMode === "DELIVERY" && <small>Set automatically when delivery is completed.</small>}</label>
         <label>Notes<textarea name="internalNotes" defaultValue={value?.internalNotes ?? ""} /></label>
       </div>
     </fieldset>
