@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { AircraftManagementForm } from "@/components/aircraft-management-form";
-import { findAircraftById } from "@/lib/native-flight/aircraft";
+import { findAircraftById, getAircraftDelivery } from "@/lib/native-flight/aircraft";
 import { HISPAFLY_HUB_ICAOS } from "@/lib/native-flight/hubs";
 import { prisma } from "@/lib/prisma";
 import { requireStaffPermission } from "@/lib/staff/authorization";
@@ -17,5 +17,6 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   ]);
   if (!aircraft) notFound();
   if (aircraft.dataOrigin === "VAMSYS_LEGACY" || aircraft.operationalStatus === "RETIRED") redirect(`/staff/aircraft/${id}?error=Aircraft%20is%20read-only.`);
-  return <><h1>Edit {aircraft.registration}</h1>{query.error && <div className="notice">{query.error}</div>}<AircraftManagementForm action={updateAircraftAction} fleets={fleets} airports={hubs} value={aircraft}/></>;
+  const delivery = getAircraftDelivery(aircraft.rawData);
+  return <><h1>Edit {aircraft.registration}</h1>{query.error && <div className="notice">{query.error}</div>}<AircraftManagementForm action={updateAircraftAction} fleets={fleets} airports={hubs} value={{ ...aircraft, delivery }}/></>;
 }
