@@ -22,7 +22,7 @@ export async function renewProgramacionExpiryAction(form: FormData) {
     let generationWarning = false;
     if (updated.status === "ACTIVE") {
       try {
-        generated = (await generateFlightsForSchedule(updated.id, staff)).created;
+        generated = (await generateFlightsForSchedule({ scheduleId: updated.id, actor: staff })).created;
       } catch {
         generationWarning = true;
       }
