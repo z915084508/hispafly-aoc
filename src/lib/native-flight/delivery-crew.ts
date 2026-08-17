@@ -70,7 +70,7 @@ export async function listPilotDeliveryTasks(pilotId: string) {
   ]);
 
   if (!pilot) throw new Error("Pilot not found.");
-  const tasks = aircraftRows.flatMap((aircraft) => {
+  return aircraftRows.flatMap((aircraft) => {
     const delivery = readAircraftDelivery(aircraft.rawData);
     if (!delivery?.active) return [];
     const currentIcao = (aircraft.currentAirport?.icao ?? aircraft.locationSnapshot?.currentAirportIcao ?? delivery.originIcao).toUpperCase();
@@ -98,7 +98,6 @@ export async function listPilotDeliveryTasks(pilotId: string) {
       pilotCurrentIcao: pilot.currentAirport?.icao ?? null,
     }];
   });
-  return tasks;
 }
 
 export async function acceptAircraftDelivery(input: {
@@ -119,7 +118,8 @@ export async function acceptAircraftDelivery(input: {
     if (!aircraft || aircraft.archivedAt) throw new Error("Delivery aircraft is unavailable.");
     const delivery = readAircraftDelivery(aircraft.rawData);
     if (!delivery?.active) throw new Error("This aircraft is no longer in DELIVERY lifecycle.");
-    if (!aircraft.nativeFleetId || aircraft.nativeFleet?.operationalStatus !== "ACTIVE") throw new Error("Delivery aircraft Fleet is not active.");
+    const fleet = aircraft.nativeFleet;
+    if (!aircraft.nativeFleetId || !fleet || fleet.operationalStatus !== "ACTIVE") throw new Error("Delivery aircraft Fleet is not active.");
     if (aircraft.conditionSnapshot && (["AOG", "IN_MAINTENANCE"].includes(aircraft.conditionSnapshot.operationalStatus) || ["REQUIRED", "IN_PROGRESS", "WAITING_MAINTENANCE"].includes(aircraft.conditionSnapshot.maintenanceStatus))) {
       throw new Error("Aircraft maintenance status blocks delivery acceptance.");
     }
@@ -151,7 +151,7 @@ export async function acceptAircraftDelivery(input: {
     ]);
     if (otherBooking || activeDispatch || activeFlight) throw new Error("Aircraft already has an active operation and cannot be accepted for delivery.");
 
-    const durationMinutes = deliveryBlockMinutes({ origin, destination, cruiseSpeedKts: aircraft.nativeFleet.cruiseSpeedKts });
+    const durationMinutes = deliveryBlockMinutes({ origin, destination, cruiseSpeedKts: fleet.cruiseSpeedKts });
     const scheduledArrival = new Date(input.departureAt.getTime() + durationMinutes * 60_000);
     const eligibility = await checkPilotEligibility(input.pilotId, { id: `delivery:${aircraft.id}`, scheduledDeparture: input.departureAt, scheduledArrival }, tx);
     if (!eligibility.allowed) throw new Error(eligibility.blockingReasons.join(" "));
@@ -163,13 +163,16 @@ export async function acceptAircraftDelivery(input: {
       referenceId: aircraft.id,
     });
 
-    // A delivery aircraft remains lifecycle-restricted by rawData + FERRY_ONLY,
-    // but its location snapshot becomes physically available so the normal Native
-    // Dispatch preparation can validate its presence at the delivery airport.
+    // Keep the lifecycle master status FERRY_ONLY and force the underlying normal
+    // mode to SCHEDULED. The planned post-delivery mode remains in delivery metadata
+    // and is only applied by Staff when the aircraft formally enters service.
     await tx.aircraft.update({
       where: { id: aircraft.id },
-      data: { operationalStatus: "FERRY_ONLY", status: "FERRY_ONLY", currentAirportId: origin.id },
+      data: { operationalStatus: "FERRY_ONLY", status: "FERRY_ONLY", operationMode: "SCHEDULED", currentAirportId: origin.id },
     });
+    // The location snapshot is physically available at the origin so Native Dispatch
+    // can validate the delivery operation. Normal operations are still blocked by the
+    // FERRY_ONLY master state / active delivery metadata.
     await tx.aircraftLocationSnapshot.upsert({
       where: { aircraftId: aircraft.id },
       create: {
@@ -224,7 +227,7 @@ export async function acceptAircraftDelivery(input: {
         defaultFleetId: aircraft.nativeFleetId,
         scheduledDurationMinutes: durationMinutes,
         distanceNm,
-        cruiseAltitude: aircraft.nativeFleet.defaultCruiseAltitudeFt,
+        cruiseAltitude: fleet.defaultCruiseAltitudeFt,
         operationalStatus: "HIDDEN",
         syncStatus: "LOCAL_DRAFT",
         active: false,
