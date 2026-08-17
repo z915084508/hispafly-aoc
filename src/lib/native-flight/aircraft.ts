@@ -2,6 +2,7 @@ import type { AircraftOperationMode, NativeAircraftStatus, Prisma } from "@prism
 import { prisma } from "@/lib/prisma";
 import type { StaffIdentity } from "@/lib/staff/currentStaff";
 import type { NativeOrigin } from "./airport";
+import { aircraftRegistrationKey, aircraftSelcalKey, aircraftSerialNumberKey } from "./aircraft-identity";
 import { nonNegative, normalizeAircraftInput } from "./fleet-aircraft-rules";
 import { HISPAFLY_HUB_ICAOS } from "./hubs";
 const actorId = (actor: StaffIdentity) => actor.id === "development-staff" ? null : actor.id;
@@ -26,6 +27,22 @@ async function activeFleet(tx: Prisma.TransactionClient, id: string) {
   const fleet = await tx.fleet.findUnique({ where: { id } });
   if (!fleet || fleet.operationalStatus !== "ACTIVE") throw new Error("Aircraft must use an active Fleet.");
   return fleet;
+}
+type AircraftIdentitySnapshot = { id?: string; registration?: string | null; selcal?: string | null; serialNumber?: string | null };
+async function assertUniqueAircraftIdentity(tx: Prisma.TransactionClient, data: { registration: string; selcal?: string | null; serialNumber?: string | null }, previous?: AircraftIdentitySnapshot) {
+  const rows = await tx.aircraft.findMany({
+    where: previous?.id ? { id: { not: previous.id } } : undefined,
+    select: { registration: true, selcal: true, serialNumber: true },
+  });
+  const registrationKey = aircraftRegistrationKey(data.registration);
+  const previousRegistrationKey = aircraftRegistrationKey(previous?.registration);
+  if (registrationKey !== previousRegistrationKey && rows.some(row => aircraftRegistrationKey(row.registration) === registrationKey)) throw new Error("Aircraft registration already exists.");
+  const selcalKey = aircraftSelcalKey(data.selcal);
+  const previousSelcalKey = aircraftSelcalKey(previous?.selcal);
+  if (selcalKey && selcalKey !== previousSelcalKey && rows.some(row => aircraftSelcalKey(row.selcal) === selcalKey)) throw new Error("Aircraft SELCAL already exists.");
+  const serialNumberKey = aircraftSerialNumberKey(data.serialNumber);
+  const previousSerialNumberKey = aircraftSerialNumberKey(previous?.serialNumber);
+  if (serialNumberKey && serialNumberKey !== previousSerialNumberKey && rows.some(row => aircraftSerialNumberKey(row.serialNumber) === serialNumberKey)) throw new Error("Aircraft serial number already exists.");
 }
 export const findAircraftById = (id: string) => prisma.aircraft.findUnique({ where: { id }, include: {
   nativeFleet: true, currentAirport: true, locationSnapshot: true, conditionSnapshot: true,
@@ -54,9 +71,7 @@ export async function createNativeAircraft(input: AircraftInput, actor?: StaffId
     const fleet = await activeFleet(tx, input.fleetId);
     const hubAirportIds = [...new Set(input.hubAirportIds ?? [])];
     if (hubAirportIds.length !== await tx.airport.count({ where: { id: { in: hubAirportIds }, icao: { in: [...HISPAFLY_HUB_ICAOS] }, status: "ACTIVE", archivedAt: null } })) throw new Error("Aircraft HUBS are limited to LEMD, LEVC, LEPA and LEBL.");
-    if (await tx.aircraft.findFirst({ where: { registration: { equals: data.registration, mode: "insensitive" } } })) throw new Error("Aircraft registration already exists.");
-    if (data.selcal && await tx.aircraft.findFirst({ where: { selcal: { equals: data.selcal, mode: "insensitive" } } })) throw new Error("Aircraft SELCAL already exists.");
-    if (data.serialNumber && await tx.aircraft.findFirst({ where: { serialNumber: { equals: data.serialNumber, mode: "insensitive" } } })) throw new Error("Aircraft serial number already exists.");
+    await assertUniqueAircraftIdentity(tx, data);
     const aircraft = await tx.aircraft.create({ data: { ...data, nativeFleetId: fleet.id, fleetName: fleet.name, operationalStatus: "UNKNOWN", status: "UNKNOWN", dataOrigin: input.dataOrigin ?? "HISPAFLY_NATIVE", syncStatus: "LOCAL_DRAFT", hubs: { create: hubAirportIds.map((airportId) => ({ airportId })) } } });
     await tx.aircraftLocationSnapshot.create({ data: { aircraftId: aircraft.id, vamsysAircraftId: `native:${aircraft.id}`, registration: aircraft.registration, aircraftType: aircraft.aircraftType, status: "UNKNOWN", source: "MANUAL" } });
     if (actor) await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "AIRCRAFT_CREATED", entityType: "Aircraft", entityId: aircraft.id, message: `${actor.name} created Native aircraft ${aircraft.registration}.`, metadata: { fleetId: fleet.id, hubAirportIds } } });
@@ -71,7 +86,7 @@ export async function updateNativeAircraft(id: string, input: AircraftInput, act
     const fleet = await activeFleet(tx, input.fleetId);
     const hubAirportIds = [...new Set(input.hubAirportIds ?? [])];
     if (hubAirportIds.length !== await tx.airport.count({ where: { id: { in: hubAirportIds }, icao: { in: [...HISPAFLY_HUB_ICAOS] }, status: "ACTIVE", archivedAt: null } })) throw new Error("Aircraft HUBS are limited to LEMD, LEVC, LEPA and LEBL.");
-    if (await tx.aircraft.findFirst({ where: { id: { not: id }, registration: { equals: data.registration, mode: "insensitive" } } })) throw new Error("Aircraft registration already exists.");
+    await assertUniqueAircraftIdentity(tx, data, { id, registration: before.registration, selcal: before.selcal, serialNumber: before.serialNumber });
     const aircraft = await tx.aircraft.update({ where: { id }, data: { ...data, nativeFleetId: fleet.id, fleetName: fleet.name, hubs: { deleteMany: {}, create: hubAirportIds.map((airportId) => ({ airportId })) } } });
     await tx.aircraftLocationSnapshot.updateMany({ where: { aircraftId: id }, data: { registration: aircraft.registration, aircraftType: aircraft.aircraftType } });
     const beforeHubIds = before.hubs.map(({ airportId }) => airportId).sort();

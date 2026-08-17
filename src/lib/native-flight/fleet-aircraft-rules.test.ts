@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { aircraftRegistrationKey, aircraftSelcalKey } from "./aircraft-identity.ts";
 import { ASSIGNABLE_AIRCRAFT_STATUSES, nonNegative, normalizeAircraftInput, normalizeFleetInput } from "./fleet-aircraft-rules.ts";
 assert.deepEqual(normalizeFleetInput({ code: " a32n ", type: "a20n", iataType: "32n" }), { code: "A32N", type: "A20N", iataType: "32N" });
 assert.deepEqual(normalizeAircraftInput({ registration: " ec hfa ", aircraftType: "a20n", selcal: "ab-cd" }), { registration: "ECHFA", aircraftType: "A20N", selcal: "AB-CD" });
+assert.equal(aircraftRegistrationKey("EC-BCX"), aircraftRegistrationKey("ECBCX"));
+assert.equal(aircraftRegistrationKey(" ec-bcx "), "ECBCX");
+assert.equal(aircraftSelcalKey("AB-CD"), aircraftSelcalKey("ABCD"));
+assert.equal(aircraftSelcalKey(" ab cd "), "ABCD");
 assert.throws(() => nonNegative(-1, "Capacity"), /non-negative/);
 assert.equal(ASSIGNABLE_AIRCRAFT_STATUSES.has("AVAILABLE"), true);
 for (const blocked of ["RESERVED", "IN_FLIGHT", "AOG", "RETIRED"]) assert.equal(ASSIGNABLE_AIRCRAFT_STATUSES.has(blocked), false);
