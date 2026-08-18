@@ -33,9 +33,10 @@ const localParts = (value: Date, timezone: string) => {
   try { return format(timezone || "UTC"); } catch { return format("UTC"); }
 };
 
-const deliveryFlightNumber = (aircraftId: string) => {
+const deliveryFlightIdentity = (aircraftId: string) => {
   const hash = [...aircraftId].reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 1), 0);
-  return `HFY9${String(hash % 1000).padStart(3, "0")}`;
+  const number = `9${String(hash % 1000).padStart(3, "0")}`;
+  return { flightNumber: `HF${number}`, callsign: `HPF${number}` };
 };
 
 export function deliveryBlockMinutes(input: {
@@ -163,16 +164,10 @@ export async function acceptAircraftDelivery(input: {
       referenceId: aircraft.id,
     });
 
-    // Keep the lifecycle master status FERRY_ONLY and force the underlying normal
-    // mode to SCHEDULED. The planned post-delivery mode remains in delivery metadata
-    // and is only applied by Staff when the aircraft formally enters service.
     await tx.aircraft.update({
       where: { id: aircraft.id },
       data: { operationalStatus: "FERRY_ONLY", status: "FERRY_ONLY", operationMode: "SCHEDULED", currentAirportId: origin.id },
     });
-    // The location snapshot is physically available at the origin so Native Dispatch
-    // can validate the delivery operation. Normal operations are still blocked by the
-    // FERRY_ONLY master state / active delivery metadata.
     await tx.aircraftLocationSnapshot.upsert({
       where: { aircraftId: aircraft.id },
       create: {
@@ -204,7 +199,7 @@ export async function acceptAircraftDelivery(input: {
       },
     });
 
-    const flightNumber = deliveryFlightNumber(aircraft.id);
+    const { flightNumber, callsign } = deliveryFlightIdentity(aircraft.id);
     const departureTimezone = origin.timezone || "UTC";
     const arrivalTimezone = destination.timezone || "UTC";
     const dep = localParts(input.departureAt, departureTimezone);
@@ -217,7 +212,7 @@ export async function acceptAircraftDelivery(input: {
       data: {
         dataOrigin: AocDataOrigin.HISPAFLY_NATIVE,
         flightNumber,
-        callsign: flightNumber,
+        callsign,
         name: `Aircraft delivery ${aircraft.registration ?? aircraft.aircraftType ?? aircraft.id}`,
         routeCode: `DELIVERY-${(aircraft.registration ?? aircraft.id).replace(/[^A-Z0-9]/gi, "")}`,
         departure: origin.icao,
@@ -245,7 +240,7 @@ export async function acceptAircraftDelivery(input: {
         scheduledArrival,
         scheduledDurationMinutes: durationMinutes,
         flightNumber,
-        callsign: flightNumber,
+        callsign,
         departureIcao: origin.icao,
         arrivalIcao: destination.icao,
         departureTimezone,
@@ -272,7 +267,7 @@ export async function acceptAircraftDelivery(input: {
         departureIcao: origin.icao,
         arrivalIcao: destination.icao,
         flightNumber,
-        callsign: flightNumber,
+        callsign,
         aircraftType: aircraft.aircraftType,
         aircraftRegistration: aircraft.registration,
         selectedDepartureAt: input.departureAt,
