@@ -21,6 +21,7 @@ const AIRCRAFT_PAYROLL_ALIASES: Record<string, AircraftType> = {
   CRJ7: "A320",
   CRJ9: "A320",
   CRJX: "A320",
+  E195: "A320",
   B77W: "B772",
   B773: "B772",
   B77L: "B772",
