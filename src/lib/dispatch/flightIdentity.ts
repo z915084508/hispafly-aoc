@@ -17,8 +17,13 @@ export function normalizeFlightIdentity(input: FlightIdentityInput) {
   const callsignNumber = rawCallsign.match(/\d+/)?.[0] ?? "";
   const numericFlightNumber = rawFlightNumber.match(/\d+/)?.[0] ?? callsignNumber;
   const commercialFlightNumber = numericFlightNumber ? `${commercialPrefix}${numericFlightNumber}` : rawFlightNumber;
+  const legacyHispaflyCallsign = rawCallsign.match(/^HFY(\d{1,4})$/);
   const atcCallsign = rawCallsign
-    ? rawCallsign.startsWith(airlineName) && callsignNumber ? `${airlineIcao}${callsignNumber}` : rawCallsign
+    ? legacyHispaflyCallsign
+      ? `${airlineIcao}${legacyHispaflyCallsign[1]}`
+      : rawCallsign.startsWith(airlineName) && callsignNumber
+        ? `${airlineIcao}${callsignNumber}`
+        : rawCallsign
     : numericFlightNumber ? `${airlineIcao}${numericFlightNumber}` : "";
   return { commercialFlightNumber, atcCallsign, numericFlightNumber, airlineName };
 }
