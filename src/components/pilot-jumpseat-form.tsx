@@ -89,6 +89,7 @@ export function PilotJumpseatForm({
               onFocus={() => setShowResults(true)}
               placeholder="Search by ICAO or airport name"
               autoComplete="off"
+              role="combobox"
               aria-expanded={showResults}
               aria-controls="jumpseat-airport-results"
             />

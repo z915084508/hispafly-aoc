@@ -46,7 +46,7 @@ export function telemetrySummary(positions: CompletionPosition[], events: Comple
   const firstSampleDelayMinutes = minutesBetween(blockStart, firstFuelSample?.recordedAt);
   const lastSampleGapMinutes = minutesBetween(lastFuelSample?.recordedAt, blockEnd);
   const fuelCoveragePercent = blockCoverageMinutes != null && blockCoverageMinutes > 0 && fuelCoverageMinutes != null
-    ? Math.round(Math.min(100, (fuelCoverageMinutes / blockCoverageMinutes) * 1000)) / 10
+    ? Math.min(100, Math.round((fuelCoverageMinutes / blockCoverageMinutes) * 1000) / 10)
     : null;
   const fuelDataComplete = observedFuelUsedKg != null
     && validFuelSamples.length >= 2

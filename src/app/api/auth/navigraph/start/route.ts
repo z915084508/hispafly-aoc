@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     response.cookies.set("hispafly_navigraph_code_verifier", codeVerifier, COOKIE_OPTIONS);
     await writeAuditLogSafely({ action: "NAVIGRAPH_OAUTH_STARTED", entityType: "Pilot", entityId: pilot.id, message: "Pilot started Navigraph OAuth.", metadata: { pilotId: pilot.id } });
     return response;
-  } catch (error) {
+  } catch {
     await writeAuditLogSafely({ action: "NAVIGRAPH_OAUTH_FAILED", entityType: "Pilot", entityId: pilot.id, message: "Navigraph OAuth could not be started.", metadata: { pilotId: pilot.id, phase: "start" } });
     const url = new URL("/pilot/dashboard", request.url);
     url.searchParams.set("navigraph", "failed");

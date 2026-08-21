@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { careerProgress, earnedAwards, normalizePilotRank } from "@/lib/pilot/career";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -77,6 +78,50 @@ export async function getPilotDashboardData(pilotId: string) {
       const pilot = pilotNames.get(row.pilotId);
       return { pilotId: row.pilotId, name: pilot?.displayName ?? "Piloto", callsign: pilot?.callsign ?? null, count: row._count._all };
     }),
+  };
+}
+
+export async function getPilotHubData(pilotId: string) {
+  const [pilot, pireps, recentTransactions] = await Promise.all([
+    prisma.pilot.findUniqueOrThrow({
+      where: { id: pilotId },
+      select: { id: true, displayName: true, callsign: true, email: true, base: true, hubId: true, status: true, rank: true, rankName: true, rankAbbreviation: true, appointment: true, walletBalanceCents: true, createdAt: true },
+    }),
+    prisma.pirep.findMany({
+      where: { pilotId },
+      select: { status: true, flightTimeMinutes: true, blockTimeMinutes: true, aircraftType: true, aircraftRegistration: true, landingRate: true, score: true, flownAt: true },
+      orderBy: [{ flownAt: "desc" }, { createdAt: "desc" }],
+    }),
+    prisma.walletTransaction.findMany({ where: { pilotId }, orderBy: { createdAt: "desc" }, take: 5 }),
+  ]);
+  const accepted = pireps.filter((row) => row.status === "accepted");
+  const acceptedMinutes = accepted.reduce((sum, row) => sum + (row.flightTimeMinutes ?? row.blockTimeMinutes ?? 0), 0);
+  const stats = { acceptedSectors: accepted.length, acceptedMinutes, totalPireps: pireps.length };
+  const fleetMap = new Map<string, { sectors: number; minutes: number }>();
+  for (const row of accepted) {
+    const fleet = row.aircraftType?.trim().toUpperCase() || "UNKNOWN";
+    const current = fleetMap.get(fleet) ?? { sectors: 0, minutes: 0 };
+    current.sectors += 1;
+    current.minutes += row.flightTimeMinutes ?? row.blockTimeMinutes ?? 0;
+    fleetMap.set(fleet, current);
+  }
+  const scores = accepted.flatMap((row) => row.score == null ? [] : [row.score]);
+  const landings = accepted.flatMap((row) => row.landingRate == null ? [] : [row.landingRate]);
+  const rank = normalizePilotRank(pilot.rankAbbreviation, pilot.rankName, pilot.rank);
+  return {
+    pilot,
+    rank,
+    stats: { ...stats, hispaflyHours: acceptedMinutes / 60, acceptanceRate: pireps.length ? accepted.length / pireps.length * 100 : 100 },
+    career: careerProgress(rank, stats),
+    fleetExperience: [...fleetMap.entries()].map(([fleet, value]) => ({ fleet, ...value, hours: value.minutes / 60 })).sort((a, b) => b.minutes - a.minutes),
+    performance: {
+      averageScore: scores.length ? scores.reduce((sum, value) => sum + value, 0) / scores.length : null,
+      averageLandingRate: landings.length ? landings.reduce((sum, value) => sum + value, 0) / landings.length : null,
+      scoredFlights: scores.length,
+      recordedLandings: landings.length,
+    },
+    recentTransactions,
+    awards: earnedAwards(stats),
   };
 }
 

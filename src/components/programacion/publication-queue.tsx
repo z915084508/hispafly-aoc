@@ -54,6 +54,8 @@ export function PublicationQueue({
 
   useEffect(() => {
     const visible = new Set(visibleRows.map(({ id }) => id));
+    // Keep selections aligned with the externally filtered rows.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelected((current) => new Set([...current].filter((id) => visible.has(id))));
   }, [visibleRows]);
 
