@@ -127,7 +127,7 @@ export async function getPilotHubData(pilotId: string) {
 
 export async function getPilotPirepDetail(pilotId: string, pirepId: string) {
   return prisma.pirep.findFirst({
-    where: { id: pirepId, pilotId, status: "accepted" },
+    where: { id: pirepId, pilotId },
     include: {
       companyExpenses: { orderBy: { type: "asc" } },
       payrollRecord: { include: { walletTransaction: true } },
@@ -138,12 +138,13 @@ export async function getPilotPirepDetail(pilotId: string, pirepId: string) {
 
 export async function getPilotPirepRows(pilotId: string) {
   return prisma.pirep.findMany({
-    where: { pilotId, status: "accepted" },
+    where: { pilotId },
     select: {
       id: true, vamsysPirepId: true, flightNumber: true, callsign: true,
       departure: true, arrival: true, aircraftType: true, network: true,
       flightTimeMinutes: true, landingRate: true, score: true, passengers: true,
       fuelUsed: true, passengerRevenueCents: true, fuelCostCents: true,
+      status: true, rejectCode: true, staffComment: true,
       flownAt: true, createdAt: true,
     },
     orderBy: [{ flownAt: "desc" }, { createdAt: "desc" }],

@@ -4,8 +4,10 @@ import { Badge } from "@/components/data-table";
 import { PageHeading } from "@/components/page-heading";
 import { formatDateTime, formatMinutes, formatMoney, formatNumber, PirepHero, PirepMetric, PirepReportStyles, PirepSection } from "@/components/pirep-report";
 import { getStaffPirepDetail } from "@/lib/pirep/detail";
-import { reprocessPirepEconomy } from "./actions";
+import { acceptPirep, rejectPirep, reprocessPirepEconomy, sendPirepToManualReview } from "./actions";
 import { OperationalAnalysis } from "@/components/operational-analysis";
+import { PirepReviewControls } from "@/components/pirep-review-controls";
+import { PIREP_REJECT_REASONS } from "@/lib/pirep/policy";
 
 export const dynamic = "force-dynamic";
 
@@ -39,12 +41,14 @@ export default async function StaffPirepDetailPage({ params, searchParams }: { p
 
   return <div className="pirep-report">
     <PirepReportStyles />
+    <style>{`.pirep-review-actions{display:flex;gap:10px;flex-wrap:wrap}.pirep-reject-modal{max-width:620px;width:calc(100% - 32px);border:1px solid var(--line);border-radius:16px;padding:24px}.pirep-reject-modal::backdrop{background:rgba(8,18,35,.62)}.pirep-reject-modal form,.pirep-reject-modal label{display:grid;gap:12px}.pirep-reject-modal select,.pirep-reject-modal textarea{padding:11px;border:1px solid var(--line);border-radius:9px}.danger{background:#9f1d2c!important;color:white!important}`}</style>
     <PageHeading eyebrow="PIREP REPORT · STAFF" title={pirep.flightNumber ?? pirep.callsign ?? "Informe de vuelo"} copy="Detalle operativo y económico guardado en HISPAFLY AOC." />
     <div className="pirep-toolbar">
       <Link className="action-button" href="/staff/pireps">← Volver a PIREPs</Link>
       <button className="action-button pay" type="button" disabled title="vAMSYS is disconnected; historical PIREPs are read-only.">Legacy detail read-only</button>
       <form action={reprocessPirepEconomy.bind(null, id)}><button className="action-button recalculate" type="submit">Recalculate metrics & economy</button></form>
     </div>
+    <div className="card"><PirepReviewControls acceptAction={acceptPirep.bind(null, id)} manualReviewAction={sendPirepToManualReview.bind(null, id)} rejectAction={rejectPirep.bind(null, id)}/></div>
     {feedback.success && <div className="feedback success">{feedback.success}</div>}
     {feedback.error && <div className="feedback error">{feedback.error}</div>}
 
@@ -53,7 +57,9 @@ export default async function StaffPirepDetailPage({ params, searchParams }: { p
     </PirepHero>
 
     <PirepSection title="Resumen del vuelo">
-      <PirepMetric label="Estado vAMSYS" value={<Badge tone="green">{pirep.status}</Badge>} note={pirep.vamsysPirepId} />
+      <PirepMetric label="PIREP Status" value={<Badge tone={pirep.status === "accepted" ? "green" : "amber"}>{pirep.status.toUpperCase().replace("_", " ")}</Badge>} note={pirep.acceptedAfterReviewAt ? "ACCEPTED AFTER REVIEW" : pirep.vamsysPirepId} />
+      <PirepMetric label="Reject reason" value={pirep.rejectCode ? `${pirep.rejectCode} · ${PIREP_REJECT_REASONS[pirep.rejectCode]}` : "—"} note={pirep.staffComment} />
+      <PirepMetric label="Reviewed by" value={pirep.reviewedByName ?? "—"} note={formatDateTime(pirep.reviewedAt)} />
       <PirepMetric label="Indicativo" value={pirep.callsign ?? "—"} />
       <PirepMetric label="Aeronave" value={pirep.aircraftType ?? "—"} />
       <PirepMetric label="Red" value={pirep.network ?? "—"} />
@@ -73,6 +79,16 @@ export default async function StaffPirepDetailPage({ params, searchParams }: { p
     </PirepSection>
 
     <OperationalAnalysis analysis={pirep.flightAnalysisReport} staff/>
+    <PirepSection title="ACARS validation evidence">
+      <PirepMetric label="Session" value={pirep.acarsSession?.localSessionId ?? "Legacy / no native session"} note={pirep.acarsSession?.status} />
+      <PirepMetric label="Final phase" value={pirep.acarsSession?.currentPhase ?? "—"} />
+      <PirepMetric label="Positions sampled" value={pirep.acarsSession?.positions.length ?? 0} note="Up to 20 shown to STAFF" />
+      <PirepMetric label="Events sampled" value={pirep.acarsSession?.events.length ?? 0} note="Up to 50 shown to STAFF" />
+    </PirepSection>
+    <PirepSection title="Review audit history">
+      {pirep.reviewHistory.map((review) => <PirepMetric key={review.id} label={`${review.fromStatus.toUpperCase()} → ${review.toStatus.toUpperCase()}`} value={review.rejectCode ? `${review.rejectCode} · ${PIREP_REJECT_REASONS[review.rejectCode]}` : "Decision"} note={`${review.reviewerName} · ${formatDateTime(review.createdAt)}${review.staffComment ? ` · ${review.staffComment}` : ""}`} />)}
+      {!pirep.reviewHistory.length && <PirepMetric label="History" value="No review decisions recorded" />}
+    </PirepSection>
     <PirepSection title="Economía de compañía" className="pirep-economy-total">
       <PirepMetric label="Ingresos pasajeros" value={formatMoney(pirep.passengerRevenueCents)} />
       <PirepMetric label="Coste combustible" value={formatMoney(pirep.fuelCostCents)} note={pirep.fuelPriceSource ?? "Sin precio guardado"} />
