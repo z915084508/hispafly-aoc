@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { careerProgress, earnedAwards, normalizePilotRank } from "@/lib/pilot/career";
+import { careerProgress, earnedAwards, effectivePilotRank, legacyAppointment } from "@/lib/pilot/career";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -107,9 +107,9 @@ export async function getPilotHubData(pilotId: string) {
   }
   const scores = accepted.flatMap((row) => row.score == null ? [] : [row.score]);
   const landings = accepted.flatMap((row) => row.landingRate == null ? [] : [row.landingRate]);
-  const rank = normalizePilotRank(pilot.rankAbbreviation, pilot.rankName, pilot.rank);
+  const rank = effectivePilotRank(stats, pilot.rankAbbreviation, pilot.rankName, pilot.rank);
   return {
-    pilot,
+    pilot: { ...pilot, appointment: pilot.appointment ?? legacyAppointment(pilot.rankName, pilot.rank, pilot.rankAbbreviation) },
     rank,
     stats: { ...stats, hispaflyHours: acceptedMinutes / 60, acceptanceRate: pireps.length ? accepted.length / pireps.length * 100 : 100 },
     career: careerProgress(rank, stats),

@@ -5,6 +5,8 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { getTranslations } from "@/lib/i18n/server";
 import { formatCurrency } from "@/lib/i18n/core";
 import { logoutPilot } from "@/app/pilot/actions";
+import { prisma } from "@/lib/prisma";
+import { effectivePilotRank, legacyAppointment } from "@/lib/pilot/career";
 
 const dispatchNavItems = [
   ["Flight Marketplace", "/pilot/flight-offers"],
@@ -25,7 +27,12 @@ export async function PilotPortalShell({ children }: { children: React.ReactNode
   const pilot = await requirePilotSession();
   const { t, locale } = await getTranslations();
   const identity = pilot.callsign ?? pilot.vamsysPilotId;
-  const rank = pilot.rankName ?? pilot.rankAbbreviation ?? pilot.rank ?? t("pilotNav.noRank");
+  const [acceptedPireps, totalPireps] = await Promise.all([
+    prisma.pirep.findMany({ where: { pilotId: pilot.id, status: "accepted" }, select: { flightTimeMinutes: true, blockTimeMinutes: true } }),
+    prisma.pirep.count({ where: { pilotId: pilot.id } }),
+  ]);
+  const rank = effectivePilotRank({ acceptedSectors: acceptedPireps.length, acceptedMinutes: acceptedPireps.reduce((sum, row) => sum + (row.flightTimeMinutes ?? row.blockTimeMinutes ?? 0), 0), totalPireps }, pilot.rankAbbreviation, pilot.rankName, pilot.rank);
+  const appointment = pilot.appointment ?? legacyAppointment(pilot.rankName, pilot.rank, pilot.rankAbbreviation);
   const initials = pilot.displayName.split(" ").map((word) => word[0]).slice(0, 2).join("").toUpperCase() || "P";
 
   return (
@@ -59,7 +66,7 @@ export async function PilotPortalShell({ children }: { children: React.ReactNode
             <LanguageSwitcher/>
             <div>
               <div className="primary">{pilot.displayName}</div>
-              <span className="secondary">{identity} · {rank} · {pilot.base ?? t("pilotNav.noBase")} · {t(`status.${pilot.status}`)}</span>
+              <span className="secondary">{identity} · {rank}{appointment ? ` · ${appointment}` : ""} · {pilot.base ?? t("pilotNav.noBase")} · {t(`status.${pilot.status}`)}</span>
               <span className="secondary">{t("pilotNav.walletBalance")}: {formatCurrency(pilot.walletBalanceCents, locale)}</span>
             </div>
             <div className="avatar">{initials}</div>
