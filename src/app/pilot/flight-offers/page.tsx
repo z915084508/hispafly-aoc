@@ -80,6 +80,8 @@ export default async function PilotFlightOffersPage({
     }).format(dateFromIso(value));
 
   const defaultDeliveryDeparture = (planned: Date | null) => {
+    // This server-rendered default intentionally reflects the request time.
+    // eslint-disable-next-line react-hooks/purity
     const minimum = new Date(Date.now() + 60 * 60_000);
     if (!planned) return minimum.toISOString().slice(0, 16);
     const candidate = new Date(`${planned.toISOString().slice(0, 10)}T12:00:00.000Z`);

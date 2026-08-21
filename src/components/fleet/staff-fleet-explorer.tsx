@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
-import type { AircraftLocationMapItem, AircraftLocationSourceValue, AircraftLocationStatusValue, FleetMapLabels } from "./types";
+import type { AircraftLocationMapItem, FleetMapLabels } from "./types";
 
 const StaffFleetMap = dynamic(() => import("./staff-fleet-map"), { ssr: false, loading: () => <div className="fleet-map-loading" /> });
 const STALE_MS = 72 * 60 * 60 * 1000;

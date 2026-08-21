@@ -399,6 +399,7 @@ model Pilot {
   rankAbbreviation           String?
   hubId                      String?
   rank                       String?
+  appointment                String?
   base                       String?
   status                     PilotStatus                 @default(active)
   acarsBetaAccess            Boolean                     @default(false)

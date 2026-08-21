@@ -70,7 +70,7 @@ export function ScheduleForm({
     const fleetMatches = !fleetId || item.fleetId === fleetId;
     const hubMatches = !route?.departureAirportId || item.hubAirportIds.length === 0 || item.hubAirportIds.includes(route.departureAirportId);
     return fleetMatches && hubMatches;
-  }), [aircraft, fleetId, route?.departureAirportId]);
+  }), [aircraft, fleetId, route]);
   const reverseRoutes = useMemo(() => route ? routes.filter((item) => item.departure === route.arrival && item.arrival === route.departure) : [], [route, routes]);
   const returnRoute = reverseRoutes.find((item) => item.id === returnRouteId);
   const returnDuration = returnRoute?.duration ?? 0;
@@ -84,6 +84,8 @@ export function ScheduleForm({
   useEffect(() => {
     if (value.id || codeTouched) return;
     const selected = routes.find((item) => item.id === routeId);
+    // Synchronize the untouched code field when the selected route changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCode(selected?.flightNumber ?? "");
   }, [codeTouched, routeId, routes, value.id]);
 
@@ -91,12 +93,16 @@ export function ScheduleForm({
     if (!returnCreationEnabled) return;
     const selected = routes.find((item) => item.id === routeId);
     const candidates = selected ? routes.filter((item) => item.departure === selected.arrival && item.arrival === selected.departure) : [];
+    // Reset the dependent return-leg form when its source route changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setReturnRouteId(candidates.length === 1 ? candidates[0].id : "");
     setReturnCodeTouched(false);
     setReturnValidation(null);
   }, [returnCreationEnabled, routeId, routes]);
 
   useEffect(() => {
+    // Preserve manual edits while deriving the untouched return code.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!returnCodeTouched) setReturnCode(returnRoute?.flightNumber ?? (code ? `${code}-R` : ""));
   }, [code, returnCodeTouched, returnRoute]);
 
