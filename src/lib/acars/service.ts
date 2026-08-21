@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
+import { syncPilotAutomaticRank } from "@/lib/pilot/career-service";
 import { greatCircleDistanceNm, nativePirepScore, telemetrySummary, validateTelemetryBatch } from "@/lib/acars/completion";
 import { ensureNativePayrollSettlement } from "@/lib/payroll/nativeSettlement";
 import { generateCompanyExpensesForPirep } from "@/lib/economy/companyExpenses";
@@ -226,6 +227,6 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
     await tx.pilot.update({ where: { id: pilotId }, data: { currentAirportId: dispatch.flight.arrivalAirportId, positionUpdatedAt: completedAt, positionSource: "NATIVE_PIREP" } });
     await tx.aocAuditLog.create({ data: { action: "NATIVE_ACARS_FLIGHT_COMPLETED", entityType: "Pirep", entityId: pirep.id, message: `${dispatch.flight.flightNumber} completed by HispaFly ACARS.`, metadata: { sessionId, dispatchId: dispatch.id, bookingId: dispatch.booking.id, flightId: dispatch.flight.id, aircraftId: dispatch.aircraft.id, arrivalIcao: dispatch.flight.arrivalIcao, summary: completionSummary, flightDistanceNm, score, fuelEconomics } as Prisma.InputJsonValue } });
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-  if (body.completed && pirepId) await completeNativePirepPostProcessing(pirepId);
+  if (body.completed && pirepId) await Promise.all([completeNativePirepPostProcessing(pirepId), syncPilotAutomaticRank(pilotId)]);
   return { acceptedPositions: body.positions?.length ?? 0, acceptedEvents: body.events?.length ?? 0, completed: Boolean(body.completed), pirepId };
 }

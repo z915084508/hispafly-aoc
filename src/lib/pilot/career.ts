@@ -22,12 +22,34 @@ const rankAliases: Record<string, PilotRank> = {
   SCPT: "SCPT", "SENIOR CAPTAIN": "SCPT",
 };
 
-export function normalizePilotRank(...values: Array<string | null | undefined>): PilotRank {
+export function recognizedPilotRank(...values: Array<string | null | undefined>): PilotRank | null {
   for (const value of values) {
     const rank = value ? rankAliases[value.trim().toUpperCase()] : undefined;
     if (rank) return rank;
   }
+  return null;
+}
+
+export function normalizePilotRank(...values: Array<string | null | undefined>): PilotRank {
+  return recognizedPilotRank(...values) ?? "TRN";
+}
+
+export function automaticPilotRank(stats: CareerStats): PilotRank {
+  if (stats.acceptedMinutes >= 6_000 && stats.acceptedSectors >= 50) return "SFO";
+  if (stats.acceptedSectors >= 5) return "FO";
   return "TRN";
+}
+
+export function effectivePilotRank(stats: CareerStats, ...storedValues: Array<string | null | undefined>): PilotRank {
+  const stored = recognizedPilotRank(...storedValues);
+  if (stored === "CPT" || stored === "SCPT") return stored;
+  const automatic = automaticPilotRank(stats);
+  const order: Record<PilotRank, number> = { TRN: 0, FO: 1, SFO: 2, CPT: 3, SCPT: 4 };
+  return stored && order[stored] > order[automatic] ? stored : automatic;
+}
+
+export function legacyAppointment(...values: Array<string | null | undefined>): string | null {
+  return values.find((value) => value?.trim() && !recognizedPilotRank(value))?.trim() ?? null;
 }
 
 export function careerProgress(rank: PilotRank, stats: CareerStats) {
