@@ -49,6 +49,7 @@
     "test:efb-cutover": "node --experimental-strip-types src/lib/efb-cutover/contract.test.ts",
     "test:live-tracking": "node --experimental-strip-types src/lib/acars/live-tracking.test.ts",
     "test:acars-completion": "node --experimental-strip-types src/lib/acars/completion.test.ts",
+    "test:pirep-policy": "node --experimental-strip-types src/lib/pirep/policy.test.ts",
     "test:acars-access": "node --experimental-strip-types src/lib/acars/access.test.ts",
     "test:acars-channels": "node --experimental-strip-types src/lib/acars/release-channel.test.ts",
     "test:identity-email": "node --experimental-strip-types src/lib/auth/delivery.test.ts",

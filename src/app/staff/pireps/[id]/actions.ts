@@ -11,6 +11,8 @@ import { ensureNativePayrollSettlement } from "@/lib/payroll/nativeSettlement";
 import { prisma } from "@/lib/prisma";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
 import { requireStaffPermission } from "@/lib/staff/authorization";
+import { reviewPirep } from "@/lib/pirep/review";
+import type { PirepRejectCode } from "@prisma/client";
 
 function finish(id: string, type: "success" | "error", message: string): never {
   revalidatePath(`/staff/pireps/${id}`);
@@ -35,6 +37,36 @@ const jsonRecord = (value: unknown): Record<string, unknown> =>
 export async function refreshVamsysPirepDetail(id: string) {
   await authorize(id, "attempt disabled historical PIREP refresh");
   finish(id, "error", "External PIREP refresh is permanently disabled.");
+}
+
+export async function acceptPirep(id: string) {
+  try {
+    const staff = await authorize(id, "accept PIREP");
+    await reviewPirep({ pirepId: id, toStatus: "accepted", staffComment: "Accepted by staff review.", reviewer: staff });
+  } catch (error) {
+    finish(id, "error", error instanceof Error ? error.message : "PIREP could not be accepted.");
+  }
+  finish(id, "success", "PIREP accepted. Eligible hours, wallet reward and rank progress have been settled idempotently.");
+}
+
+export async function sendPirepToManualReview(id: string, formData: FormData) {
+  try {
+    const staff = await authorize(id, "send PIREP to manual review");
+    await reviewPirep({ pirepId: id, toStatus: "manual_review", staffComment: String(formData.get("staffComment") ?? "").trim() || "Manual review requested by staff.", reviewer: staff });
+  } catch (error) {
+    finish(id, "error", error instanceof Error ? error.message : "PIREP could not be sent to review.");
+  }
+  finish(id, "success", "PIREP sent to Manual Review.");
+}
+
+export async function rejectPirep(id: string, formData: FormData) {
+  try {
+    const staff = await authorize(id, "reject PIREP");
+    await reviewPirep({ pirepId: id, toStatus: "rejected", rejectCode: String(formData.get("rejectCode") ?? "") as PirepRejectCode, staffComment: String(formData.get("staffComment") ?? ""), reviewer: staff });
+  } catch (error) {
+    finish(id, "error", error instanceof Error ? error.message : "PIREP could not be rejected.");
+  }
+  finish(id, "success", "PIREP rejected. The record and audit history were retained; credited hours, wallet reward and rank progress are zero.");
 }
 
 export async function reprocessPirepEconomy(id: string) {

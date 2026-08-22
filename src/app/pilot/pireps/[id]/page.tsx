@@ -7,6 +7,7 @@ import { PilotPortalShell } from "@/components/pilot-portal-shell";
 import { getPilotPirepDetail } from "@/lib/pilot/portalData";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { OperationalAnalysis } from "@/components/operational-analysis";
+import { PIREP_REJECT_REASONS } from "@/lib/pirep/policy";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,12 @@ export default async function PilotPirepDetailPage({ params }: { params: Promise
     <PirepHero departure={pirep.departure} arrival={pirep.arrival}>
       <span>{pirep.flightNumber ?? "Sin número de vuelo"}</span><span>{pirep.aircraftType ?? "Aeronave —"}</span><span>{formatDateTime(pirep.flownAt)}</span>
     </PirepHero>
+    <PirepSection title="PIREP review status">
+      <PirepMetric label="Status" value={pirep.status.toUpperCase().replace("_", " ")} note={pirep.acceptedAfterReviewAt ? "ACCEPTED AFTER REVIEW" : undefined} />
+      <PirepMetric label="Reason" value={pirep.rejectCode ? `${pirep.rejectCode} · ${PIREP_REJECT_REASONS[pirep.rejectCode]}` : "—"} note={pirep.staffComment} />
+      <PirepMetric label="Reviewed by" value={pirep.reviewedByName ?? "—"} note={formatDateTime(pirep.reviewedAt)} />
+      {pirep.status === "rejected" && <PirepMetric label="Credited impact" value="0 hours · €0 wallet · 0 rank progress" note="The PIREP remains retained for your records." />}
+    </PirepSection>
     <PirepSection title="Resumen del vuelo">
       <PirepMetric label="Estado" value={<Badge tone="green">Aceptado</Badge>} />
       <PirepMetric label="Indicativo" value={pirep.callsign ?? "—"} />

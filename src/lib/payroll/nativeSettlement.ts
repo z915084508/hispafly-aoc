@@ -72,6 +72,14 @@ export async function ensureNativePayrollSettlement(pirepId: string): Promise<Na
       created = true;
     }
 
+    if (payroll.status === "rejected") {
+      payroll = await tx.payrollRecord.update({
+        where: { id: payroll.id },
+        data: { status: "paid", approvedAt: new Date(), paidAt: new Date() },
+        include: { walletTransaction: true },
+      });
+    }
+
     if (!payroll.walletTransaction && payroll.amountCents !== 0) {
       const wallet = await tx.walletTransaction.create({
         data: {

@@ -54,14 +54,14 @@ export default async function PirepsPage({ searchParams }: { searchParams: Promi
       @media (max-width: 1180px) { .app-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .nav-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } .sidebar-note { display: none; } .filter-card { grid-template-columns: 1fr 1fr; } }
       @media (max-width: 720px) { .filter-card { grid-template-columns: 1fr; } .content { padding: 22px 14px; } .topbar { height: auto; padding: 16px; align-items: flex-start; gap: 14px; flex-direction: column; } .data-card .table-wrap { padding: 14px; } }
     `}</style>
-    <PageHeading eyebrow="REGISTROS DE VUELO · SOLO LECTURA" title="PIREPs" copy="Datos aceptados de vAMSYS. AOC solo consulta y calcula nómina desde PIREPs aceptados." />
-    <div className="notice">PEGASUS ACARS y vAMSYS siguen siendo las fuentes oficiales. Esta página solo sincroniza PIREPs aceptados; nunca los envía ni modifica.</div>
+    <PageHeading eyebrow="PIREP REVIEW · STAFF" title="PIREP Review & Management" copy="Review native ACARS reports, apply Reject Policy v1 and retain a complete decision audit trail." />
+    <div className="notice">Native HISPAFLY ACARS PIREPs are the operational source of truth. Historical vAMSYS records remain read-only evidence.</div>
     {filters.success && <div className="feedback success">{filters.success}</div>}
     {filters.error && <div className="feedback error">{filters.error}</div>}
     <div className="staff-data-tools">
       <form className="card filter-card" method="get">
         <div className="filter-field"><label>Buscar</label><input name="q" defaultValue={filters.q ?? ""} placeholder="Piloto, vuelo, callsign, ruta..." /></div>
-        <div className="filter-field"><label>Estado</label><select name="status" defaultValue={selectedStatus}><option value="">Todos</option><option value="accepted">Aceptado</option><option value="rejected">Rechazado</option></select></div>
+        <div className="filter-field"><label>Estado</label><select name="status" defaultValue={selectedStatus}><option value="">Todos</option><option value="submitted">SUBMITTED</option><option value="validation">VALIDATION</option><option value="manual_review">MANUAL REVIEW</option><option value="accepted">ACCEPTED</option><option value="rejected">REJECTED</option></select></div>
         <div className="filter-field"><label>Mes</label><select name="month" defaultValue={selectedMonth}><option value="">Todos</option>{monthOptions.map((month) => <option value={month} key={month}>{month}</option>)}</select></div>
         <div className="filter-field"><label>Red</label><select name="network" defaultValue={selectedNetwork}><option value="">Todas</option>{networkOptions.map((network) => <option value={network} key={network}>{network}</option>)}</select></div>
         <button className="action-button approve" type="submit">Filtrar</button>
@@ -86,7 +86,7 @@ export default async function PirepsPage({ searchParams }: { searchParams: Promi
         formatMinutes(pirep.flightTimeMinutes),
         `${pirep.landingRate} fpm`,
         pirep.score,
-        <Badge key="status" tone={pirep.status === "accepted" ? "green" : "amber"}>{pirep.status === "accepted" ? "Aceptado" : "Rechazado"}</Badge>,
+        <Badge key="status" tone={pirep.status === "accepted" ? "green" : "amber"}>{pirep.status.toUpperCase().replace("_", " ")}</Badge>,
         new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(pirep.flownAt),
         <Link key="detail" className="action-button" href={`/staff/pireps/${pirep.id}`}>Ver informe</Link>,
       ])}

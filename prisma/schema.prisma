@@ -40,8 +40,22 @@ enum PayrollRecordStatus {
 }
 
 enum PirepStatus {
+  submitted
+  validation
+  manual_review
   accepted
   rejected
+}
+
+enum PirepRejectCode {
+  R01
+  R02
+  R03
+  R04
+  R05
+  R06
+  R07
+  R08
 }
 
 enum WalletTransactionType {
@@ -967,6 +981,14 @@ model Pirep {
   points                 Float?
   credits                Float?
   status                 PirepStatus
+  rejectCode             PirepRejectCode?
+  staffComment           String?
+  reviewedByStaffId      String?
+  reviewedByName         String?
+  reviewedAt             DateTime?
+  rejectedAt             DateTime?
+  acceptedAfterReviewAt  DateTime?
+  reviewSettlementState  Json?
   acarsSoftware          String?
   source                 String                @default("mock")
   flownAt                DateTime?
@@ -980,6 +1002,7 @@ model Pirep {
   flightDispatch         FlightDispatch?
   pilotBooking           PilotBooking?
   flightAnalysisReport   FlightAnalysisReport?
+  reviewHistory          PirepReview[]
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
 
@@ -991,6 +1014,24 @@ model Pirep {
   @@index([flownAt, fuelCostCents])
   @@index([vamsysAircraftId, flownAt])
   @@index([dataOrigin])
+}
+
+model PirepReview {
+  id              String           @id @default(cuid())
+  pirepId         String
+  pirep           Pirep            @relation(fields: [pirepId], references: [id], onDelete: Cascade)
+  fromStatus      PirepStatus
+  toStatus        PirepStatus
+  rejectCode      PirepRejectCode?
+  staffComment    String?
+  reviewerStaffId String?
+  reviewerName    String
+  automatic       Boolean          @default(false)
+  impact          Json?
+  createdAt       DateTime         @default(now())
+
+  @@index([pirepId, createdAt])
+  @@index([toStatus, createdAt])
 }
 
 model NavigraphOAuthToken {
