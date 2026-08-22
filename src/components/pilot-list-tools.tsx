@@ -1,3 +1,7 @@
+"use client";
+
+import { useTranslations } from "@/lib/i18n/client";
+
 type Option = { value: string; label: string };
 
 export function PilotListStyles() {
@@ -34,6 +38,3 @@ export function PilotFilterBar({ q = "", month = "", sort = "date_desc", extra, 
     <a className="action-button" href={clearHref}>{t("common.clear")}</a>
   </form>;
 }
-"use client";
-
-import { useTranslations } from "@/lib/i18n/client";
