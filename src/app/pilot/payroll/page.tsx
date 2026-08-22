@@ -61,7 +61,7 @@ export default async function PilotPayrollPage({ searchParams }: { searchParams:
     <PilotListStyles />
     <PageHeading eyebrow={t("payroll.eyebrow")} title={t("payroll.title")} copy={t("payroll.copy")} />
     <div className="pilot-list-tools">
-      <PilotFilterBar q={filters.q} month={filters.month} sort={filters.sort} clearHref="/pilot/payroll" extra={{ name: "status", label: "Estado", value: filters.status, options: Object.entries(statusLabels).map(([value, label]) => ({ value, label })) }} />
+      <PilotFilterBar q={filters.q} month={filters.month} sort={filters.sort} clearHref="/pilot/payroll" extra={{ name: "status", label: t("common.status"), value: filters.status, options: Object.entries(statusLabels).map(([value, label]) => ({ value, label })) }} />
       <div className="pilot-filter-meta">{t("payroll.records", { records: filtered.length, weeks: weeks.length })}</div>
     </div>
     {weeks.length === 0 ? <div className="card empty-state">{t("payroll.empty")}</div> : <div className="weekly-payroll">
@@ -80,7 +80,7 @@ export default async function PilotPayrollPage({ searchParams }: { searchParams:
             <div><strong className={penalty ? "amount-negative" : ""}>−{money(penalty)}</strong><span>{t("payroll.penalty")}</span></div>
             <div><strong>{money(total)}</strong><span>{t("payroll.total")} · {t("payroll.paidCount", { paid, total: group.rows.length })}</span></div>
           </summary>
-          <DataTable headers={["Flight", t("payroll.aircraft"), t("payroll.base"), t("payroll.bonus"), t("payroll.penalty"), t("common.amount"), t("common.status"), t("common.viewDetail")]} rows={group.rows.map((row) => [
+          <DataTable headers={[t("pirepsPilot.flight"), t("payroll.aircraft"), t("payroll.base"), t("payroll.bonus"), t("payroll.penalty"), t("common.amount"), t("common.status"), t("common.viewDetail")]} rows={group.rows.map((row) => [
             row.pirep.flightNumber ?? "—", row.pirep.aircraftType ?? "—", money(row.basePayCents),
             <span key="bonus" className="amount-positive">+{money(row.bonusCents)}</span>,
             <span key="penalty" className={row.penaltyCents ? "amount-negative" : ""}>−{money(row.penaltyCents)}</span>,
