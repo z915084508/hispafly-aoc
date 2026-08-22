@@ -437,6 +437,13 @@ model Pilot {
   pilotBookings              PilotBooking[]
   efbPerformanceCalculations EfbPerformanceCalculation[]
   efbDepartureReadiness      EfbDepartureReadiness[]
+  chatMessages               ChatMessage[]              @relation("ChatMessageSender")
+  directConversationsA       DirectConversation[]       @relation("DirectParticipantA")
+  directConversationsB       DirectConversation[]       @relation("DirectParticipantB")
+  chatBlocksCreated          ChatBlock[]                 @relation("ChatBlocker")
+  chatBlocksReceived         ChatBlock[]                 @relation("ChatBlocked")
+  chatPresence               ChatPresence?
+  chatRestriction            ChatRestriction?
   createdAt                  DateTime                    @default(now())
   updatedAt                  DateTime                    @updatedAt
 
@@ -1840,6 +1847,88 @@ model PayrollRule {
 
   @@unique([name, version])
   @@index([isActive, effectiveFrom])
+}
+
+model ChatChannel {
+  id             String        @id @default(cuid())
+  slug           String        @unique
+  name           String
+  description    String?
+  announcementOnly Boolean     @default(false)
+  enabled        Boolean       @default(true)
+  sortOrder      Int           @default(0)
+  messages       ChatMessage[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model DirectConversation {
+  id             String        @id @default(cuid())
+  participantKey String        @unique
+  participantAId String
+  participantA   Pilot         @relation("DirectParticipantA", fields: [participantAId], references: [id], onDelete: Cascade)
+  participantBId String
+  participantB   Pilot         @relation("DirectParticipantB", fields: [participantBId], references: [id], onDelete: Cascade)
+  lastReadAAt    DateTime?
+  lastReadBAt    DateTime?
+  messages       ChatMessage[]
+  lastMessageAt  DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([participantAId, lastMessageAt])
+  @@index([participantBId, lastMessageAt])
+}
+
+model ChatMessage {
+  id             String              @id @default(cuid())
+  channelId      String?
+  channel        ChatChannel?        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   DirectConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderPilotId  String
+  sender         Pilot               @relation("ChatMessageSender", fields: [senderPilotId], references: [id], onDelete: Restrict)
+  clientMessageId String              @unique
+  body           String
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime            @default(now())
+
+  @@index([channelId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([senderPilotId, createdAt])
+}
+
+model ChatPresence {
+  pilotId        String   @id
+  pilot          Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  status         String   @default("ONLINE")
+  lastSeenAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([lastSeenAt])
+}
+
+model ChatBlock {
+  id             String   @id @default(cuid())
+  blockerPilotId String
+  blocker        Pilot    @relation("ChatBlocker", fields: [blockerPilotId], references: [id], onDelete: Cascade)
+  blockedPilotId String
+  blocked        Pilot    @relation("ChatBlocked", fields: [blockedPilotId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@unique([blockerPilotId, blockedPilotId])
+}
+
+model ChatRestriction {
+  pilotId        String    @id
+  pilot          Pilot     @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  mutedUntil     DateTime?
+  bannedAt       DateTime?
+  reason         String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 model AocAuditLog {
