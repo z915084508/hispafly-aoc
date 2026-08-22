@@ -31,13 +31,29 @@ type CompletionInput = {
   landingRateFeetPerMinute?: number | null;
   aircraftTypeIcao?: string | null;
 };
+type OperationalEventInput = {
+  eventType: string; severity: string; timestamp: string; flightPhase?: string | null; source: string;
+  latitude?: number | null; longitude?: number | null; altitudeFeet?: number | null;
+  groundSpeedKnots?: number | null; fuelKg?: number | null;
+  aircraftSnapshot?: unknown; metadata?: unknown;
+};
 export type TelemetryInput = {
   currentPhase: string;
   completed?: boolean;
   completion?: CompletionInput | null;
   positions?: PositionInput[];
   events?: EventInput[];
+  operationalEvents?: OperationalEventInput[];
 };
+
+const operationalTypes: Record<string, string> = {
+  OffBlock: "BLOCK_OFF", EngineStarted: "ENGINE_START", TaxiOutStarted: "TAXI", Takeoff: "TAKEOFF",
+  Passing10000: "PASSING_10000", TopOfDescent: "TOD", Landing: "LANDING", OnBlock: "BLOCK_ON",
+  GoAround: "GO_AROUND", Diversion: "DIVERSION", Overspeed: "OVERSPEED", HardLanding: "HARD_LANDING",
+  PauseStarted: "PAUSE", SimulationRateChanged: "SIM_RATE",
+};
+const operationalSeverity = (type: string) => ["OVERSPEED", "HARD_LANDING"].includes(type) ? "WARNING"
+  : ["GO_AROUND", "DIVERSION", "PAUSE", "SIM_RATE"].includes(type) ? "NOTICE" : "INFO";
 
 const nativeNetwork = (value: string | null | undefined) => value?.trim().toUpperCase() || "OFFLINE";
 const roundedNonNegative = (value: number | null | undefined) =>
@@ -152,7 +168,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
     }
     const [positions, events] = await Promise.all([
       tx.acarsPosition.findMany({ where: { sessionId }, orderBy: { recordedAt: "asc" }, select: { recordedAt: true, fuelKg: true, onGround: true } }),
-      tx.acarsEvent.findMany({ where: { sessionId }, orderBy: { recordedAt: "asc" }, select: { type: true, numericValue: true } }),
+      tx.acarsEvent.findMany({ where: { sessionId }, orderBy: { recordedAt: "asc" } }),
     ]);
     const telemetry = telemetrySummary(positions, events);
     const clientFuel = trustedCompletionFuel(body.completion);
@@ -165,7 +181,12 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
       ? Math.round(clientLandingRate)
       : telemetry.landingRate;
     const completedAt = new Date();
-    const flightDistanceNm = greatCircleDistanceNm(dispatch.flight.departureAirport, dispatch.flight.arrivalAirport);
+    const finalPosition = await tx.acarsPosition.findFirst({ where: { sessionId, onGround: true, latitude: { not: null }, longitude: { not: null } }, orderBy: { recordedAt: "desc" } });
+    const airports = finalPosition ? await tx.airport.findMany({ where: { status: "ACTIVE", latitude: { not: null }, longitude: { not: null } }, select: { id: true, icao: true, iata: true, latitude: true, longitude: true } }) : [];
+    const closestAirport = finalPosition ? airports.map((airport) => ({ airport, distance: greatCircleDistanceNm({ latitude: finalPosition.latitude, longitude: finalPosition.longitude }, airport) ?? Number.POSITIVE_INFINITY })).sort((a, b) => a.distance - b.distance)[0] : null;
+    const actualAirport = closestAirport && closestAirport.distance <= 15 ? closestAirport.airport : dispatch.flight.arrivalAirport;
+    const diverted = actualAirport.icao !== dispatch.flight.arrivalIcao;
+    const flightDistanceNm = greatCircleDistanceNm(dispatch.flight.departureAirport, actualAirport);
     const score = nativePirepScore(landingRate);
     const passengers = dispatch.booking.passengers ?? 0;
     const network = nativeNetwork(dispatch.booking.network);
@@ -211,7 +232,9 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
       data: {
         dataOrigin: "HISPAFLY_NATIVE", acarsSessionId: sessionId, pilotId,
         flightNumber: dispatch.flight.flightNumber, callsign: dispatch.flight.callsign,
-        departure: dispatch.flight.departureIcao, arrival: dispatch.flight.arrivalIcao,
+        departure: dispatch.flight.departureIcao, arrival: actualAirport.icao,
+        plannedArrival: dispatch.flight.arrivalIcao, actualArrival: actualAirport.icao,
+        diverted, diversionReason: diverted ? "OTHER" : null,
         aircraftType: dispatch.aircraft.aircraftType, aircraftRegistration: dispatch.aircraft.registration,
         network, flightTimeMinutes: telemetry.flightTimeMinutes,
         blockTimeMinutes: telemetry.blockTimeMinutes, landingRate,
@@ -236,7 +259,22 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
         acceptedAt: validation.status === "accepted" ? completedAt : null,
         acarsSoftware: current.acarsVersion,
         source: "HISPAFLY_ACARS", flownAt: completedAt,
-        rawData: { contractVersion: "1.1", sessionId, dispatchId: dispatch.id, summary: completionSummary, flightDistanceNm, score } as Prisma.InputJsonValue,
+        rawData: { contractVersion: "1.2", sessionId, dispatchId: dispatch.id, summary: completionSummary, flightDistanceNm, score, diverted } as Prisma.InputJsonValue,
+        operationalEvents: { create: [
+          ...events.flatMap((event) => {
+            const eventType = operationalTypes[event.type];
+            if (!eventType) return [];
+            return [{ eventType, severity: operationalSeverity(eventType), timestamp: event.recordedAt,
+              flightPhase: event.phaseAfter ?? event.phaseBefore, source: "ACARS_AUTO",
+              latitude: event.latitude, longitude: event.longitude, altitudeFeet: event.altitudeFeet,
+              groundSpeedKnots: event.groundSpeedKnots, fuelKg: event.fuelKg,
+              aircraftSnapshot: { latitude: event.latitude, longitude: event.longitude, altitudeFeet: event.altitudeFeet, groundSpeedKnots: event.groundSpeedKnots, fuelKg: event.fuelKg } as Prisma.InputJsonValue,
+              metadata: { message: event.message, numericValue: event.numericValue, textValue: event.textValue } as Prisma.InputJsonValue }];
+          }),
+          ...(diverted ? [{ eventType: "DIVERSION", severity: "NOTICE", timestamp: completedAt, flightPhase: "Completed", source: "AOC_AUTO",
+            latitude: finalPosition?.latitude, longitude: finalPosition?.longitude,
+            metadata: { plannedDestination: dispatch.flight.arrivalIcao, actualDestination: actualAirport.icao, diversionAirport: actualAirport.icao, reason: "OTHER" } as Prisma.InputJsonValue }] : []),
+        ] },
       },
     });
     await tx.pirepReview.create({ data: { pirepId: pirep.id, fromStatus: "validation", toStatus: validation.status, rejectCode: validation.rejectCode, staffComment: validation.comment, reviewerName: "HISPAFLY ACARS Automatic Validation", automatic: true, impact: { flightHoursCredited: validation.status === "accepted", walletRewardCredited: validation.status === "accepted", rankProgressCredited: validation.status === "accepted" } } });
@@ -246,15 +284,15 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
     await tx.flight.update({ where: { id: dispatch.flight.id }, data: { status: "COMPLETED" } });
     await tx.aircraft.update({
       where: { id: dispatch.aircraft.id },
-      data: { operationalStatus: "AVAILABLE", currentAirportId: dispatch.flight.arrivalAirportId, totalFlightMinutes: { increment: telemetry.flightTimeMinutes ?? 0 }, totalCycles: { increment: 1 }, ...(finalFuelKg != null ? { fuelOnBoardKg: Math.max(0, Math.round(finalFuelKg)), fuelReportedAt: completedAt } : {}) },
+      data: { operationalStatus: "AVAILABLE", currentAirportId: actualAirport.id, totalFlightMinutes: { increment: telemetry.flightTimeMinutes ?? 0 }, totalCycles: { increment: 1 }, ...(finalFuelKg != null ? { fuelOnBoardKg: Math.max(0, Math.round(finalFuelKg)), fuelReportedAt: completedAt } : {}) },
     });
     await tx.aircraftLocationSnapshot.upsert({
       where: { aircraftId: dispatch.aircraft.id },
-      create: { aircraftId: dispatch.aircraft.id, vamsysAircraftId: dispatch.aircraft.vamsysAircraftId ?? `native:${dispatch.aircraft.id}`, registration: dispatch.aircraft.registration, aircraftType: dispatch.aircraft.aircraftType, currentAirportId: dispatch.flight.arrivalAirportId, currentAirportIcao: dispatch.flight.arrivalIcao, currentAirportIata: dispatch.flight.arrivalAirport.iata, status: "AVAILABLE", source: "NATIVE_PIREP", lastBookingId: dispatch.booking.id, lastPirepId: pirep.id, lastReportAt: completedAt, lastLatitude: dispatch.flight.arrivalAirport.latitude, lastLongitude: dispatch.flight.arrivalAirport.longitude },
-      update: { currentAirportId: dispatch.flight.arrivalAirportId, currentAirportIcao: dispatch.flight.arrivalIcao, currentAirportIata: dispatch.flight.arrivalAirport.iata, status: "AVAILABLE", source: "NATIVE_PIREP", reservedByDispatchId: null, lastBookingId: dispatch.booking.id, lastPirepId: pirep.id, lastReportAt: completedAt, lastLatitude: dispatch.flight.arrivalAirport.latitude, lastLongitude: dispatch.flight.arrivalAirport.longitude },
+      create: { aircraftId: dispatch.aircraft.id, vamsysAircraftId: dispatch.aircraft.vamsysAircraftId ?? `native:${dispatch.aircraft.id}`, registration: dispatch.aircraft.registration, aircraftType: dispatch.aircraft.aircraftType, currentAirportId: actualAirport.id, currentAirportIcao: actualAirport.icao, currentAirportIata: actualAirport.iata, status: "AVAILABLE", source: "NATIVE_PIREP", lastBookingId: dispatch.booking.id, lastPirepId: pirep.id, lastReportAt: completedAt, lastLatitude: actualAirport.latitude, lastLongitude: actualAirport.longitude },
+      update: { currentAirportId: actualAirport.id, currentAirportIcao: actualAirport.icao, currentAirportIata: actualAirport.iata, status: "AVAILABLE", source: "NATIVE_PIREP", reservedByDispatchId: null, lastBookingId: dispatch.booking.id, lastPirepId: pirep.id, lastReportAt: completedAt, lastLatitude: actualAirport.latitude, lastLongitude: actualAirport.longitude },
     });
-    await tx.pilot.update({ where: { id: pilotId }, data: { currentAirportId: dispatch.flight.arrivalAirportId, positionUpdatedAt: completedAt, positionSource: "NATIVE_PIREP" } });
-    await tx.aocAuditLog.create({ data: { action: "NATIVE_ACARS_FLIGHT_COMPLETED", entityType: "Pirep", entityId: pirep.id, message: `${dispatch.flight.flightNumber} completed by HispaFly ACARS with PIREP status ${validation.status}.`, metadata: { sessionId, dispatchId: dispatch.id, bookingId: dispatch.booking.id, flightId: dispatch.flight.id, aircraftId: dispatch.aircraft.id, arrivalIcao: dispatch.flight.arrivalIcao, validation, summary: completionSummary, flightDistanceNm, score, fuelEconomics } as Prisma.InputJsonValue } });
+    await tx.pilot.update({ where: { id: pilotId }, data: { currentAirportId: actualAirport.id, positionUpdatedAt: completedAt, positionSource: "NATIVE_PIREP" } });
+    await tx.aocAuditLog.create({ data: { action: "NATIVE_ACARS_FLIGHT_COMPLETED", entityType: "Pirep", entityId: pirep.id, message: `${dispatch.flight.flightNumber} completed by HispaFly ACARS with PIREP status ${validation.status}.`, metadata: { sessionId, dispatchId: dispatch.id, bookingId: dispatch.booking.id, flightId: dispatch.flight.id, aircraftId: dispatch.aircraft.id, plannedArrivalIcao: dispatch.flight.arrivalIcao, actualArrivalIcao: actualAirport.icao, diverted, validation, summary: completionSummary, flightDistanceNm, score, fuelEconomics } as Prisma.InputJsonValue } });
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   if (body.completed && pirepId) {
     const completedPirep = await prisma.pirep.findUnique({ where: { id: pirepId }, select: { status: true } });

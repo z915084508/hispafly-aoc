@@ -8,6 +8,7 @@ import { acceptPirep, rejectPirep, reprocessPirepEconomy, sendPirepToManualRevie
 import { OperationalAnalysis } from "@/components/operational-analysis";
 import { PirepReviewControls } from "@/components/pirep-review-controls";
 import { PIREP_REJECT_REASONS } from "@/lib/pirep/policy";
+import { OperationalEventsTimeline } from "@/components/operational-events-timeline";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,7 @@ export default async function StaffPirepDetailPage({ params, searchParams }: { p
     <PirepHero departure={pirep.departure} arrival={pirep.arrival}>
       <span>{pirep.flightNumber ?? "Sin número de vuelo"}</span><span>{pirep.aircraftType ?? "Aeronave —"}</span><span>{pirep.pilot.displayName}</span><span>{formatDateTime(pirep.flownAt)}</span>
     </PirepHero>
+    {pirep.diverted && <div className="feedback error"><strong>DIVERTED</strong> · {pirep.plannedArrival} → {pirep.actualArrival} · Reason: {pirep.diversionReason ?? "OTHER"}</div>}
 
     <PirepSection title="Resumen del vuelo">
       <PirepMetric label="PIREP Status" value={<Badge tone={pirep.status === "accepted" ? "green" : "amber"}>{pirep.status.toUpperCase().replace("_", " ")}</Badge>} note={pirep.acceptedAfterReviewAt ? "ACCEPTED AFTER REVIEW" : pirep.vamsysPirepId} />
@@ -89,6 +91,7 @@ export default async function StaffPirepDetailPage({ params, searchParams }: { p
       {pirep.reviewHistory.map((review) => <PirepMetric key={review.id} label={`${review.fromStatus.toUpperCase()} → ${review.toStatus.toUpperCase()}`} value={review.rejectCode ? `${review.rejectCode} · ${PIREP_REJECT_REASONS[review.rejectCode]}` : "Decision"} note={`${review.reviewerName} · ${formatDateTime(review.createdAt)}${review.staffComment ? ` · ${review.staffComment}` : ""}`} />)}
       {!pirep.reviewHistory.length && <PirepMetric label="History" value="No review decisions recorded" />}
     </PirepSection>
+    <PirepSection title="Operational Events"><OperationalEventsTimeline events={pirep.operationalEvents} /></PirepSection>
     <PirepSection title="Economía de compañía" className="pirep-economy-total">
       <PirepMetric label="Ingresos pasajeros" value={formatMoney(pirep.passengerRevenueCents)} />
       <PirepMetric label="Coste combustible" value={formatMoney(pirep.fuelCostCents)} note={pirep.fuelPriceSource ?? "Sin precio guardado"} />

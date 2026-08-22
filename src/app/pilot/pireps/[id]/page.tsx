@@ -8,6 +8,7 @@ import { getPilotPirepDetail } from "@/lib/pilot/portalData";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { OperationalAnalysis } from "@/components/operational-analysis";
 import { PIREP_REJECT_REASONS } from "@/lib/pirep/policy";
+import { OperationalEventsTimeline } from "@/components/operational-events-timeline";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,7 @@ export default async function PilotPirepDetailPage({ params }: { params: Promise
       <PirepMetric label="Reviewed by" value={pirep.reviewedByName ?? "—"} note={formatDateTime(pirep.reviewedAt)} />
       {pirep.status === "rejected" && <PirepMetric label="Credited impact" value="0 hours · €0 wallet · 0 rank progress" note="The PIREP remains retained for your records." />}
     </PirepSection>
+    {pirep.diverted && <div className="feedback error"><strong>DIVERTED</strong> · {pirep.plannedArrival} → {pirep.actualArrival} · Reason: {pirep.diversionReason ?? "OTHER"}</div>}
     <PirepSection title="Resumen del vuelo">
       <PirepMetric label="Estado" value={<Badge tone="green">Aceptado</Badge>} />
       <PirepMetric label="Indicativo" value={pirep.callsign ?? "—"} />
@@ -67,6 +69,7 @@ export default async function PilotPirepDetailPage({ params }: { params: Promise
       <PirepMetric label="Points" value={formatNumber(pirep.points)} />
     </PirepSection>
     <OperationalAnalysis analysis={pirep.flightAnalysisReport}/>
+    <PirepSection title="Operational Events"><OperationalEventsTimeline events={pirep.operationalEvents} /></PirepSection>
     <PirepSection title="Tu nómina y cartera">
       <PirepMetric label="Nómina" value={pirep.payrollRecord ? formatMoney(pirep.payrollRecord.amountCents, pirep.payrollRecord.currency) : "Sin nómina"} note={pirep.payrollRecord?.status ?? "No se ha generado un registro"} />
       <PirepMetric label="Pago base" value={pirep.payrollRecord ? formatMoney(pirep.payrollRecord.basePayCents, pirep.payrollRecord.currency) : "—"} />

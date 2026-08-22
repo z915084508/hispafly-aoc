@@ -99,6 +99,12 @@ td { padding: 14px 12px; border-top: 1px solid #edf0f4; white-space: nowrap; }
 .action-button { border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; background: white; color: var(--ink); font-size: 10px; font-weight: 750; cursor: pointer; }
 .action-button.approve { color: #08774e; border-color: #b9e2d2; }
 .action-button.reject { color: #b42318; border-color: #f2c2be; }
+.operational-events-timeline { display:grid; gap:.65rem; width:100%; }
+.operational-event { display:grid; grid-template-columns:6rem minmax(10rem,1fr) minmax(8rem,2fr); gap:1rem; align-items:center; padding:.75rem 1rem; border-left:3px solid #8aa1b4; background:color-mix(in srgb, var(--card, #fff) 92%, #8aa1b4); }
+.operational-event time,.operational-event span { color:var(--muted, #667085); font-size:.86rem; }
+.operational-event-warning { border-left-color:#d92d20; }
+.operational-event-notice { border-left-color:#f79009; }
+@media (max-width:700px){.operational-event{grid-template-columns:5rem 1fr}.operational-event span{grid-column:2}}
 .action-button.pay { color: #0758bf; border-color: #bdd5f7; }
 .action-button.recalculate { color: #775800; border-color: #ead38d; }
 .action-button:disabled { opacity: .32; cursor: not-allowed; }

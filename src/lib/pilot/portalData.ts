@@ -132,6 +132,7 @@ export async function getPilotPirepDetail(pilotId: string, pirepId: string) {
       companyExpenses: { orderBy: { type: "asc" } },
       payrollRecord: { include: { walletTransaction: true } },
       flightAnalysisReport: true,
+      operationalEvents: { orderBy: { timestamp: "asc" } },
     },
   });
 }
@@ -145,6 +146,7 @@ export async function getPilotPirepRows(pilotId: string) {
       flightTimeMinutes: true, landingRate: true, score: true, passengers: true,
       fuelUsed: true, passengerRevenueCents: true, fuelCostCents: true,
       status: true, rejectCode: true, staffComment: true,
+      diverted: true, plannedArrival: true, actualArrival: true,
       flownAt: true, createdAt: true,
     },
     orderBy: [{ flownAt: "desc" }, { createdAt: "desc" }],

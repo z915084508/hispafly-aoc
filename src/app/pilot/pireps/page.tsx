@@ -40,7 +40,7 @@ export default async function PilotPirepsPage({ searchParams }: { searchParams: 
         headers={[t("pirepsPilot.flight"), t("pirepsPilot.route"), t("pirepsPilot.aircraft"), t("common.status"), t("pirepsPilot.reason"), t("pirepsPilot.network"), t("pirepsPilot.time"), t("pirepsPilot.passengers"), t("common.date"), t("pirepsPilot.detail")]}
         rows={filtered.map((row) => [
           row.flightNumber ?? row.callsign ?? row.vamsysPirepId,
-          `${row.departure ?? "—"}–${row.arrival ?? "—"}`,
+          <span key="route">{row.departure ?? "—"}–{row.arrival ?? "—"} {row.diverted && <Badge tone="amber">DIVERTED</Badge>}</span>,
           row.aircraftType ?? "—",
           <Badge key="status" tone={row.status === "accepted" ? "green" : "amber"}>{row.status.toUpperCase().replace("_", " ")}</Badge>,
           row.rejectCode ? `${row.rejectCode}${row.staffComment ? ` · ${row.staffComment}` : ""}` : "—",

@@ -80,7 +80,7 @@ export default async function PirepsPage({ searchParams }: { searchParams: Promi
         <Identity key="pilot" primary={pirep.pilot} secondary={pirep.id} />,
         <span className="primary" key="flight">{pirep.flightNumber}</span>,
         pirep.callsign,
-        pirep.route,
+        <span key="route">{pirep.route} {pirep.diverted && <Badge tone="amber">DIVERTED</Badge>}</span>,
         pirep.aircraftType,
         <Badge key="network" tone={pirep.network === "OFFLINE" ? "amber" : "blue"}>{pirep.network}</Badge>,
         formatMinutes(pirep.flightTimeMinutes),

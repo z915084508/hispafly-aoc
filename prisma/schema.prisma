@@ -953,6 +953,10 @@ model Pirep {
   callsign               String?
   departure              String?
   arrival                String?
+  plannedArrival         String?
+  actualArrival          String?
+  diversionReason        String?
+  diverted               Boolean               @default(false)
   aircraftType           String?
   vamsysAircraftId       String?
   aircraftRegistration   String?
@@ -1003,6 +1007,7 @@ model Pirep {
   pilotBooking           PilotBooking?
   flightAnalysisReport   FlightAnalysisReport?
   reviewHistory          PirepReview[]
+  operationalEvents      OperationalEvent[]
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
 
@@ -1566,6 +1571,28 @@ model AcarsEvent {
 
   @@unique([sessionId, sequenceNumber])
   @@index([recordedAt])
+}
+
+model OperationalEvent {
+  id               String   @id @default(cuid())
+  pirepId          String
+  pirep             Pirep    @relation(fields: [pirepId], references: [id], onDelete: Cascade)
+  eventType         String
+  severity          String   @default("INFO")
+  timestamp         DateTime
+  flightPhase       String?
+  source            String   @default("ACARS_AUTO")
+  latitude          Float?
+  longitude         Float?
+  altitudeFeet      Float?
+  groundSpeedKnots  Float?
+  fuelKg            Float?
+  aircraftSnapshot  Json?
+  metadata          Json?
+  createdAt         DateTime @default(now())
+
+  @@index([pirepId, timestamp])
+  @@index([eventType, timestamp])
 }
 
 model OfpBriefing {

@@ -16,6 +16,7 @@ export interface PirepRow {
   score: number;
   status: string;
   flownAt: Date;
+  diverted: boolean;
 }
 
 export interface PayrollRow {
@@ -109,12 +110,13 @@ export async function getPirepRows(): Promise<PirepRow[]> {
         score: fallbackNumber(row.score),
         status: row.status,
         flownAt: fallbackDate(row.flownAt, row.createdAt),
+        diverted: row.diverted,
       }));
     } catch (error) {
       console.error("Unable to load PIREPs from PostgreSQL; using mock data.", error);
     }
   }
-  return mockPireps.map((row) => ({ id: row.vamsysPirepId, pilot: mockPilots.find((p) => p.vamsysPilotId === row.vamsysPilotId)?.displayName ?? "—", flightNumber: row.flightNumber, callsign: row.callsign, route: `${row.departure}-${row.arrival}`, aircraftType: row.aircraftType, network: row.network, flightTimeMinutes: row.flightTimeMinutes, landingRate: row.landingRate, score: row.score, status: row.status, flownAt: new Date(row.flownAt) }));
+  return mockPireps.map((row) => ({ id: row.vamsysPirepId, pilot: mockPilots.find((p) => p.vamsysPilotId === row.vamsysPilotId)?.displayName ?? "—", flightNumber: row.flightNumber, callsign: row.callsign, route: `${row.departure}-${row.arrival}`, aircraftType: row.aircraftType, network: row.network, flightTimeMinutes: row.flightTimeMinutes, landingRate: row.landingRate, score: row.score, status: row.status, flownAt: new Date(row.flownAt), diverted: false }));
 }
 
 export async function getPayrollRows(): Promise<PayrollRow[]> {

@@ -15,6 +15,7 @@ export async function getStaffPirepDetail(id: string) {
         },
       },
       reviewHistory: { orderBy: { createdAt: "desc" } },
+      operationalEvents: { orderBy: { timestamp: "asc" } },
     },
   });
 }
