@@ -1,18 +1,20 @@
 import type { ReactNode } from "react";
+import type { Locale } from "@/lib/i18n/core";
+import { localeTag } from "@/lib/i18n/core";
 
-export const formatMoney = (cents: number | null | undefined, currency = "EUR") =>
+export const formatMoney = (cents: number | null | undefined, currency = "EUR", locale: Locale = "es") =>
   cents == null
     ? "—"
-    : new Intl.NumberFormat("es-ES", { style: "currency", currency, maximumFractionDigits: 2 }).format(cents / 100);
+    : new Intl.NumberFormat(localeTag(locale), { style: "currency", currency, maximumFractionDigits: 2 }).format(cents / 100);
 
-export const formatNumber = (value: number | null | undefined) =>
-  value == null ? "—" : new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(value);
+export const formatNumber = (value: number | null | undefined, locale: Locale = "es") =>
+  value == null ? "—" : new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 1 }).format(value);
 
 export const formatMinutes = (value: number | null | undefined) =>
   value == null ? "—" : `${Math.floor(value / 60)} h ${String(value % 60).padStart(2, "0")} min`;
 
-export const formatDateTime = (value: Date | null | undefined) =>
-  value ? new Intl.DateTimeFormat("es-ES", { dateStyle: "medium", timeStyle: "short" }).format(value) : "—";
+export const formatDateTime = (value: Date | null | undefined, locale: Locale = "es") =>
+  value ? new Intl.DateTimeFormat(localeTag(locale), { dateStyle: "medium", timeStyle: "short" }).format(value) : "—";
 
 export function PirepReportStyles() {
   return <style>{`

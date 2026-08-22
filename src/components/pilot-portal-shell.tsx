@@ -9,10 +9,10 @@ import { prisma } from "@/lib/prisma";
 import { effectivePilotRank, legacyAppointment } from "@/lib/pilot/career";
 
 const dispatchNavItems = [
-  ["Flight Marketplace", "/pilot/flight-offers"],
-  ["Create my flight", "/pilot/flight-offers/self-dispatch"],
-  ["My Operations", "/pilot/bookings"],
-  ["Dispatch / OFP", "/pilot/ofp"],
+  ["flightMarketplace", "/pilot/flight-offers"],
+  ["createFlight", "/pilot/flight-offers/self-dispatch"],
+  ["myOperations", "/pilot/bookings"],
+  ["dispatchOfp", "/pilot/ofp"],
 ] as const;
 
 const operationNavItems = [
@@ -44,16 +44,16 @@ export async function PilotPortalShell({ children }: { children: React.ReactNode
         </div>
 
         <div className="nav-label">PILOT HUB</div>
-        <nav className="nav-list"><Link className="nav-item" href="/pilot/dashboard">Overview</Link><Link className="nav-item" href="/pilot/career">Career</Link><Link className="nav-item" href="/pilot/performance">Performance</Link><Link className="nav-item" href="/pilot/awards">Awards</Link></nav>
+        <nav className="nav-list"><Link className="nav-item" href="/pilot/dashboard">{t("pilotNav.overview")}</Link><Link className="nav-item" href="/pilot/career">{t("pilotNav.career")}</Link><Link className="nav-item" href="/pilot/performance">{t("pilotNav.performance")}</Link><Link className="nav-item" href="/pilot/awards">{t("pilotNav.awards")}</Link></nav>
 
-        <div className="nav-label">DISPATCH PORTAL</div>
-        <nav className="nav-list">{dispatchNavItems.map(([label, href]) => <Link className="nav-item" href={href} key={href}>{label}</Link>)}</nav>
+        <div className="nav-label">{t("pilotNav.dispatchPortal")}</div>
+        <nav className="nav-list">{dispatchNavItems.map(([key, href]) => <Link className="nav-item" href={href} key={href}>{t(`pilotNav.${key}`)}</Link>)}</nav>
 
-        <div className="nav-label">MI OPERACIÓN</div>
+        <div className="nav-label">{t("pilotNav.myOperation")}</div>
         <nav className="nav-list">{operationNavItems.map(([key, href]) => <Link className="nav-item" href={href} key={href}>{t(`pilotNav.${key}`)}</Link>)}</nav>
 
-        <div className="nav-label">SOFTWARE</div>
-        <nav className="nav-list"><Link className="nav-item" href="/pilot/downloads">Download Center</Link></nav>
+        <div className="nav-label">{t("pilotNav.software")}</div>
+        <nav className="nav-list"><Link className="nav-item" href="/pilot/downloads">{t("pilotNav.downloadCenter")}</Link></nav>
 
         <div className="nav-label">{t("pilotNav.economy")}</div>
         <nav className="nav-list">{economyNavItems.map(([key, href]) => <Link className="nav-item" href={href} key={href}>{t(`pilotNav.${key}`)}</Link>)}</nav>
@@ -70,7 +70,7 @@ export async function PilotPortalShell({ children }: { children: React.ReactNode
               <span className="secondary">{t("pilotNav.walletBalance")}: {formatCurrency(pilot.walletBalanceCents, locale)}</span>
             </div>
             <div className="avatar">{initials}</div>
-            <form action={logoutPilot}><button className="action-button" type="submit">Sign out</button></form>
+            <form action={logoutPilot}><button className="action-button" type="submit">{t("pilotNav.signOut")}</button></form>
           </div>
         </header>
         <div className="content">{children}</div>

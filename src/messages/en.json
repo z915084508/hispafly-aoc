@@ -143,8 +143,23 @@
                      "privacyNote":  "Your portal only displays your personal operations, payroll and wallet data.",
                      "privacy":  "Privacy policy",
                      "fleet":  "Available fleet",
-                     "routes":  "Route map"
+                     "routes":  "Route map",
+                     "overview": "Overview", "career": "Career", "performance": "Performance", "awards": "Awards",
+                     "dispatchPortal": "DISPATCH PORTAL", "flightMarketplace": "Flight Marketplace", "createFlight": "Create my flight", "myOperations": "My Operations", "dispatchOfp": "Dispatch / OFP",
+                     "myOperation": "MY OPERATION", "software": "SOFTWARE", "downloadCenter": "Download Center", "signOut": "Sign out"
                  },
+    "pilotHub": {
+      "profile": "PILOT PROFILE", "callsignPending": "Callsign pending", "joined": "Joined", "flightCrew": "Flight Crew", "virtualWallet": "VIRTUAL WALLET", "viewActivity": "View activity →",
+      "hours": "HISPAFLY Hours", "sectors": "Sectors", "acceptedPireps": "Accepted PIREPs", "nextRank": "Next Rank", "complete": "Complete", "percentComplete": "{percent}% complete",
+      "careerProgress": "Career Progress", "careerAuto": "Accepted flights update this automatically.", "details": "Details", "toward": "toward {rank}", "highestRank": "the highest rank", "assessment": "staff assessment required",
+      "fleetExperience": "Fleet Experience", "fleetNote": "Logbook statistics only — never an aircraft restriction.", "noFleet": "No accepted fleet activity yet.",
+      "recentWallet": "Recent Wallet Activity", "virtualCredits": "Virtual HISPAFLY credits; not real currency.", "allTransactions": "All transactions", "noWallet": "No wallet activity yet."
+    },
+    "filters": { "search": "Search", "placeholder": "Flight, route, aircraft, reference...", "month": "Month", "sort": "Sort", "newest": "Newest", "oldest": "Oldest", "amountHigh": "Highest amount", "amountLow": "Lowest amount" },
+    "pirepsPilot": { "eyebrow": "MY PIREPS", "title": "Flight reports", "copy": "Review the status, review decision and report for every flight.", "flight": "Flight", "route": "Route", "aircraft": "Aircraft", "reason": "Reason", "network": "Network", "time": "Time", "passengers": "Passengers", "detail": "Detail", "view": "View report", "showing": "Showing {shown} of {total} PIREPs.", "empty": "No PIREPs match the selected filters." },
+    "career": { "eyebrow": "PILOT HUB · CAREER", "title": "{rank} Career Progress", "copy": "Rank is based on accepted HISPAFLY operations. Seniority and aircraft qualifications are not used.", "eligible": "UPGRADE ELIGIBLE", "ready": "READY", "seniorCaptain": "Senior Captain", "approval": "Meeting the numeric requirements unlocks command eligibility. CPT/SCPT appointments remain subject to staff assessment and approval.", "structure": "Rank Structure", "sectors": "sectors", "hours": "hours" },
+    "performance": { "eyebrow": "PILOT HUB · PERFORMANCE", "title": "Operational Performance", "copy": "A fair summary of accepted ACARS records. Individual hard landings do not block promotion.", "notRecorded": "Not recorded", "record": "Operational record", "good": "GOOD", "review": "REVIEW", "averageScore": "Average score", "scoredFlights": "{count} scored flights", "averageLanding": "Average landing", "recordedLandings": "{count} recorded landings", "acceptanceRate": "Acceptance rate", "policy": "Assessment policy", "policyCopy": "Performance is reviewed as a long-term operational record. Repeated or serious events may be reviewed for command upgrade; a single event does not automatically prevent progression." },
+    "awards": { "eyebrow": "PILOT HUB · AWARDS", "title": "Awards & Milestones", "copy": "Milestones are earned from accepted HISPAFLY flights.", "earned": "EARNED", "locked": "LOCKED" },
     "dashboard":  {
                       "staffEyebrow":  "OPERATIONS SUMMARY",
                       "staffTitle":  "AOC Dashboard",

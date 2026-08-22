@@ -143,8 +143,23 @@
                      "privacyNote":  "Tu portal solo muestra tus datos personales de operación, nómina y cartera.",
                      "privacy":  "Política de privacidad",
                      "fleet":  "Flota disponible",
-                     "routes":  "Mapa de rutas"
+                     "routes":  "Mapa de rutas",
+                     "overview": "Resumen", "career": "Carrera", "performance": "Rendimiento", "awards": "Reconocimientos",
+                     "dispatchPortal": "PORTAL DE DESPACHO", "flightMarketplace": "Mercado de vuelos", "createFlight": "Crear mi vuelo", "myOperations": "Mis operaciones", "dispatchOfp": "Dispatch / OFP",
+                     "myOperation": "MI OPERACIÓN", "software": "SOFTWARE", "downloadCenter": "Centro de descargas", "signOut": "Salir"
                  },
+    "pilotHub": {
+      "profile": "PERFIL DE PILOTO", "callsignPending": "Callsign pendiente", "joined": "Alta", "flightCrew": "Tripulación de vuelo", "virtualWallet": "CARTERA VIRTUAL", "viewActivity": "Ver actividad →",
+      "hours": "Horas HISPAFLY", "sectors": "Sectores", "acceptedPireps": "PIREPs aceptados", "nextRank": "Siguiente rango", "complete": "Completado", "percentComplete": "{percent}% completado",
+      "careerProgress": "Progreso de carrera", "careerAuto": "Los vuelos aceptados lo actualizan automáticamente.", "details": "Detalles", "toward": "hacia {rank}", "highestRank": "el rango más alto", "assessment": "evaluación del Staff requerida",
+      "fleetExperience": "Experiencia de flota", "fleetNote": "Solo estadísticas del logbook; nunca limita una aeronave.", "noFleet": "Todavía no hay actividad de flota aceptada.",
+      "recentWallet": "Actividad reciente de cartera", "virtualCredits": "Créditos virtuales HISPAFLY; no son dinero real.", "allTransactions": "Todos los movimientos", "noWallet": "Todavía no hay movimientos de cartera."
+    },
+    "filters": { "search": "Buscar", "placeholder": "Vuelo, ruta, aeronave, referencia...", "month": "Mes", "sort": "Orden", "newest": "Más reciente", "oldest": "Más antiguo", "amountHigh": "Importe mayor", "amountLow": "Importe menor" },
+    "pirepsPilot": { "eyebrow": "MIS PIREPS", "title": "Informes de vuelo", "copy": "Consulta el estado, la decisión de revisión y el informe de cada vuelo.", "flight": "Vuelo", "route": "Ruta", "aircraft": "Aeronave", "reason": "Motivo", "network": "Red", "time": "Tiempo", "passengers": "Pasajeros", "detail": "Detalle", "view": "Ver informe", "showing": "Mostrando {shown} de {total} PIREPs.", "empty": "No hay PIREPs que coincidan con los filtros." },
+    "career": { "eyebrow": "PILOT HUB · CARRERA", "title": "Progreso de carrera {rank}", "copy": "El rango se basa en operaciones HISPAFLY aceptadas. La antigüedad y las habilitaciones de aeronave no se utilizan.", "eligible": "APTO PARA ASCENSO", "ready": "LISTO", "seniorCaptain": "Comandante sénior", "approval": "Cumplir los requisitos numéricos habilita la elegibilidad para mando. Los nombramientos CPT/SCPT siguen sujetos a evaluación y aprobación del Staff.", "structure": "Estructura de rangos", "sectors": "sectores", "hours": "horas" },
+    "performance": { "eyebrow": "PILOT HUB · RENDIMIENTO", "title": "Rendimiento operacional", "copy": "Resumen equilibrado de los registros ACARS aceptados. Un aterrizaje duro aislado no bloquea un ascenso.", "notRecorded": "Sin registrar", "record": "Registro operacional", "good": "BUENO", "review": "REVISIÓN", "averageScore": "Puntuación media", "scoredFlights": "{count} vuelos puntuados", "averageLanding": "Aterrizaje medio", "recordedLandings": "{count} aterrizajes registrados", "acceptanceRate": "Tasa de aceptación", "policy": "Política de evaluación", "policyCopy": "El rendimiento se evalúa como historial operacional a largo plazo. Los eventos repetidos o graves pueden revisarse para un ascenso a mando; un solo evento no impide automáticamente la progresión." },
+    "awards": { "eyebrow": "PILOT HUB · RECONOCIMIENTOS", "title": "Reconocimientos e hitos", "copy": "Los hitos se obtienen mediante vuelos HISPAFLY aceptados.", "earned": "CONSEGUIDO", "locked": "BLOQUEADO" },
     "dashboard":  {
                       "staffEyebrow":  "RESUMEN DE OPERACIONES",
                       "staffTitle":  "Panel AOC",

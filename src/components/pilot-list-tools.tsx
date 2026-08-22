@@ -24,12 +24,16 @@ export function PilotFilterBar({ q = "", month = "", sort = "date_desc", extra, 
   q?: string; month?: string; sort?: string; clearHref: string;
   extra?: { name: string; label: string; value?: string; options: Option[] };
 }) {
+  const { t } = useTranslations();
   return <form className="card pilot-filter-bar" method="get">
-    <div className="pilot-filter-field"><label>Buscar</label><input name="q" defaultValue={q} placeholder="Vuelo, ruta, aeronave, referencia..." /></div>
-    <div className="pilot-filter-field"><label>Mes</label><input name="month" type="month" defaultValue={month} /></div>
-    {extra && <div className="pilot-filter-field"><label>{extra.label}</label><select name={extra.name} defaultValue={extra.value ?? ""}><option value="">Todos</option>{extra.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>}
-    <div className="pilot-filter-field"><label>Orden</label><select name="sort" defaultValue={sort}><option value="date_desc">Más reciente</option><option value="date_asc">Más antiguo</option><option value="amount_desc">Importe mayor</option><option value="amount_asc">Importe menor</option></select></div>
-    <button className="action-button approve" type="submit">Aplicar</button>
-    <a className="action-button" href={clearHref}>Limpiar</a>
+    <div className="pilot-filter-field"><label>{t("filters.search")}</label><input name="q" defaultValue={q} placeholder={t("filters.placeholder")} /></div>
+    <div className="pilot-filter-field"><label>{t("filters.month")}</label><input name="month" type="month" defaultValue={month} /></div>
+    {extra && <div className="pilot-filter-field"><label>{extra.label}</label><select name={extra.name} defaultValue={extra.value ?? ""}><option value="">{t("common.all")}</option>{extra.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>}
+    <div className="pilot-filter-field"><label>{t("filters.sort")}</label><select name="sort" defaultValue={sort}><option value="date_desc">{t("filters.newest")}</option><option value="date_asc">{t("filters.oldest")}</option><option value="amount_desc">{t("filters.amountHigh")}</option><option value="amount_asc">{t("filters.amountLow")}</option></select></div>
+    <button className="action-button approve" type="submit">{t("common.search")}</button>
+    <a className="action-button" href={clearHref}>{t("common.clear")}</a>
   </form>;
 }
+"use client";
+
+import { useTranslations } from "@/lib/i18n/client";

@@ -34,7 +34,7 @@ export default async function PilotWalletPage({ searchParams }: { searchParams: 
     <PilotListStyles />
     <PageHeading eyebrow={t("wallet.eyebrow")} title={t("wallet.title")} copy={t("wallet.copy")} />
     <div className="pilot-list-tools">
-      <PilotFilterBar q={filters.q} month={filters.month} sort={filters.sort} clearHref="/pilot/wallet" extra={{ name: "type", label: "Tipo", value: filters.type, options: types.map((value) => ({ value, label: value })) }} />
+      <PilotFilterBar q={filters.q} month={filters.month} sort={filters.sort} clearHref="/pilot/wallet" extra={{ name: "type", label: t("common.type"), value: filters.type, options: types.map((value) => ({ value, label: value })) }} />
       <div className="pilot-filter-meta">{t("wallet.showing", { shown: filtered.length, total: transactions.length })}</div>
     </div>
     <div className="card">
