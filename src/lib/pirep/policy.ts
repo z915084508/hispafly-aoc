@@ -43,7 +43,7 @@ export function validateNativePirep(input: NativeValidationInput): { status: Pir
     return { status: "manual_review", rejectCode: "R02", comment: "Core ACARS duration data is missing or internally inconsistent." };
   }
   const phase = input.currentPhase?.trim().toLowerCase();
-  if (phase && !["arrived", "shutdown", "postflight", "post-flight", "on block", "on-block", "taxi in", "taxi-in"].includes(phase)) {
+  if (phase && !["completed", "complete", "arrived", "shutdown", "postflight", "post-flight", "on block", "on-block", "onblock", "taxi in", "taxi-in", "taxiin"].includes(phase)) {
     return { status: "manual_review", rejectCode: "R05", comment: `The ACARS session ended during phase ${input.currentPhase}.` };
   }
   return { status: "accepted", rejectCode: null, comment: null };

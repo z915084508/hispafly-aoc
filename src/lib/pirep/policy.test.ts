@@ -3,6 +3,7 @@ import test from "node:test";
 import { normalizeAircraftType, validateNativePirep } from "./policy.ts";
 
 const valid = { positionCount: 10, finalOnGround: true, currentPhase: "Arrived", authorizedAircraftType: "A21N", reportedAircraftType: "a21n", duplicate: false, flightTimeMinutes: 60, blockTimeMinutes: 75 };
+assert.equal(validateNativePirep({ ...valid, currentPhase: "Completed" }).status, "accepted");
 
 test("R06 compares only normalized ICAO aircraft type", () => {
   assert.equal(normalizeAircraftType(" A21N "), "A21N");

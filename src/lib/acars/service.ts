@@ -51,6 +51,8 @@ const operationalTypes: Record<string, string> = {
   Passing10000: "PASSING_10000", TopOfDescent: "TOD", Landing: "LANDING", OnBlock: "BLOCK_ON",
   GoAround: "GO_AROUND", Diversion: "DIVERSION", Overspeed: "OVERSPEED", HardLanding: "HARD_LANDING",
   PauseStarted: "PAUSE", SimulationRateChanged: "SIM_RATE",
+  SpeedRestrictionWaiverEnabled: "ATC_SPEED_AUTHORIZATION_ENABLED",
+  SpeedRestrictionWaiverDisabled: "ATC_SPEED_AUTHORIZATION_DISABLED",
 };
 const operationalSeverity = (type: string) => ["OVERSPEED", "HARD_LANDING"].includes(type) ? "WARNING"
   : ["GO_AROUND", "DIVERSION", "PAUSE", "SIM_RATE"].includes(type) ? "NOTICE" : "INFO";
