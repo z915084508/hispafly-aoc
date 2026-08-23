@@ -17,8 +17,6 @@ type UploadMetadata = {
 const VERSION_RE = /^\d+\.\d+\.\d+(?:[-.][0-9A-Za-z.-]+)?$/;
 
 export async function GET() {
-  const staff = await getCurrentStaff();
-  if (!staff) return NextResponse.json({ error: "Staff authentication required." }, { status: 401 });
   return NextResponse.json({ configured: Boolean(process.env.BLOB_READ_WRITE_TOKEN) });
 }
 
