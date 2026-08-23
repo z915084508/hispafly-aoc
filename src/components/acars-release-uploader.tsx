@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { upload } from "@vercel/blob/client";
+import { uploadPresigned } from "@vercel/blob/client";
 
 export function AcarsReleaseUploader() {
   const router = useRouter();
@@ -28,7 +28,7 @@ export function AcarsReleaseUploader() {
         setBusy(true);
         setMessage(null);
         try {
-          const blob = await upload(`software/acars/installers/${version}/${installer.name}`, installer, {
+          const blob = await uploadPresigned(`software/acars/installers/${version}/${installer.name}`, installer, {
             access: "public",
             handleUploadUrl: "/api/staff/software/acars/upload",
             clientPayload: JSON.stringify({ version, notes, mandatory, channel, fileSize: installer.size, originalName: installer.name }),
