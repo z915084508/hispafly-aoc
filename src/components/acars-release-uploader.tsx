@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { upload } from "@vercel/blob/client";
 
 export function AcarsReleaseUploader() {
   const router = useRouter();
@@ -16,19 +17,23 @@ export function AcarsReleaseUploader() {
         const formElement = event.currentTarget;
         const form = new FormData(formElement);
         const version = String(form.get("version") ?? "").trim();
-        const downloadUrl = String(form.get("downloadUrl") ?? "").trim();
+        const installer = form.get("installer");
         const notes = String(form.get("notes") ?? "").trim();
         const mandatory = form.get("mandatory") === "on";
         const channel = form.get("channel") === "BETA" ? "BETA" : "STABLE";
 
         if (!/^\d+\.\d+\.\d+(?:[-.][0-9A-Za-z.-]+)?$/.test(version)) return setMessage("Use a version such as 1.0.0.");
-        if (!downloadUrl.startsWith("https://") || !downloadUrl.toLowerCase().endsWith(".exe")) {
-          return setMessage("Paste the public HTTPS Vercel Blob URL of the .exe installer.");
-        }
+        if (!(installer instanceof File) || !installer.name.toLowerCase().endsWith(".exe") || installer.size <= 0) return setMessage("Choose the Windows .exe installer.");
 
         setBusy(true);
         setMessage(null);
         try {
+          const blob = await upload(`software/acars/installers/${version}/${installer.name}`, installer, {
+            access: "public",
+            handleUploadUrl: "/api/staff/software/acars/upload",
+            clientPayload: JSON.stringify({ version, notes, mandatory, channel, fileSize: installer.size, originalName: installer.name }),
+          });
+          const downloadUrl = blob.downloadUrl ?? blob.url;
           const response = await fetch("/api/staff/software/acars/release", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -49,7 +54,7 @@ export function AcarsReleaseUploader() {
       <div className="card-header">
         <div>
           <h2 className="card-title">Publish a new ACARS release</h2>
-          <p className="meta">Upload the installer in Vercel Blob first, then register its public download URL here.</p>
+          <p className="meta">Upload and publish the signed Windows installer to the ACARS update channel.</p>
         </div>
         <span className="badge blue">VERCEL BLOB</span>
       </div>
@@ -67,8 +72,8 @@ export function AcarsReleaseUploader() {
           </select>
         </div>
         <div className="field">
-          <label htmlFor="acars-download-url">Download URL</label>
-          <input id="acars-download-url" name="downloadUrl" type="url" placeholder="https://...public.blob.vercel-storage.com/HispaFly-ACARS-Setup-1.0.0-win-x64.exe" required />
+          <label htmlFor="acars-installer">Windows installer</label>
+          <input id="acars-installer" name="installer" type="file" accept=".exe,application/octet-stream,application/x-msdownload" required />
         </div>
       </div>
 
