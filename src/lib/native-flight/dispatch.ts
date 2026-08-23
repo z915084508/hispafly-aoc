@@ -191,10 +191,29 @@ export async function releaseNativeDispatch(input: { dispatchId: string; actorTy
 }
 
 export async function getAcarsAssignment(pilotId: string) {
-  const dispatch = await prisma.flightDispatch.findFirst({ where: { pilotId, isCurrent: true, status: FlightDispatchStatus.RELEASED, dataOrigin: AocDataOrigin.HISPAFLY_NATIVE, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }, include: { booking: true, flight: true, route: true, fleet: true, aircraft: true, ofpBriefing: true }, orderBy: { dispatchedAt: "desc" } });
+  const dispatch = await prisma.flightDispatch.findFirst({ where: { pilotId, isCurrent: true, status: FlightDispatchStatus.RELEASED, dataOrigin: AocDataOrigin.HISPAFLY_NATIVE, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }, include: { booking: true, flight: true, route: true, fleet: true, aircraft: { include: { performanceProfile: true } }, ofpBriefing: true }, orderBy: { dispatchedAt: "desc" } });
   if (!dispatch?.booking || !dispatch.flight || !dispatch.aircraft) return null;
-  const blockFuel = Number(summarizeSimbriefOfp(dispatch.ofpBriefing?.ofpSnapshot).blockFuel);
-  const plannedBlockFuelKg = Number.isFinite(blockFuel) && blockFuel > 0 ? blockFuel : null;
+  const ofp = summarizeSimbriefOfp(dispatch.ofpBriefing?.ofpSnapshot);
+  const number = (value: unknown) => {
+    if (value === null || value === undefined || (typeof value === "string" && !value.trim())) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const durationMinutes = (value: string | null) => {
+    if (!value) return null;
+    if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(value)) {
+      const parts = value.split(":").map(Number);
+      const seconds = parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 3600 + parts[1] * 60;
+      return Math.round(seconds / 60);
+    }
+    const seconds = number(value);
+    return seconds === null ? null : Math.round(seconds / 60);
+  };
+  const cruiseLevel = (() => {
+    const altitude = number(ofp.cruiseAltitude);
+    if (altitude === null) return ofp.cruiseAltitude;
+    return altitude >= 1000 ? `FL${Math.round(altitude / 100).toString().padStart(3, "0")}` : `FL${Math.round(altitude).toString().padStart(3, "0")}`;
+  })();
   return {
     contractVersion: "1.0",
     dispatchId: dispatch.id,
@@ -211,15 +230,38 @@ export async function getAcarsAssignment(pilotId: string) {
     arrivalIcao: dispatch.flight.arrivalIcao,
     scheduledDepartureUtc: dispatch.flight.scheduledDeparture,
     scheduledArrivalUtc: dispatch.flight.scheduledArrival,
-    route: dispatch.route?.route,
+    route: dispatch.route?.route ?? ofp.route,
     fleetId: dispatch.fleet?.id ?? null,
     fleetCode: dispatch.fleet?.code ?? null,
     aircraftId: dispatch.aircraft.id,
     aircraftRegistration: dispatch.aircraft.registration,
     aircraftType: dispatch.aircraft.aircraftType,
-    passengers: dispatch.booking.passengers,
-    cargoKg: dispatch.booking.cargoKg,
-    plannedBlockFuelKg,
+    passengers: dispatch.booking.passengers ?? number(ofp.passengers) ?? 0,
+    cargoKg: dispatch.booking.cargoKg ?? number(ofp.cargo) ?? 0,
+    plannedBlockFuelKg: number(ofp.blockFuel),
+    cruiseLevel,
+    costIndex: number(ofp.costIndex) ?? dispatch.aircraft.performanceProfile?.defaultCostIndex ?? null,
+    alternateIcao: ofp.alternate,
+    departureMetar: ofp.departureMetar,
+    arrivalMetar: ofp.arrivalMetar,
+    alternateMetar: ofp.alternateMetar,
+    taxiFuelKg: number(ofp.taxiFuel) ?? dispatch.aircraft.performanceProfile?.taxiFuelKg ?? null,
+    tripFuelKg: number(ofp.tripFuel),
+    contingencyFuelKg: number(ofp.contingencyFuel),
+    alternateFuelKg: number(ofp.alternateFuel),
+    finalReserveFuelKg: number(ofp.reserveFuel),
+    baggageKg: number(ofp.baggage),
+    totalPayloadKg: number(ofp.payload),
+    dryOperatingWeightKg: number(ofp.dow) ?? dispatch.aircraft.performanceProfile?.operatingEmptyWeightKg ?? null,
+    zeroFuelWeightKg: number(ofp.zfw),
+    takeoffWeightKg: number(ofp.tow),
+    landingWeightKg: number(ofp.landingWeight),
+    maxZeroFuelWeightKg: number(dispatch.aircraft.performanceProfile?.maxZeroFuelWeightKg),
+    maxTakeoffWeightKg: number(dispatch.aircraft.performanceProfile?.maxTakeoffWeightKg),
+    maxLandingWeightKg: number(dispatch.aircraft.performanceProfile?.maxLandingWeightKg),
+    estimatedEnrouteMinutes: durationMinutes(ofp.airTime),
+    plannedBlockMinutes: durationMinutes(ofp.blockTime),
+    rawOfpUrl: ofp.pdfUrl,
     ofpReference: dispatch.ofpBriefing?.simbriefStaticId,
     releasedAt: dispatch.dispatchedAt,
     expiresAt: dispatch.expiresAt,
