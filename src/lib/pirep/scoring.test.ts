@@ -4,4 +4,5 @@ const clean=calculatePirepScore(policy,[],80);assert.equal(clean.operationalScor
 const overspeed=calculatePirepScore(policy,["OVERSPEED"],80);assert.equal(overspeed.operationalScore,90);assert.equal(overspeed.totalScore,87);
 const integrityPolicy={...policy,rules:policy.rules.map(rule=>rule.code==="MID_AIR_REFUELING"?{...rule,enabled:true}:rule)};const integrity=calculatePirepScore(integrityPolicy,["MID_AIR_REFUELING"],100);assert.equal(integrity.invalidated,true);
 const review=calculatePirepScore(policy,["TIME_ACCELERATION"],100);assert.equal(review.requiresReview,true);
-console.log("PIREP scoring: 4 focused assertions passed.");
+const landing=calculatePirepScore(policy,[],100,{landingG:1.72});assert.equal((landing.details as {appliedRules:Array<{code:string}>}).appliedRules[0].code,"LANDING_G_VERY_HARD");assert.equal(landing.operationalScore,75);
+console.log("PIREP scoring: 6 focused assertions passed.");

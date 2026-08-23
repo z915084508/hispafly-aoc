@@ -100,6 +100,7 @@ export function validateTelemetryBatch(body: {
     finalFuelKg?: number | null;
     fuelUsedKg?: number | null;
     landingRateFeetPerMinute?: number | null;
+    landingG?: number | null;
   } | null;
   positions?: Array<{ sequenceNumber: number; recordedAt: string; latitude?: number | null; longitude?: number | null; headingDegrees?: number | null; fuelKg?: number | null }>;
   events?: Array<{ sequenceNumber: number; recordedAt: string }>;
@@ -124,5 +125,7 @@ export function validateTelemetryBatch(body: {
     if (landingRate != null && (!Number.isFinite(landingRate) || Math.abs(landingRate) > 10_000)) {
       throw new Error("Invalid ACARS completion landing rate.");
     }
+    const landingG = body.completion.landingG;
+    if (landingG != null && (!Number.isFinite(landingG) || landingG <= 0.2 || landingG >= 6)) throw new Error("Invalid ACARS completion landing G.");
   }
 }

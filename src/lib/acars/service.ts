@@ -30,6 +30,7 @@ type CompletionInput = {
   finalFuelKg?: number | null;
   fuelUsedKg?: number | null;
   landingRateFeetPerMinute?: number | null;
+  landingG?: number | null;
   aircraftTypeIcao?: string | null;
 };
 type OperationalEventInput = {
@@ -183,6 +184,8 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
     const landingRate = clientLandingRate != null && Number.isFinite(clientLandingRate)
       ? Math.round(clientLandingRate)
       : telemetry.landingRate;
+    const landingG = body.completion?.landingG != null && Number.isFinite(body.completion.landingG) && body.completion.landingG > 0.2 && body.completion.landingG < 6
+      ? Math.round(body.completion.landingG * 1000) / 1000 : null;
     const completedAt = new Date();
     const finalPosition = await tx.acarsPosition.findFirst({ where: { sessionId, onGround: true, latitude: { not: null }, longitude: { not: null } }, orderBy: { recordedAt: "desc" } });
     const airports = finalPosition ? await tx.airport.findMany({ where: { status: "ACTIVE", latitude: { not: null }, longitude: { not: null } }, select: { id: true, icao: true, iata: true, latitude: true, longitude: true } }) : [];
@@ -199,7 +202,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
     });
     if (diverted) scoringEventTypes.push("DIVERSION");
     const scoringPolicy = await loadScoringPolicy(tx, dispatch.flight.fleetId);
-    const scoring = calculatePirepScore(scoringPolicy, scoringEventTypes, null);
+    const scoring = calculatePirepScore(scoringPolicy, scoringEventTypes, null, { landingG });
     const score = scoring.totalScore;
     const passengers = dispatch.booking.passengers ?? 0;
     const network = nativeNetwork(dispatch.booking.network);
@@ -219,6 +222,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
       clientInitialFuelKg: clientFuel?.initialFuelKg ?? null,
       clientFinalFuelKg: clientFuel?.finalFuelKg ?? null,
       landingRate,
+      landingG,
     };
     const duplicate = await tx.pirep.findFirst({
       where: {
@@ -252,7 +256,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
         diverted, diversionReason: diverted ? "OTHER" : null,
         aircraftType: dispatch.aircraft.aircraftType, aircraftRegistration: dispatch.aircraft.registration,
         network, flightTimeMinutes: telemetry.flightTimeMinutes,
-        blockTimeMinutes: telemetry.blockTimeMinutes, landingRate,
+        blockTimeMinutes: telemetry.blockTimeMinutes, landingRate, landingG,
         score, points: score, scoringDetails: scoring.details, fuelUsed: fuelUsedKg, passengers,
         cargoKg: dispatch.booking.cargoKg ?? 0, luggageKg: dispatch.booking.luggageKg ?? 0,
         freightKg: dispatch.booking.freightKg ?? 0, flightDistanceNm, passengerRevenueCents,
@@ -274,7 +278,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
         acceptedAt: validation.status === "accepted" ? completedAt : null,
         acarsSoftware: current.acarsVersion,
         source: "HISPAFLY_ACARS", flownAt: completedAt,
-        rawData: { contractVersion: "1.2", sessionId, dispatchId: dispatch.id, summary: completionSummary, flightDistanceNm, score, diverted } as Prisma.InputJsonValue,
+        rawData: { contractVersion: "1.3", sessionId, dispatchId: dispatch.id, summary: completionSummary, landingG, flightDistanceNm, score, diverted } as Prisma.InputJsonValue,
         operationalEvents: { create: [
           ...events.flatMap((event) => {
             let eventType = operationalTypes[event.type];

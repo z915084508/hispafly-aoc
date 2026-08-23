@@ -971,6 +971,7 @@ model Pirep {
   flightTimeMinutes      Int?
   blockTimeMinutes       Int?
   landingRate            Int?
+  landingG               Float?
   score                  Int?
   fuelUsed               Int?
   rampFuelKg             Int?

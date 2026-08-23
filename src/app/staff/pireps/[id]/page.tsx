@@ -76,6 +76,7 @@ export default async function StaffPirepDetailPage({ params, searchParams }: { p
       <PirepMetric label="Equipaje" value={pirep.luggageKg == null && pirep.cargoKg == null ? "—" : `${formatNumber(pirep.luggageKg ?? pirep.cargoKg ?? 0)} kg`} />
       <PirepMetric label="Combustible usado" value={pirep.fuelUsed == null ? "—" : `${formatNumber(pirep.fuelUsed)} kg`} />
       <PirepMetric label="Landing rate" value={pirep.landingRate == null ? "—" : `${formatNumber(pirep.landingRate)} fpm`} />
+      <PirepMetric label="Landing G" value={pirep.landingG == null ? "—" : `${pirep.landingG.toFixed(2)} G`} />
       <PirepMetric label="Score" value={formatNumber(pirep.score)} />
       <PirepMetric label="Points" value={formatNumber(pirep.points)} />
     </PirepSection>

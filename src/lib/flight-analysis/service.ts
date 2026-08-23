@@ -74,7 +74,7 @@ export async function createOrUpdateFlightAnalysis(pirepId: string) {
   const fuelDiffPercent = differencePercent(actualFuelUsedKg, plannedTripFuelKg);
   const blockTimeDiffMinutes = difference(actualBlockMinutes, planned.blockMinutes);
   const flightTimeDiffMinutes = difference(actualFlightMinutes, planned.flightMinutes);
-  const rawLandingG = numericValue(deepValue(pirep.rawData, ["landing_g", "landingg", "g_force", "gforce"]));
+  const rawLandingG = pirep.landingG ?? numericValue(deepValue(pirep.rawData, ["landing_g", "landingg", "g_force", "gforce"]));
   const landingG = rawLandingG != null && rawLandingG > 0.05 && rawLandingG < 5 ? rawLandingG : null;
   const plannedDistanceNm = planned.distanceNm === null ? null : Math.round(planned.distanceNm);
   const distanceDiffNm = difference(pirep.flightDistanceNm, plannedDistanceNm);
@@ -101,7 +101,7 @@ export async function createOrUpdateFlightAnalysis(pirepId: string) {
   const created = !pirep.flightAnalysisReport;
   const report = await prisma.flightAnalysisReport.upsert({ where: { pirepId }, create: { pirepId, ...data }, update: data });
   const scoringPolicy = await loadScoringPolicy(prisma, pirep.flightDispatch?.flight?.fleetId);
-  const scoring = calculatePirepScore(scoringPolicy, pirep.operationalEvents.map((event) => event.eventType), score);
+  const scoring = calculatePirepScore(scoringPolicy, pirep.operationalEvents.map((event) => event.eventType), score, { landingG });
   await prisma.pirep.update({ where: { id: pirepId }, data: { score: scoring.totalScore, points: scoring.totalScore, scoringDetails: scoring.details } });
   if (created) await writeAuditLogSafely({ action: "FLIGHT_ANALYSIS_CREATED", entityType: "FlightAnalysisReport", entityId: report.id, message: "Post-flight planned versus actual analysis created.", metadata: { pirepId, ofpBriefingId: ofp?.id ?? null, efficiencyScore: score, fuelDataComplete } });
   await calibrateFuelBias(pirep.vamsysAircraftId, report.id);

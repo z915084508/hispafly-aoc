@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-export type ScoringRule = { code:string; label:string; group:string; condition:string; availability:"ACTIVE"|"PLANNED"; category:"OPERATIONAL"|"BONUS"|"INTEGRITY"; action:"ADD"|"DEDUCT"|"REVIEW"|"INVALIDATE"|"NONE"; points:number; enabled:boolean };
+export type ScoringRule = { code:string; label:string; group:string; condition:string; availability:"ACTIVE"|"PLANNED"; category:"OPERATIONAL"|"BONUS"|"INTEGRITY"; action:"ADD"|"DEDUCT"|"REVIEW"|"INVALIDATE"|"NONE"; points:number; enabled:boolean; metric?:"LANDING_G"; minValue?:number; maxValue?:number };
 export type ScoringPolicy = { id:string; scopeKey:string; name:string; operationalWeight:number; efficiencyWeight:number; startingScore:number; version:number; rules:ScoringRule[] };
 
 export const DEFAULT_SCORING_RULES: ScoringRule[] = [
@@ -16,7 +16,17 @@ export const DEFAULT_SCORING_RULES: ScoringRule[] = [
   {code:"LOW_LANDING_FUEL",label:"Landing with too little fuel",group:"Fuel · Landing",condition:"Landing fuel below fleet threshold",availability:"PLANNED",category:"OPERATIONAL",action:"DEDUCT",points:50,enabled:false},
   {code:"HIGH_LANDING_FUEL",label:"Landing with excess fuel",group:"Fuel · Landing",condition:"Landing fuel above fleet threshold",availability:"PLANNED",category:"OPERATIONAL",action:"DEDUCT",points:25,enabled:false},
   {code:"HARD_LANDING",label:"Hard landing",group:"Landing",condition:"ACARS hard-landing event / landing rate",availability:"ACTIVE",category:"OPERATIONAL",action:"DEDUCT",points:15,enabled:true},
-  {code:"LANDING_G_BAND",label:"Landing G-force band",group:"Landing",condition:"Fleet-specific G-force ranges",availability:"PLANNED",category:"OPERATIONAL",action:"DEDUCT",points:10,enabled:false},
+  {code:"LANDING_G_VERY_SOFT",label:"Very soft landing",group:"Landing",condition:"0.00–1.04 G",availability:"ACTIVE",category:"OPERATIONAL",action:"DEDUCT",points:25,enabled:true,metric:"LANDING_G",minValue:0,maxValue:1.04},
+  {code:"LANDING_G_SOFT",label:"Soft landing",group:"Landing",condition:"1.05–1.09 G",availability:"ACTIVE",category:"OPERATIONAL",action:"DEDUCT",points:10,enabled:true,metric:"LANDING_G",minValue:1.05,maxValue:1.09},
+  {code:"LANDING_G_FAIR_LOW",label:"Fair landing",group:"Landing",condition:"1.10–1.14 G",availability:"ACTIVE",category:"BONUS",action:"ADD",points:10,enabled:true,metric:"LANDING_G",minValue:1.10,maxValue:1.14},
+  {code:"LANDING_G_GOOD_LOW",label:"Good landing",group:"Landing",condition:"1.15–1.19 G",availability:"ACTIVE",category:"BONUS",action:"ADD",points:25,enabled:true,metric:"LANDING_G",minValue:1.15,maxValue:1.19},
+  {code:"LANDING_G_PERFECT",label:"Perfect landing",group:"Landing",condition:"1.20–1.24 G",availability:"ACTIVE",category:"BONUS",action:"ADD",points:50,enabled:true,metric:"LANDING_G",minValue:1.20,maxValue:1.24},
+  {code:"LANDING_G_GOOD_HIGH",label:"Good landing",group:"Landing",condition:"1.25–1.34 G",availability:"ACTIVE",category:"BONUS",action:"ADD",points:25,enabled:true,metric:"LANDING_G",minValue:1.25,maxValue:1.34},
+  {code:"LANDING_G_FAIR_HIGH",label:"Fair landing",group:"Landing",condition:"1.35–1.39 G",availability:"ACTIVE",category:"BONUS",action:"ADD",points:10,enabled:true,metric:"LANDING_G",minValue:1.35,maxValue:1.39},
+  {code:"LANDING_G_FIRM",label:"Firm landing",group:"Landing",condition:"1.40–1.49 G",availability:"ACTIVE",category:"OPERATIONAL",action:"NONE",points:0,enabled:true,metric:"LANDING_G",minValue:1.40,maxValue:1.49},
+  {code:"LANDING_G_HARD",label:"Hard landing",group:"Landing",condition:"1.50–1.69 G",availability:"ACTIVE",category:"OPERATIONAL",action:"DEDUCT",points:10,enabled:true,metric:"LANDING_G",minValue:1.50,maxValue:1.69},
+  {code:"LANDING_G_VERY_HARD",label:"Very hard landing",group:"Landing",condition:"1.70–1.99 G",availability:"ACTIVE",category:"OPERATIONAL",action:"DEDUCT",points:25,enabled:true,metric:"LANDING_G",minValue:1.70,maxValue:1.99},
+  {code:"LANDING_G_EXTREME",label:"Extremely hard landing",group:"Landing",condition:"2.00 G or more",availability:"ACTIVE",category:"OPERATIONAL",action:"DEDUCT",points:50,enabled:true,metric:"LANDING_G",minValue:2.00},
   {code:"DIVERSION",label:"Diversion",group:"Landing",condition:"Landed away from planned destination",availability:"ACTIVE",category:"OPERATIONAL",action:"REVIEW",points:0,enabled:true},
   {code:"TAXI_OVERSPEED",label:"Taxi speed above 30 kt",group:"Operational Safety",condition:"Ground speed above 30 kt while taxiing",availability:"ACTIVE",category:"OPERATIONAL",action:"DEDUCT",points:10,enabled:true},
   {code:"OVERSPEED",label:"Speed above 250 kt below FL100",group:"Operational Safety",condition:"No recorded ATC high-speed authorization",availability:"ACTIVE",category:"OPERATIONAL",action:"DEDUCT",points:10,enabled:true},
@@ -34,9 +44,11 @@ export async function loadScoringPolicy(db:PrismaClient|Prisma.TransactionClient
   return{...record,rules:mergeScoringRules(record.rules)};
 }
 
-export function calculatePirepScore(policy:ScoringPolicy,eventTypes:string[],efficiencyScore:number|null){
+export function calculatePirepScore(policy:ScoringPolicy,eventTypes:string[],efficiencyScore:number|null,metrics:{landingG?:number|null}={}){
   const counts=new Map<string,number>();eventTypes.forEach(x=>counts.set(x,(counts.get(x)??0)+1));
-  const applied=policy.rules.filter(r=>r.enabled&&(counts.get(r.code)??0)>0).map(r=>({...r,count:counts.get(r.code)??0,impact:r.action==="ADD"?r.points*(counts.get(r.code)??0):r.action==="DEDUCT"?-r.points*(counts.get(r.code)??0):0}));
+  const eventApplied=policy.rules.filter(r=>r.enabled&&!r.metric&&(counts.get(r.code)??0)>0).map(r=>({...r,count:counts.get(r.code)??0}));
+  const metricApplied=policy.rules.filter(r=>r.enabled&&r.metric==="LANDING_G"&&metrics.landingG!=null&&(r.minValue==null||metrics.landingG>=r.minValue)&&(r.maxValue==null||metrics.landingG<=r.maxValue)).map(r=>({...r,count:1}));
+  const applied=[...eventApplied,...metricApplied].map(r=>({...r,impact:r.action==="ADD"?r.points*r.count:r.action==="DEDUCT"?-r.points*r.count:0}));
   const operationalScore=Math.max(0,Math.min(100,policy.startingScore+applied.reduce((n,r)=>n+r.impact,0)));
   const ow=Math.max(0,policy.operationalWeight),ew=efficiencyScore==null?0:Math.max(0,policy.efficiencyWeight),weight=ow+ew||1;
   const totalScore=Math.max(0,Math.min(100,Math.round((operationalScore*ow+(efficiencyScore??0)*ew)/weight)));
