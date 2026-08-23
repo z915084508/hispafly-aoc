@@ -990,6 +990,7 @@ model Pirep {
   fuelPriceSource        String?
   fuelCalculationDetails Json?
   points                 Float?
+  scoringDetails         Json?
   credits                Float?
   status                 PirepStatus
   rejectCode             PirepRejectCode?
@@ -1026,6 +1027,23 @@ model Pirep {
   @@index([flownAt, fuelCostCents])
   @@index([vamsysAircraftId, flownAt])
   @@index([dataOrigin])
+}
+
+model PirepScoringPolicy {
+  id               String   @id @default(cuid())
+  scopeKey         String   @unique
+  fleetId          String?
+  name             String
+  operationalWeight Int     @default(70)
+  efficiencyWeight  Int     @default(30)
+  startingScore     Int     @default(100)
+  rules             Json
+  version           Int     @default(1)
+  active            Boolean @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([fleetId, active])
 }
 
 model PirepReview {

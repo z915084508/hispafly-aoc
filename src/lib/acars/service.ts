@@ -3,11 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
 import { syncPilotAutomaticRank } from "@/lib/pilot/career-service";
-import { greatCircleDistanceNm, nativePirepScore, telemetrySummary, validateTelemetryBatch } from "@/lib/acars/completion";
+import { greatCircleDistanceNm, telemetrySummary, validateTelemetryBatch } from "@/lib/acars/completion";
 import { ensureNativePayrollSettlement } from "@/lib/payroll/nativeSettlement";
 import { generateCompanyExpensesForPirep } from "@/lib/economy/companyExpenses";
 import { createOrUpdateFlightAnalysis } from "@/lib/flight-analysis/service";
 import { validateNativePirep } from "@/lib/pirep/policy";
+import { calculatePirepScore, loadScoringPolicy } from "@/lib/pirep/scoring";
 
 export type AcarsStartInput = {
   localSessionId: string; dispatchId: string; dispatchVersion: number; bookingId: string;
@@ -189,7 +190,17 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
     const actualAirport = closestAirport && closestAirport.distance <= 15 ? closestAirport.airport : dispatch.flight.arrivalAirport;
     const diverted = actualAirport.icao !== dispatch.flight.arrivalIcao;
     const flightDistanceNm = greatCircleDistanceNm(dispatch.flight.departureAirport, actualAirport);
-    const score = nativePirepScore(landingRate);
+    const scoringEventTypes = events.flatMap((event) => {
+      const mapped = operationalTypes[event.type];
+      if (!mapped) return [];
+      if (mapped === "OVERSPEED" && /taxi|ground/i.test(event.message ?? "")) return ["TAXI_OVERSPEED"];
+      if (mapped === "SIM_RATE") return ["TIME_ACCELERATION"];
+      return [mapped];
+    });
+    if (diverted) scoringEventTypes.push("DIVERSION");
+    const scoringPolicy = await loadScoringPolicy(tx, dispatch.flight.fleetId);
+    const scoring = calculatePirepScore(scoringPolicy, scoringEventTypes, null);
+    const score = scoring.totalScore;
     const passengers = dispatch.booking.passengers ?? 0;
     const network = nativeNetwork(dispatch.booking.network);
     const fuelEconomics = await calculateFuelCostSnapshot({
@@ -220,7 +231,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
       },
       select: { id: true },
     });
-    const validation = validateNativePirep({
+    let validation = validateNativePirep({
       positionCount: positions.length,
       finalOnGround: positions.at(-1)?.onGround === true,
       currentPhase: body.currentPhase,
@@ -230,6 +241,8 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
       flightTimeMinutes: telemetry.flightTimeMinutes,
       blockTimeMinutes: telemetry.blockTimeMinutes,
     });
+    if (validation.status === "accepted" && scoring.invalidated) validation = { status: "rejected", rejectCode: "R07", comment: "The scoring policy detected an invalid flight-integrity event." };
+    else if (validation.status === "accepted" && scoring.requiresReview) validation = { status: "manual_review", rejectCode: "R07", comment: "The scoring policy requires Staff review of a flight-integrity event." };
     const pirep = await tx.pirep.create({
       data: {
         dataOrigin: "HISPAFLY_NATIVE", acarsSessionId: sessionId, pilotId,
@@ -240,7 +253,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
         aircraftType: dispatch.aircraft.aircraftType, aircraftRegistration: dispatch.aircraft.registration,
         network, flightTimeMinutes: telemetry.flightTimeMinutes,
         blockTimeMinutes: telemetry.blockTimeMinutes, landingRate,
-        score, points: score, fuelUsed: fuelUsedKg, passengers,
+        score, points: score, scoringDetails: scoring.details, fuelUsed: fuelUsedKg, passengers,
         cargoKg: dispatch.booking.cargoKg ?? 0, luggageKg: dispatch.booking.luggageKg ?? 0,
         freightKg: dispatch.booking.freightKg ?? 0, flightDistanceNm, passengerRevenueCents,
         fuelCostCents: fuelEconomics.fuelCostCents,
@@ -264,8 +277,10 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
         rawData: { contractVersion: "1.2", sessionId, dispatchId: dispatch.id, summary: completionSummary, flightDistanceNm, score, diverted } as Prisma.InputJsonValue,
         operationalEvents: { create: [
           ...events.flatMap((event) => {
-            const eventType = operationalTypes[event.type];
+            let eventType = operationalTypes[event.type];
             if (!eventType) return [];
+            if (eventType === "OVERSPEED" && /taxi|ground/i.test(event.message ?? "")) eventType = "TAXI_OVERSPEED";
+            if (eventType === "SIM_RATE") eventType = "TIME_ACCELERATION";
             return [{ eventType, severity: operationalSeverity(eventType), timestamp: event.recordedAt,
               flightPhase: event.phaseAfter ?? event.phaseBefore, source: "ACARS_AUTO",
               latitude: event.latitude, longitude: event.longitude, altitudeFeet: event.altitudeFeet,

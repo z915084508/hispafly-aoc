@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { difference, differencePercent, durationMinutes, efficiencyScore, numericValue } from "./calculations";
+import { calculatePirepScore, loadScoringPolicy } from "@/lib/pirep/scoring";
 
 type JsonRow = Record<string, unknown>;
 const record = (value: unknown): JsonRow | null => value && typeof value === "object" && !Array.isArray(value) ? value as JsonRow : null;
@@ -57,7 +58,7 @@ async function calibrateFuelBias(vamsysAircraftId: string | null, reportId: stri
 }
 
 export async function createOrUpdateFlightAnalysis(pirepId: string) {
-  const pirep = await prisma.pirep.findUnique({ where: { id: pirepId }, include: { flightDispatch: { include: { ofpBriefing: true } }, flightAnalysisReport: true } });
+  const pirep = await prisma.pirep.findUnique({ where: { id: pirepId }, include: { flightDispatch: { include: { ofpBriefing: true, flight: { select: { fleetId: true } } } }, flightAnalysisReport: true, operationalEvents: { select: { eventType: true } } } });
   if (!pirep || pirep.status !== "accepted") return null;
   const ofp = pirep.flightDispatch?.ofpBriefing?.status === "SIGNED" ? pirep.flightDispatch.ofpBriefing : null;
   const planned = plannedValues(ofp?.ofpSnapshot);
@@ -99,6 +100,9 @@ export async function createOrUpdateFlightAnalysis(pirepId: string) {
   const data = { ofpBriefingId: ofp?.id ?? null, plannedBlockMinutes: planned.blockMinutes, actualBlockMinutes, blockTimeDiffMinutes, plannedFlightMinutes: planned.flightMinutes, actualFlightMinutes, flightTimeDiffMinutes, plannedTripFuelKg, actualFuelUsedKg, fuelDiffKg, fuelDiffPercent, plannedRoute: planned.route, actualDistanceNm: pirep.flightDistanceNm, landingRate: pirep.landingRate, landingG, summary };
   const created = !pirep.flightAnalysisReport;
   const report = await prisma.flightAnalysisReport.upsert({ where: { pirepId }, create: { pirepId, ...data }, update: data });
+  const scoringPolicy = await loadScoringPolicy(prisma, pirep.flightDispatch?.flight?.fleetId);
+  const scoring = calculatePirepScore(scoringPolicy, pirep.operationalEvents.map((event) => event.eventType), score);
+  await prisma.pirep.update({ where: { id: pirepId }, data: { score: scoring.totalScore, points: scoring.totalScore, scoringDetails: scoring.details } });
   if (created) await writeAuditLogSafely({ action: "FLIGHT_ANALYSIS_CREATED", entityType: "FlightAnalysisReport", entityId: report.id, message: "Post-flight planned versus actual analysis created.", metadata: { pirepId, ofpBriefingId: ofp?.id ?? null, efficiencyScore: score, fuelDataComplete } });
   await calibrateFuelBias(pirep.vamsysAircraftId, report.id);
   return report;
