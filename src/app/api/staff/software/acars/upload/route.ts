@@ -17,7 +17,12 @@ type UploadMetadata = {
 const VERSION_RE = /^\d+\.\d+\.\d+(?:[-.][0-9A-Za-z.-]+)?$/;
 
 export async function GET() {
-  return NextResponse.json({ configured: Boolean(process.env.BLOB_READ_WRITE_TOKEN) });
+  return NextResponse.json({
+    configured: Boolean(
+      process.env.BLOB_READ_WRITE_TOKEN ||
+        (process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN),
+    ),
+  });
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
