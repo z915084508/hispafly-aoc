@@ -9,6 +9,7 @@ import { createDispatchOfpBriefing } from "@/lib/simbrief/ofp";
 import { assertNavigraphConnected } from "@/lib/navigraph/token";
 import { purchaseJumpseat } from "@/lib/pilot/position";
 import { prisma } from "@/lib/prisma";
+import { verifyAmnPayloadAllocation } from "@/lib/amn/payload";
 
 export async function setInitialCrewPositionAction(formData: FormData) {
   const pilotSession = await requirePilotSession();
@@ -49,12 +50,14 @@ export async function createNativeSelfDispatchAction(formData: FormData) {
   let bookingId: string | null = null;
   try {
     await assertNavigraphConnected(pilot.id);
+    const allocation = verifyAmnPayloadAllocation(String(formData.get("amnPayloadToken") ?? ""));
+    const departureAt = new Date(`${rawDeparture}:00Z`);
+    if (allocation.routeId !== String(formData.get("routeId") ?? "") || allocation.aircraftId !== String(formData.get("aircraftId") ?? "") || allocation.operatingDate !== departureAt.toISOString().slice(0, 10)) throw new Error("Route, aircraft or date changed after AMN allocated Payload. Generate it again.");
     const booking = await createNativeSelfDispatch({
       pilotId: pilot.id, routeId: String(formData.get("routeId") ?? ""), aircraftId: String(formData.get("aircraftId") ?? ""),
-      departureAt: new Date(`${rawDeparture}:00Z`), idempotencyKey: String(formData.get("idempotencyKey") ?? ""),
+      departureAt, idempotencyKey: String(formData.get("idempotencyKey") ?? ""),
       network: String(formData.get("network") ?? "vatsim"), altitude: Number(formData.get("altitude")) || null,
-      loadFactorPercent: Number(formData.get("loadFactorPercent")), baggageKgPerPassenger: Number(formData.get("baggageKgPerPassenger")),
-      freightKg: Math.round(Number(formData.get("freightKg")) || 0), userRoute: String(formData.get("userRoute") ?? "").trim() || null,
+      amnAllocation: allocation, userRoute: String(formData.get("userRoute") ?? "").trim() || null,
       acknowledgeLocationWarning: formData.get("acknowledgeLocationWarning") === "yes",
     });
     bookingId = booking.id;

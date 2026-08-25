@@ -7,12 +7,13 @@ import { aircraftIsInDelivery } from "./aircraft-delivery";
 import { fleetIsAuthorized, validateSelfDispatchWindow } from "./self-dispatch-rules";
 import { resolveAircraftState } from "./aircraft-state";
 import { allocateScheduleIdentities } from "@/lib/native-scheduling/flight-identity";
+import type { AmnPayloadAllocation } from "@/lib/amn/payload";
 
 const ACTIVE_BOOKING_STATUSES: PilotBookingStatus[] = ["PENDING", "CONFIRMED", "DISPATCH_PENDING", "DISPATCHED", "IN_PROGRESS", "BOOKED"];
 const ACTIVE_FLIGHT_STATUSES: NativeFlightStatus[] = ["SCHEDULED", "OPEN", "OPEN_FOR_BOOKING", "BOOKED", "DISPATCH_PENDING", "DISPATCHED", "BOARDING", "IN_PROGRESS", "DEPARTED", "AIRBORNE", "LANDED"];
 const localParts = (value: Date, timezone: string) => Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(value).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
 
-export async function createNativeSelfDispatch(input: { pilotId: string; routeId: string; aircraftId: string; departureAt: Date; idempotencyKey: string; network: string; altitude?: number | null; loadFactorPercent: number; baggageKgPerPassenger: number; freightKg: number; userRoute?: string | null; acknowledgeLocationWarning?: boolean }) {
+export async function createNativeSelfDispatch(input: { pilotId: string; routeId: string; aircraftId: string; departureAt: Date; idempotencyKey: string; network: string; altitude?: number | null; amnAllocation: AmnPayloadAllocation; userRoute?: string | null; acknowledgeLocationWarning?: boolean }) {
   const windowError = validateSelfDispatchWindow(input.departureAt);
   if (windowError) throw new Error(windowError);
   if (!input.idempotencyKey) throw new Error("Self-dispatch request identity is missing.");
@@ -54,6 +55,11 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
     if (!aircraftState.available) throw new Error("The selected aircraft is not available.");
     if (!aircraft.nativeFleetId || aircraft.nativeFleet?.operationalStatus !== "ACTIVE") throw new Error("The selected aircraft Fleet is not active.");
     if (!aircraft.seatCapacity || aircraft.seatCapacity <= 0) throw new Error("Aircraft seat capacity must be configured before self-dispatch.");
+    if (!aircraft.registration || !aircraft.aircraftType) throw new Error("Aircraft registration and ICAO type must be configured before AMN Payload allocation.");
+    if (input.amnAllocation.routeId !== route.id || input.amnAllocation.aircraftId !== aircraft.id || input.amnAllocation.operatingDate !== input.departureAt.toISOString().slice(0, 10)) throw new Error("AMN Payload allocation does not match this operation.");
+    if (input.amnAllocation.registration.toUpperCase() !== aircraft.registration.toUpperCase() || input.amnAllocation.aircraftTypeCode.toUpperCase() !== aircraft.aircraftType.toUpperCase()) throw new Error("AMN Payload allocation does not match the selected aircraft identity.");
+    if (input.amnAllocation.passengers > aircraft.seatCapacity || input.amnAllocation.passengers > input.amnAllocation.sellableSeats) throw new Error("AMN passenger allocation exceeds aircraft capacity.");
+    if (input.amnAllocation.cargoWeightKg > input.amnAllocation.maximumCargoWeightKg || input.amnAllocation.estimatedTrafficPayloadKg > input.amnAllocation.maximumTrafficPayloadKg) throw new Error("AMN cargo allocation exceeds aircraft capacity.");
     if (aircraftState.currentAirportId !== route.departureAirportId) throw new Error("The selected aircraft is not at the route departure airport.");
     if ((aircraftState.stale || aircraftState.external) && !input.acknowledgeLocationWarning) throw new Error("Confirm the stale or externally sourced aircraft location before self-dispatch.");
     if (aircraft.conditionSnapshot && (["AOG", "IN_MAINTENANCE"].includes(aircraft.conditionSnapshot.operationalStatus) || ["REQUIRED", "IN_PROGRESS", "WAITING_MAINTENANCE"].includes(aircraft.conditionSnapshot.maintenanceStatus))) throw new Error("Aircraft maintenance status blocks self-dispatch.");
@@ -81,21 +87,23 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
       fleetId: aircraft.nativeFleetId, assignedAircraftId: aircraft.id, status: NativeFlightStatus.BOOKED, bookingOpenAt: new Date(), bookingCloseAt: input.departureAt,
       generationKey, operatingType: "PILOT_SELF_DISPATCH", notes: "Pilot-created HispaFly Native self-dispatch operation.",
     } });
-    if (!Number.isFinite(input.loadFactorPercent) || input.loadFactorPercent < 25 || input.loadFactorPercent > 100) throw new Error("Load factor must be between 25% and 100%.");
-    if (!Number.isFinite(input.baggageKgPerPassenger) || input.baggageKgPerPassenger < 0 || input.baggageKgPerPassenger > 100) throw new Error("Baggage per passenger is invalid.");
-    if (!Number.isInteger(input.freightKg) || input.freightKg < 0) throw new Error("Freight must be a non-negative whole number of kilograms.");
-    const passengers = Math.max(1, Math.min(aircraft.seatCapacity, Math.round(aircraft.seatCapacity * input.loadFactorPercent / 100)));
-    const luggageKg = Math.round(passengers * input.baggageKgPerPassenger);
-    const cargoKg = luggageKg + input.freightKg;
+    const passengers = input.amnAllocation.passengers;
+    const loadFactorPercent = Math.round(passengers / aircraft.seatCapacity * 1000) / 10;
+    const baggageKgPerPassenger = 23;
+    const luggageKg = Math.round(passengers * baggageKgPerPassenger);
+    const freightKg = input.amnAllocation.cargoWeightKg;
+    const cargoKg = luggageKg + freightKg;
     const booking = await tx.pilotBooking.create({ data: {
       dataOrigin: AocDataOrigin.HISPAFLY_NATIVE, pilotId: input.pilotId, flightId: flight.id, routeId: route.id, fleetId: aircraft.nativeFleetId, aircraftId: aircraft.id,
       departureIcao: flight.departureIcao, arrivalIcao: flight.arrivalIcao, flightNumber, callsign, aircraftType: aircraft.aircraftType, aircraftRegistration: aircraft.registration,
       selectedDepartureAt: input.departureAt, estimatedArrivalAt: arrivalAt, estimatedDurationMinutes: duration, status: PilotBookingStatus.CONFIRMED,
-      network: input.network || "vatsim", altitude: input.altitude || route.cruiseAltitude, passengers, cargoKg, loadFactorPercent: input.loadFactorPercent,
-      baggageKgPerPassenger: input.baggageKgPerPassenger, luggageKg, freightKg: input.freightKg, userRoute: input.userRoute || route.route,
+      network: input.network || "vatsim", altitude: input.altitude || route.cruiseAltitude, passengers, cargoKg, loadFactorPercent,
+      baggageKgPerPassenger, luggageKg, freightKg, userRoute: input.userRoute || route.route,
+      amnPayloadRequestId: input.amnAllocation.payloadRequestId, amnMarketSnapshotId: input.amnAllocation.marketSnapshotId, amnPayloadStage: input.amnAllocation.loadStage,
+      amnPayloadProvenance: input.amnAllocation.provenance as Prisma.InputJsonValue,
       expiresAt: input.departureAt, idempotencyKey: input.idempotencyKey, operationalNotes: "Created through HispaFly Native pilot self-dispatch.",
     } });
-    await tx.aocAuditLog.create({ data: { action: "PILOT_NATIVE_SELF_DISPATCH_CREATED", entityType: "PilotBooking", entityId: booking.id, message: `Pilot created self-dispatch ${flightNumber} ${flight.departureIcao}-${flight.arrivalIcao}.`, metadata: { pilotId: input.pilotId, flightId: flight.id, routeId: route.id, aircraftId: aircraft.id, departureAt: input.departureAt.toISOString() } as Prisma.InputJsonValue } });
+    await tx.aocAuditLog.create({ data: { action: "PILOT_NATIVE_SELF_DISPATCH_CREATED", entityType: "PilotBooking", entityId: booking.id, message: `Pilot created self-dispatch ${flightNumber} ${flight.departureIcao}-${flight.arrivalIcao} with AMN Payload.`, metadata: { pilotId: input.pilotId, flightId: flight.id, routeId: route.id, aircraftId: aircraft.id, departureAt: input.departureAt.toISOString(), amnPayloadRequestId: input.amnAllocation.payloadRequestId, amnMarketSnapshotId: input.amnAllocation.marketSnapshotId } as Prisma.InputJsonValue } });
     return booking;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }

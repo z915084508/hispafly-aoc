@@ -1,5 +1,13 @@
 # HISPAFLY AOC Portal
 
+## AMN automatic Payload
+
+Native self-dispatch no longer calculates traffic from a manually entered load factor. After the Pilot selects a route, UTC departure and aircraft, `Auto Generate Payload` calls AMN through the AOC server. The AMN API key is never sent to the browser.
+
+AMN returns a deterministic `FINAL` passenger and commercial-cargo allocation constrained by the registered aircraft configuration. AOC signs the allocation, binds it to the route, operating date and aircraft, persists AMN request/snapshot provenance on the Booking, and rejects altered or expired allocations. Dispatch preparation fails closed when AMN traffic evidence is unavailable.
+
+Production requires server-side `AMN_API_BASE_URL` and sensitive `AMN_API_KEY`. Apply migration `20260825173000_amn_payload_allocation` before enabling the workflow.
+
 Independent portal for HISPAFLY operations, pilot administration, Native ACARS PIREPs, virtual payroll, wallet transactions, monthly reports and rankings.
 
 This is **not an EFB**. HispaFly AOC owns new operational identity, Dispatch, ACARS sessions and PIREPs. Imported vAMSYS data is retained as read-only historical provenance and no production request is permitted.

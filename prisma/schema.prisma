@@ -1882,6 +1882,10 @@ model PilotBooking {
   baggageKgPerPassenger    Float?
   luggageKg                Int?
   freightKg                Int?
+  amnPayloadRequestId      String?            @unique
+  amnMarketSnapshotId      String?
+  amnPayloadStage          String?
+  amnPayloadProvenance     Json?
   userRoute                String?
   status                   PilotBookingStatus @default(BOOKED)
   bookedAt                 DateTime           @default(now())
