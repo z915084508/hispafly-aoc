@@ -74,7 +74,11 @@ async function amnPost<T>(path: string, body: unknown, idempotencyKey: string): 
 }
 
 function signingSecret() {
-  const secret = process.env.AUTH_SECRET?.trim() || process.env.AOC_PILOT_SESSION_SECRET?.trim();
+  const secret =
+    process.env.AMN_ALLOCATION_SIGNING_SECRET?.trim() ||
+    process.env.AUTH_SECRET?.trim() ||
+    process.env.AOC_PILOT_SESSION_SECRET?.trim() ||
+    process.env.AMN_API_KEY?.trim();
   if (!secret || secret.length < 24) throw new Error("AOC allocation signing is not configured.");
   return secret;
 }
