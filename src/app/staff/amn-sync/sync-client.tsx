@@ -20,19 +20,27 @@ export default function AmnSyncClient() {
     setRunning(true);
     setError(null);
     setResult(null);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 55_000);
     try {
       const response = await fetch("/api/amn/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ horizonDays: 30 }),
+        signal: controller.signal,
       });
       const body = await response.json() as { result?: SyncResult; error?: string };
       if (!response.ok && response.status !== 207) throw new Error(body.error || `Sync returned ${response.status}`);
       if (!body.result) throw new Error(body.error || "AMN sync returned no result.");
       setResult(body.result);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "AMN sync failed.");
+      if (caught instanceof DOMException && caught.name === "AbortError") {
+        setError("Sync took longer than 55 seconds. It may have partially completed; wait a moment and run it again. Re-running is safe and idempotent.");
+      } else {
+        setError(caught instanceof Error ? caught.message : "AMN sync failed.");
+      }
     } finally {
+      window.clearTimeout(timeout);
       setRunning(false);
     }
   }
@@ -44,6 +52,7 @@ export default function AmnSyncClient() {
       <button className="button" type="button" onClick={runSync} disabled={running}>
         {running ? "Synchronizing…" : "Sync next 30 days"}
       </button>
+      {running && <p><small>Sync is running with bounded concurrency. Large networks can still take several seconds.</small></p>}
     </div>
     {error && <div className="empty-state"><strong>Sync failed:</strong> {error}</div>}
     {result && <>
