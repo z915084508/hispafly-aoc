@@ -1,4 +1,5 @@
 import "@/app/airport-programacion-board.css";
+import "@/app/airport-movement-timeline.css";
 import { requireStaffPermission } from "@/lib/staff/authorization";
 
 export default async function AirportProgramacionLayout({ children }: { children: React.ReactNode }) {
