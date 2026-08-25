@@ -20,7 +20,7 @@ export default async function NewRoute({ searchParams }: { searchParams: Promise
     }),
   ]);
   return <>
-    <div className="page-header route-builder-header"><div><div className="eyebrow">NETWORK PLANNING</div><h1>Build a new route</h1><p>Select the Airport pair and AOC will classify the market, allocate an unused flight identity and calculate the estimated duration.</p></div><Link className="button secondary" href="/staff/routes">← All routes</Link></div>
+    <div className="page-header route-builder-header"><div><div className="eyebrow">NETWORK PLANNING</div><h1>Build a new route</h1><p>Select the Airport pair and compatible fleets. Flight number and callsign are assigned later when Programación creates the flight.</p></div><Link className="button secondary" href="/staff/routes">← All routes</Link></div>
     {query.error && <div className="feedback error">{query.error}</div>}
     <RouteForm
       action={createRouteAction}

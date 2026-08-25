@@ -20,11 +20,11 @@ export async function generateAvailableScheduleCode(input: {
   const db = input.db ?? prisma;
   const route = await db.route.findUnique({
     where: { id: input.routeId },
-    select: { flightNumber: true, routeCode: true },
+    select: { routeCode: true },
   });
   if (!route) throw new ScheduleManagementError("ROUTE_NOT_FOUND", "La ruta seleccionada no existe.");
 
-  const base = normalizeBase(input.preferredCode) || normalizeBase(route.flightNumber) || normalizeBase(route.routeCode);
+  const base = normalizeBase(input.preferredCode) || normalizeBase(route.routeCode);
   if (!base) throw new ScheduleManagementError("CODE_GENERATION_FAILED", "No se pudo generar un código para esta programación.");
 
   const existing = await db.flightSchedule.findMany({

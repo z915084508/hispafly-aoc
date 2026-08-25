@@ -5,6 +5,8 @@ export const MAX_GENERATION_HORIZON_DAYS = 365;
 
 export type GenerationSchedule = {
   id: string;
+  flightNumber?: string | null;
+  callsign?: string | null;
   routeId: string;
   daysOfWeek: number[];
   departureTimeMinutesUtc: number;
@@ -63,8 +65,8 @@ const local = (instant: Date, timeZone: string) => {
 
 export function generationIdentity(schedule: GenerationSchedule) {
   const reserved = schedule.route.identityReservation;
-  const flightNumber = reserved?.flightNumber ?? schedule.route.flightNumber;
-  const callsign = reserved?.callsign ?? schedule.route.callsign;
+  const flightNumber = schedule.flightNumber ?? reserved?.flightNumber ?? schedule.route.flightNumber;
+  const callsign = schedule.callsign ?? reserved?.callsign ?? schedule.route.callsign;
   return flightNumber && callsign ? { flightNumber, callsign } : null;
 }
 

@@ -25,6 +25,7 @@ assert.equal(overnight.generationKey, "schedule:schedule-1:2026-08-03");
 assert.equal(overnight.bookingOpenAt.toISOString(), "2026-07-27T23:00:00.000Z");
 assert.equal(overnight.bookingCloseAt.toISOString(), "2026-08-03T22:00:00.000Z");
 assert.deepEqual(generationIdentity(schedule()), { flightNumber: "HFY101", callsign: "HISPAFLY101" });
+assert.deepEqual(generationIdentity(schedule({ flightNumber: "HF3016", callsign: "HPF3016" })), { flightNumber: "HF3016", callsign: "HPF3016" }, "Programación owns the operational identity");
 assert.deepEqual(generationIdentity(schedule({ route: { ...schedule().route, identityReservation: { flightNumber: "HFY999", callsign: "HISPAFLY999" } } })), { flightNumber: "HFY999", callsign: "HISPAFLY999" });
 const summer = plan(schedule({ daysOfWeek: [1] }), new Date("2026-08-03T00:00:00Z"), 0).candidates[0];
 const winter = plan(schedule({ daysOfWeek: [1] }), new Date("2026-01-05T00:00:00Z"), 0).candidates[0];

@@ -100,7 +100,7 @@ export default async function ProgramacionDetailPage({
     <section className="card programacion-detail">
       <div className="workflow-summary">
         <div><span>Ruta</span><strong>{schedule.route.departure} → {schedule.route.arrival}</strong></div>
-        <div><span>Vuelo / Callsign</span><strong>{schedule.route.flightNumber ?? "—"} / {schedule.route.callsign ?? "—"}</strong></div>
+        <div><span>Vuelo / Callsign</span><strong>{schedule.flightNumber ?? schedule.route.flightNumber ?? "—"} / {schedule.callsign ?? schedule.route.callsign ?? "—"}</strong></div>
         <div><span>Días</span><strong>{formatDays(schedule.daysOfWeek)}</strong></div>
         <div><span>Horario UTC</span><strong>{formatMinutes(schedule.departureTimeMinutesUtc)} → {formatMinutes(schedule.arrivalTimeMinutesUtc)}</strong></div>
         <div><span>Duración</span><strong>{formatDuration(schedule.scheduledDurationMinutes)}</strong></div>

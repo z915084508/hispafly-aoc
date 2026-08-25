@@ -5,6 +5,7 @@ import { generateAvailableScheduleCode } from "./code-generation";
 import { validateProposedSchedule } from "./service";
 import { assertDraftEditable, normalizeScheduleDraftInput, scheduleCreatePolicy, ScheduleManagementError, type ScheduleDraftInput } from "./management-rules";
 import { deriveReturnScheduleDraft, type ReturnScheduleDraftRequest } from "./return-draft";
+import { allocateScheduleIdentities } from "./flight-identity";
 
 const actorId = (actor: StaffIdentity) => actor.id === "development-staff" ? null : actor.id;
 const proposed = (input: ScheduleDraftInput, scheduleId?: string) => ({ scheduleId, routeId: input.routeId, daysOfWeek: input.daysOfWeek, departureTimeMinutesUtc: input.departureTimeMinutesUtc, arrivalTimeMinutesUtc: input.arrivalTimeMinutesUtc, scheduledDurationMinutes: input.scheduledDurationMinutes, defaultFleetId: input.defaultFleetId, assignedAircraftId: input.assignedAircraftId, effectiveFrom: input.effectiveFrom, effectiveUntil: input.effectiveUntil, bookingOpenOffsetMinutes: input.bookingOpenOffsetMinutes, bookingCloseOffsetMinutes: input.bookingCloseOffsetMinutes, generationHorizonDays: input.generationHorizonDays });
@@ -45,7 +46,8 @@ export async function createFlightScheduleDraft(raw: Record<string, unknown>, ac
     await assertReferencesAndCode(input);
     const validationBeforeSave = await validateProposedSchedule(proposed(input));
     const schedule = await prisma.$transaction(async (tx) => {
-      const created = await tx.flightSchedule.create({ data: { ...data(input), ...scheduleCreatePolicy() } });
+      const identity = (await allocateScheduleIdentities(tx, input.routeId)).outbound;
+      const created = await tx.flightSchedule.create({ data: { ...data(input), ...scheduleCreatePolicy(), flightNumber: identity.flightNumber, callsign: identity.callsign } });
       await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "SCHEDULE_DRAFT_CREATED", entityType: "FlightSchedule", entityId: created.id, message: `${actor.name} creó el borrador ${created.code}.`, metadata: { validation: { valid: validationBeforeSave.valid, errors: validationBeforeSave.errors.length, warnings: validationBeforeSave.warnings.length } } } });
       return created;
     });
@@ -83,8 +85,9 @@ export async function createFlightScheduleDraftPair(raw: Record<string, unknown>
     ]);
 
     const pair = await prisma.$transaction(async (tx) => {
-      const outboundSchedule = await tx.flightSchedule.create({ data: { ...data(outboundInput), ...scheduleCreatePolicy() } });
-      const returnSchedule = await tx.flightSchedule.create({ data: { ...data(returnInput), ...scheduleCreatePolicy() } });
+      const identities = await allocateScheduleIdentities(tx, outboundInput.routeId, true);
+      const outboundSchedule = await tx.flightSchedule.create({ data: { ...data(outboundInput), ...scheduleCreatePolicy(), flightNumber: identities.outbound.flightNumber, callsign: identities.outbound.callsign } });
+      const returnSchedule = await tx.flightSchedule.create({ data: { ...data(returnInput), ...scheduleCreatePolicy(), flightNumber: identities.return!.flightNumber, callsign: identities.return!.callsign } });
       await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "SCHEDULE_DRAFT_CREATED", entityType: "FlightSchedule", entityId: outboundSchedule.id, message: `${actor.name} creó la ida ${outboundSchedule.code} con regreso ${returnSchedule.code}.`, metadata: { pairedScheduleId: returnSchedule.id, direction: "OUTBOUND", validation: { valid: outboundValidationBeforeSave.valid, errors: outboundValidationBeforeSave.errors.length, warnings: outboundValidationBeforeSave.warnings.length } } } });
       await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "SCHEDULE_DRAFT_CREATED", entityType: "FlightSchedule", entityId: returnSchedule.id, message: `${actor.name} creó el regreso ${returnSchedule.code} de ${outboundSchedule.code}.`, metadata: { pairedScheduleId: outboundSchedule.id, direction: "RETURN", validation: { valid: returnValidationBeforeSave.valid, errors: returnValidationBeforeSave.errors.length, warnings: returnValidationBeforeSave.warnings.length } } } });
       return { outboundSchedule, returnSchedule };

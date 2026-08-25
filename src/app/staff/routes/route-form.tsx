@@ -6,7 +6,7 @@ import styles from "./route-form.module.css";
 
 type Option = { id: string; label: string };
 type RouteValue = {
-  id?: string; routeCode?: string | null; flightNumber?: string | null; callsign?: string | null;
+  id?: string; routeCode?: string | null;
   departureAirportId?: string | null; arrivalAirportId?: string | null; compatibleFleetIds?: string[];
   scheduledDurationMinutes?: number | null; cruiseAltitude?: number | null; route?: string | null;
   networkPolicy?: string | null; effectiveFrom?: Date | null; effectiveUntil?: Date | null; internalNotes?: string | null;
@@ -16,8 +16,6 @@ type AutomationPreview = {
   marketLabel: string;
   outboundRouteCode: string;
   returnRouteCode: string | null;
-  outbound: { number: number; flightNumber: string; callsign: string };
-  return: { number: number; flightNumber: string; callsign: string } | null;
   distanceNm: number | null;
   durationMinutes: number;
   durationSource: string;
@@ -79,23 +77,17 @@ export function RouteForm({ action, route, airports, fleets, submitLabel }: {
     });
   };
 
-  const flightNumber = editing ? route?.flightNumber ?? "" : preview?.outbound.flightNumber ?? "";
-  const callsign = editing ? route?.callsign ?? "" : preview?.outbound.callsign ?? "";
-
   return <form action={action} className="route-form">
     {route?.id && <input type="hidden" name="id" value={route.id}/>} 
     <fieldset>
-      <legend><span>01</span>Route identity</legend>
-      <p className="route-form-help">Flight number and callsign are assigned automatically from the route market and protected against duplicates.</p>
-      <div className="route-form-grid route-form-grid-3">
+      <legend><span>01</span>Route definition</legend>
+      <p className="route-form-help">A route defines the airport pair. Flight number and callsign are assigned later when Programación creates a scheduled flight.</p>
+      <div className="route-form-grid">
         <label>Route code<input name="routeCode" required value={routeCode} readOnly onChange={(event) => setRouteCode(event.target.value.toUpperCase())} placeholder="MAD-VLC"/><small>{editing ? "Generated identity is locked after creation" : "Generated from the selected Airport pair"}</small></label>
-        <label>Commercial flight number<input name="flightNumber" value={flightNumber} readOnly placeholder="Assigned automatically"/><small>{editing ? "Identity is locked after creation" : "HF1xxx domestic · HF3xxx Schengen · HF6xxx non-Schengen"}</small></label>
-        <label>Default callsign<input name="callsign" value={callsign} readOnly placeholder="Assigned automatically"/><small>HPF followed by the same four digits</small></label>
       </div>
       {!editing && <div className={styles.automationStatus}>
         <div><span>Market</span><strong>{preview?.marketLabel ?? "Select both airports"}</strong></div>
-        <div><span>Identity status</span><strong>{previewPending ? "Checking available numbers…" : preview ? "Available at preview time" : "Pending"}</strong></div>
-        <div><span>Number range</span><strong>{preview?.marketType === "DOMESTIC" ? "HF1000–HF2999" : preview?.marketType === "SCHENGEN" ? "HF3000–HF5999" : preview?.marketType === "NON_SCHENGEN" ? "HF6000–HF8999" : "—"}</strong></div>
+        <div><span>Flight identity</span><strong>Assigned in Programación</strong></div>
       </div>}
       {previewError && <div className={`feedback error ${styles.previewError}`}>{previewError}</div>}
     </fieldset>
@@ -111,11 +103,11 @@ export function RouteForm({ action, route, airports, fleets, submitLabel }: {
       </div>
       {!editing && <label className={styles.returnToggle}>
         <input type="checkbox" name="createReturnRoute" value="yes" checked={createReturnRoute} onChange={(event) => { const next = event.target.checked; setCreateReturnRoute(next); refreshPreview({ createReturnRoute: next }); }}/>
-        <span><strong>Crear también la ruta de regreso (recomendado)</strong><small>La ida recibe un número par y la vuelta el siguiente impar. Ambas se crean juntas y forman una sola conexión de ida y vuelta.</small></span>
+        <span><strong>Crear también la ruta de regreso (recomendado)</strong><small>Both directions are created as routes. Flight numbers are assigned only when their schedules are created.</small></span>
       </label>}
-      {!editing && createReturnRoute && preview?.return && <div className={styles.returnPreview}>
-        <div><span>Outbound</span><strong>{preview.outboundRouteCode}</strong><small>{preview.outbound.flightNumber} · {preview.outbound.callsign}</small></div>
-        <div><span>Return</span><strong>{preview.returnRouteCode}</strong><small>{preview.return.flightNumber} · {preview.return.callsign}</small></div>
+      {!editing && createReturnRoute && preview?.returnRouteCode && <div className={styles.returnPreview}>
+        <div><span>Outbound route</span><strong>{preview.outboundRouteCode}</strong></div>
+        <div><span>Return route</span><strong>{preview.returnRouteCode}</strong></div>
       </div>}
     </fieldset>
 
@@ -140,13 +132,13 @@ export function RouteForm({ action, route, airports, fleets, submitLabel }: {
 
     <fieldset className="route-internal-section">
       <legend><span>!</span>Conflict protection</legend>
-      <p className="route-form-help">Automatic identities are always unique. This override applies only to an intentional duplicate Airport pair or effective period.</p>
+      <p className="route-form-help">This override applies only to an intentional duplicate Airport pair or effective period.</p>
       <div className="route-form-grid">
-        <label className="route-toggle"><input type="checkbox" name="overrideConflicts" value="yes"/><span><strong>Confirm justified route overlap</strong><small>It never overrides or reuses a flight number or callsign.</small></span></label>
+        <label className="route-toggle"><input type="checkbox" name="overrideConflicts" value="yes"/><span><strong>Confirm justified route overlap</strong><small>The reason is recorded in the audit log.</small></span></label>
         <label className="route-form-span-2">Override reason<input name="overrideReason" placeholder="Required when override is selected"/></label>
       </div>
     </fieldset>
 
-    <div className="route-form-submit"><div><strong>{editing ? "Ready to save the route" : createReturnRoute ? "Ready to create two controlled drafts" : "Ready to create a controlled draft"}</strong><span>{editing ? "Changes are recorded in the audit log." : "The final identity is allocated again inside the database transaction to prevent races and duplicates."}</span></div><button className="button" disabled={previewPending}>{previewPending ? "Checking identity…" : submitLabel}</button></div>
+    <div className="route-form-submit"><div><strong>{editing ? "Ready to save the route" : createReturnRoute ? "Ready to create two route drafts" : "Ready to create a route draft"}</strong><span>{editing ? "Changes are recorded in the audit log." : "Flight number and callsign will be allocated later in Programación."}</span></div><button className="button" disabled={previewPending}>{previewPending ? "Checking route…" : submitLabel}</button></div>
   </form>;
 }

@@ -7,7 +7,6 @@ import {
   classifyRouteMarket,
   estimateBlockMinutes,
   greatCircleDistanceNm,
-  nextRouteIdentities,
   routeMarketLabel,
 } from "./route-automation";
 
@@ -94,28 +93,18 @@ function planningDefaults(refs: Awaited<ReturnType<typeof loadReferences>>, requ
   return { distanceNm: null, durationMinutes, source: "MANUAL_DURATION" } as const;
 }
 
-async function usedIdentities(tx: Prisma.TransactionClient) {
-  const [routes, reservations] = await Promise.all([
-    tx.route.findMany({ select: { flightNumber: true, callsign: true } }),
-    tx.routeIdentityReservation.findMany({ select: { flightNumber: true, callsign: true } }),
-  ]);
-  return [...routes, ...reservations];
-}
-
 function routeData(input: AutomaticRouteInput, refs: Awaited<ReturnType<typeof loadReferences>>, options: {
   departure: AirportReference;
   arrival: AirportReference;
   routeCode: string;
-  flightNumber: string;
-  callsign: string;
   routeString?: string | null;
   durationMinutes: number;
   marketLabel: string;
 }) {
   return {
     routeCode: options.routeCode,
-    flightNumber: options.flightNumber,
-    callsign: options.callsign,
+    flightNumber: null,
+    callsign: null,
     departure: options.departure.icao,
     arrival: options.arrival.icao,
     departureAirportId: options.departure.id,
@@ -142,43 +131,26 @@ async function createInTransaction(tx: Prisma.TransactionClient, input: Automati
   const planning = planningDefaults(refs, input.durationMinutes);
   const outboundCode = buildRoutePairCode(refs.departure, refs.arrival);
   const returnCode = buildRoutePairCode(refs.arrival, refs.departure);
-  const identities = nextRouteIdentities(marketType, await usedIdentities(tx), Boolean(input.createReturnRoute));
-
   const outbound = await tx.route.create({ data: routeData(input, refs, {
     departure: refs.departure,
     arrival: refs.arrival,
     routeCode: outboundCode,
-    flightNumber: identities.outbound.flightNumber,
-    callsign: identities.outbound.callsign,
     routeString: input.route,
     durationMinutes: planning.durationMinutes,
     marketLabel,
   }) });
   if (refs.compatibleFleetIds.length) await tx.routeFleetAssignment.createMany({ data: refs.compatibleFleetIds.map((fleetId) => ({ routeId: outbound.id, fleetId })), skipDuplicates: true });
-  await tx.routeIdentityReservation.create({ data: {
-    routeId: outbound.id,
-    flightNumber: identities.outbound.flightNumber,
-    callsign: identities.outbound.callsign,
-  } });
-
   let returnRoute: typeof outbound | null = null;
-  if (input.createReturnRoute && identities.return) {
+  if (input.createReturnRoute) {
     returnRoute = await tx.route.create({ data: routeData(input, refs, {
       departure: refs.arrival,
       arrival: refs.departure,
       routeCode: returnCode,
-      flightNumber: identities.return.flightNumber,
-      callsign: identities.return.callsign,
       routeString: input.returnRoute,
       durationMinutes: planning.durationMinutes,
       marketLabel,
     }) });
     if (refs.compatibleFleetIds.length) await tx.routeFleetAssignment.createMany({ data: refs.compatibleFleetIds.map((fleetId) => ({ routeId: returnRoute!.id, fleetId })), skipDuplicates: true });
-    await tx.routeIdentityReservation.create({ data: {
-      routeId: returnRoute.id,
-      flightNumber: identities.return.flightNumber,
-      callsign: identities.return.callsign,
-    } });
   }
 
   await tx.aocAuditLog.create({ data: {
@@ -196,8 +168,6 @@ async function createInTransaction(tx: Prisma.TransactionClient, input: Automati
       compatibleFleetIds: refs.compatibleFleetIds,
       outboundRouteId: outbound.id,
       returnRouteId: returnRoute?.id ?? null,
-      outboundIdentity: identities.outbound,
-      returnIdentity: identities.return,
       overrideReason: input.overrideReason?.trim() || null,
     },
   } });
@@ -232,15 +202,12 @@ export async function previewAutomaticNativeRoute(input: Pick<AutomaticRouteInpu
   return prisma.$transaction(async (tx) => {
     const refs = await loadReferences(tx, input);
     const marketType = classifyRouteMarket(refs.departure, refs.arrival);
-    const identities = nextRouteIdentities(marketType, await usedIdentities(tx), Boolean(input.createReturnRoute));
     const planning = planningDefaults(refs, input.durationMinutes);
     return {
       marketType,
       marketLabel: routeMarketLabel(marketType),
       outboundRouteCode: buildRoutePairCode(refs.departure, refs.arrival),
       returnRouteCode: input.createReturnRoute ? buildRoutePairCode(refs.arrival, refs.departure) : null,
-      outbound: identities.outbound,
-      return: identities.return,
       distanceNm: planning.distanceNm,
       durationMinutes: planning.durationMinutes,
       durationSource: planning.source,

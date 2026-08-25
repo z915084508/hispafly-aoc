@@ -120,7 +120,7 @@ async function PublicationSurface({ query, canManage }: { query: Record<string, 
     return {
       id: schedule.id,
       code: schedule.code,
-      flightNumber: schedule.route.flightNumber ?? schedule.code,
+      flightNumber: schedule.flightNumber ?? schedule.route.flightNumber ?? schedule.code,
       route: `${schedule.route.departure} → ${schedule.route.arrival}`,
       days: formatDays(schedule.daysOfWeek),
       utc: `${formatMinutes(schedule.departureTimeMinutesUtc)} → ${formatMinutes(schedule.arrivalTimeMinutesUtc)}`,

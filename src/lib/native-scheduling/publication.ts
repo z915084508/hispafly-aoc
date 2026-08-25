@@ -38,7 +38,7 @@ async function previewWithDb(db: Db, scheduleId: string, now: Date): Promise<Pub
   const plan = buildScheduleGenerationPlan({ schedule: scheduleShape(schedule), now });
   const blockingIssues: Array<{ code: string; message: string }> = [...validation.errors];
   if (schedule.effectiveUntil && day(schedule.effectiveUntil) < day(now)) blockingIssues.push({ code: "SCHEDULE_EFFECTIVE_PERIOD_EXPIRED", message: "El periodo efectivo de la programación ya ha finalizado." });
-  if (!generationIdentity(scheduleShape(schedule))) blockingIssues.push({ code: "ROUTE_FLIGHT_IDENTITY_MISSING", message: "La ruta no dispone de número de vuelo e indicativo válidos." });
+  if (!generationIdentity(scheduleShape(schedule))) blockingIssues.push({ code: "SCHEDULE_FLIGHT_IDENTITY_MISSING", message: "La programación no dispone de número de vuelo e indicativo válidos." });
   if (!schedule.route.departureAirportId || !schedule.route.arrivalAirportId || !schedule.route.departureAirport || !schedule.route.arrivalAirport) blockingIssues.push({ code: "ROUTE_AIRPORTS_MISSING", message: "La ruta no dispone de aeropuertos válidos." });
   const inspected = await inspectPlan(db, schedule, plan);
   if (inspected.conflicts.length) blockingIssues.push({ code: "FLIGHT_NATURAL_KEY_CONFLICT", message: "Ya existe un vuelo con la misma identidad natural y otra clave de generación." });
@@ -51,7 +51,7 @@ export const previewSchedulePublication = (scheduleId: string, now = new Date())
 async function generateWithDb(db: Prisma.TransactionClient, schedule: LoadedSchedule, now: Date): Promise<FlightGenerationResult> {
   const plan = buildScheduleGenerationPlan({ schedule: scheduleShape(schedule), now });
   const identity = generationIdentity(scheduleShape(schedule));
-  if (!identity || !schedule.route.departureAirport || !schedule.route.arrivalAirport) throw new SchedulePublicationError("ROUTE_FLIGHT_IDENTITY_MISSING", "La ruta no tiene identidad o aeropuertos válidos.");
+  if (!identity || !schedule.route.departureAirport || !schedule.route.arrivalAirport) throw new SchedulePublicationError("SCHEDULE_FLIGHT_IDENTITY_MISSING", "La programación no tiene identidad o la ruta no tiene aeropuertos válidos.");
   const inspected = await inspectPlan(db, schedule, plan);
   if (inspected.conflicts.length) throw new SchedulePublicationError("FLIGHT_NATURAL_KEY_CONFLICT", "Existe un vuelo incompatible con la generación solicitada.");
   const createdFlightIds: string[] = [];

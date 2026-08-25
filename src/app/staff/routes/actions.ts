@@ -12,8 +12,7 @@ const optionalNumber = (form: FormData, key: string) => value(form, key) === "" 
 const optionalDate = (form: FormData, key: string) => value(form, key) ? new Date(`${value(form, key)}T00:00:00.000Z`) : null;
 function routeInput(form: FormData) {
   return {
-    routeCode: value(form, "routeCode"), flightNumber: value(form, "flightNumber"),
-    callsign: value(form, "callsign"), departureAirportId: value(form, "departureAirportId"),
+    routeCode: value(form, "routeCode"), departureAirportId: value(form, "departureAirportId"),
     arrivalAirportId: value(form, "arrivalAirportId"), compatibleFleetIds: form.getAll("compatibleFleetIds").map(String),
     durationMinutes: optionalNumber(form, "durationMinutes"), cruiseAltitude: optionalNumber(form, "cruiseAltitude"),
     route: value(form, "route"), networkPolicy: value(form, "networkPolicy"),
@@ -58,8 +57,8 @@ export async function createRouteAction(form: FormData) {
     const staff = await requireStaffPermission("ROUTE_CREATE", { entityType: "Route", attemptedAction: "create Native route" });
     const result = await createAutomaticNativeRoutes(automaticRouteInput(form), staff);
     const success = result.returnRoute
-      ? `Route pair created: ${result.outbound.flightNumber} and ${result.returnRoute.flightNumber}.`
-      : `Route created: ${result.outbound.flightNumber}.`;
+      ? `Route pair created: ${result.outbound.routeCode} and ${result.returnRoute.routeCode}.`
+      : `Route created: ${result.outbound.routeCode}.`;
     target = `/staff/routes/${result.outbound.id}?success=${encodeURIComponent(success)}`;
     revalidatePath("/staff/routes");
   } catch (error) { target += `?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to create route.")}`; }

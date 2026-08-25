@@ -5,7 +5,7 @@ import type { NativeOrigin } from "./airport";
 import { periodsOverlap, validateRouteBasics } from "./management-rules";
 
 const actorId = (actor: StaffIdentity) => actor.id === "development-staff" ? null : actor.id;
-const includes = { departureAirport: true, arrivalAirport: true, defaultFleet: true } as const;
+const includes = { departureAirport: true, arrivalAirport: true, defaultFleet: true, fleetAssignments: { include: { fleet: true } } } as const;
 
 export const findRouteById = (id: string) => prisma.route.findUnique({
   where: { id }, include: { ...includes, fleetAssignments: { include: { fleet: true } }, _count: { select: { schedules: true, flights: true, nativeBookings: true, nativeDispatches: true } } },
@@ -26,7 +26,7 @@ export async function listRoutes(input: {
     ...(input.dataOrigin ? { dataOrigin: input.dataOrigin as never } : {}),
     ...(input.departureAirportId ? { departureAirportId: input.departureAirportId } : {}),
     ...(input.arrivalAirportId ? { arrivalAirportId: input.arrivalAirportId } : {}),
-    ...(input.fleetId ? { defaultFleetId: input.fleetId } : {}),
+    ...(input.fleetId ? { fleetAssignments: { some: { fleetId: input.fleetId } } } : {}),
   };
   const [rows, total] = await Promise.all([
     prisma.route.findMany({ where, include: includes, orderBy: { updatedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
@@ -37,7 +37,7 @@ export async function listRoutes(input: {
 
 export type NativeRouteInput = {
   routeCode: string; departureAirportId: string; arrivalAirportId: string;
-  flightNumber?: string | null; callsign?: string | null; defaultFleetId?: string | null; compatibleFleetIds?: string[];
+  defaultFleetId?: string | null; compatibleFleetIds?: string[];
   durationMinutes?: number | null; cruiseAltitude?: number | null; route?: string | null;
   networkPolicy?: string | null; effectiveFrom?: Date | null; effectiveUntil?: Date | null;
   internalNotes?: string | null; dataOrigin?: NativeOrigin; overrideConflicts?: boolean; overrideReason?: string;
@@ -74,7 +74,7 @@ async function conflictWarnings(tx: Prisma.TransactionClient, input: NativeRoute
 
 function routeData(input: NativeRouteInput, refs: Awaited<ReturnType<typeof validateReferences>>) {
   return {
-    routeCode: refs.basics.routeCode, flightNumber: refs.basics.flightNumber, callsign: refs.basics.callsign,
+    routeCode: refs.basics.routeCode,
     departure: refs.departure.icao, arrival: refs.arrival.icao,
     departureAirportId: refs.departure.id, arrivalAirportId: refs.arrival.id, defaultFleetId: refs.compatibleFleetIds[0] ?? null,
     scheduledDurationMinutes: refs.basics.durationMinutes, cruiseAltitude: input.cruiseAltitude ?? null,
@@ -160,7 +160,7 @@ export async function copyRouteToNativeDraft(id: string, input: { routeCode: str
   if (!source) throw new Error("Route not found.");
   if (!source.departureAirportId || !source.arrivalAirportId) throw new Error("Legacy route must be mapped to internal airports before it can be copied.");
   const copy = await createNativeRoute({
-    routeCode: input.routeCode, flightNumber: source.flightNumber, callsign: source.callsign,
+    routeCode: input.routeCode,
     departureAirportId: source.departureAirportId, arrivalAirportId: source.arrivalAirportId,
     compatibleFleetIds: source.fleetAssignments.map(({ fleetId }) => fleetId), durationMinutes: source.scheduledDurationMinutes,
     cruiseAltitude: source.cruiseAltitude, route: source.route, networkPolicy: source.networkPolicy,

@@ -1242,6 +1242,8 @@ model FlightSchedule {
   routeId                   String
   route                     Route                         @relation(fields: [routeId], references: [id], onDelete: Restrict)
   code                      String
+  flightNumber              String?
+  callsign                  String?
   name                      String?
   daysOfWeek                Int[]
   departureTimeMinutesUtc   Int
@@ -1271,6 +1273,8 @@ model FlightSchedule {
 
   @@unique([routeId, code, effectiveFrom])
   @@index([routeId, status])
+  @@index([flightNumber])
+  @@index([callsign])
   @@index([effectiveFrom, effectiveUntil])
   @@index([defaultFleetId])
   @@index([assignedAircraftId])
