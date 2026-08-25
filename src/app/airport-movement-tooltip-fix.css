@@ -1,0 +1,10 @@
+/* Open below the marker so the horizontal timeline viewport cannot clip the preview. */
+.airport-timeline-tooltip {
+  top: calc(100% + 9px);
+  bottom: auto;
+}
+
+.airport-timeline-marker.arrival .airport-timeline-tooltip {
+  top: auto;
+  bottom: calc(100% + 9px);
+}
