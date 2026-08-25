@@ -10,6 +10,7 @@ import {
 } from "./payload";
 
 const DAY_MS = 86_400_000;
+const SYNC_CONCURRENCY = 8;
 
 function dateOnly(value: Date) {
   return value.toISOString().slice(0, 10);
@@ -18,6 +19,12 @@ function dateOnly(value: Date) {
 function stableKey(prefix: string, parts: Array<string | number | null | undefined>) {
   const digest = createHash("sha256").update(parts.map((value) => value ?? "").join("|")).digest("hex");
   return `${prefix}:${digest}`;
+}
+
+async function forEachConcurrent<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>) {
+  for (let index = 0; index < items.length; index += concurrency) {
+    await Promise.all(items.slice(index, index + concurrency).map(worker));
+  }
 }
 
 export function toAmnAirportMetadata(airport: {
@@ -55,8 +62,11 @@ function aircraftTypeCode(input: {
 }) {
   const candidates = [input.assignedAircraft?.aircraftType, input.fleet?.type, input.fleet?.iataType, input.fleet?.code];
   for (const candidate of candidates) {
-    const code = candidate?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "") ?? "";
-    if (/^[A-Z0-9]{2,4}$/.test(code)) return code;
+    const raw = candidate?.trim().toUpperCase() ?? "";
+    const compact = raw.replace(/[^A-Z0-9]/g, "");
+    if (/^[A-Z0-9]{2,4}$/.test(compact)) return compact;
+    const embedded = raw.match(/\b([A-Z][0-9A-Z]{2,3})\b/)?.[1] ?? null;
+    if (embedded && /^[A-Z0-9]{2,4}$/.test(embedded)) return embedded;
   }
   return null;
 }
@@ -140,11 +150,11 @@ export async function syncHispaflyNetworkToAmn(input?: { from?: Date; to?: Date 
     orderBy: { icao: "asc" },
   });
   result.airports.found = airports.length;
-  for (const airport of airports) {
+  await forEachConcurrent(airports, SYNC_CONCURRENCY, async (airport) => {
     if (!airport.iata) {
       result.airports.skipped += 1;
       result.errors.push({ entity: "AIRPORT", id: airport.id, message: "AIRPORT_IATA_REQUIRED" });
-      continue;
+      return;
     }
     try {
       const metadata = toAmnAirportMetadata(airport);
@@ -154,7 +164,7 @@ export async function syncHispaflyNetworkToAmn(input?: { from?: Date; to?: Date 
       result.airports.skipped += 1;
       result.errors.push({ entity: "AIRPORT", id: airport.id, message: error instanceof Error ? error.message : "AIRPORT_SYNC_FAILED" });
     }
-  }
+  });
 
   const routes = await prisma.route.findMany({
     where: { active: true, operationalStatus: "ACTIVE", archivedAt: null },
@@ -162,13 +172,13 @@ export async function syncHispaflyNetworkToAmn(input?: { from?: Date; to?: Date 
     orderBy: { id: "asc" },
   });
   result.routes.found = routes.length;
-  for (const route of routes) {
+  await forEachConcurrent(routes, SYNC_CONCURRENCY, async (route) => {
     const originIata = route.departureAirport?.iata?.trim().toUpperCase();
     const destinationIata = route.arrivalAirport?.iata?.trim().toUpperCase();
     if (!originIata || !destinationIata) {
       result.routes.skipped += 1;
       result.errors.push({ entity: "ROUTE", id: route.id, message: "ROUTE_IATA_REQUIRED" });
-      continue;
+      return;
     }
     try {
       await syncAmnNetworkRoute({
@@ -188,7 +198,7 @@ export async function syncHispaflyNetworkToAmn(input?: { from?: Date; to?: Date 
       result.routes.skipped += 1;
       result.errors.push({ entity: "ROUTE", id: route.id, message: error instanceof Error ? error.message : "ROUTE_SYNC_FAILED" });
     }
-  }
+  });
 
   const flights = await prisma.flight.findMany({
     where: {
@@ -205,7 +215,7 @@ export async function syncHispaflyNetworkToAmn(input?: { from?: Date; to?: Date 
     orderBy: [{ scheduledDeparture: "asc" }, { id: "asc" }],
   });
   result.flights.found = flights.length;
-  for (const flight of flights) {
+  await forEachConcurrent(flights, SYNC_CONCURRENCY, async (flight) => {
     try {
       if (flight.status === "CANCELLED") {
         try {
@@ -217,13 +227,10 @@ export async function syncHispaflyNetworkToAmn(input?: { from?: Date; to?: Date 
           });
           result.flights.cancelled += 1;
         } catch (error) {
-          if (error instanceof Error && error.message.includes("SCHEDULED_FLIGHT_NOT_FOUND")) {
-            result.flights.skipped += 1;
-          } else {
-            throw error;
-          }
+          if (error instanceof Error && error.message.includes("SCHEDULED_FLIGHT_NOT_FOUND")) result.flights.skipped += 1;
+          else throw error;
         }
-        continue;
+        return;
       }
       if (!flight.departureAirport || !flight.arrivalAirport) throw new Error("FLIGHT_AIRPORTS_REQUIRED");
       const typeCode = aircraftTypeCode(flight);
@@ -250,6 +257,7 @@ export async function syncHispaflyNetworkToAmn(input?: { from?: Date; to?: Date 
       result.flights.skipped += 1;
       result.errors.push({ entity: flight.status === "CANCELLED" ? "CANCELLATION" : "FLIGHT", id: flight.id, message: error instanceof Error ? error.message : "FLIGHT_SYNC_FAILED" });
     }
-  }
+  });
+
   return result;
 }
