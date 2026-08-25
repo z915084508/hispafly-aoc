@@ -4,8 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { formatMinutes, parseIsoDate, resolveLocalDateTime } from "./schedule-time";
 import { planScheduleOccurrences, validateScheduleRule } from "./schedule-rules";
 import { checkAircraftAvailability } from "./availability";
-import { isAmnConfigured } from "@/lib/amn/payload";
-import { syncOneFlightToAmn } from "@/lib/amn/network-sync";
 
 export type GenerationResult = {
   scheduleId: string;
@@ -23,18 +21,6 @@ function dateOnly(value: Date) {
 
 function stableGenerationKey(scheduleId: string, operatingDate: string) {
   return createHash("sha256").update(`${scheduleId}:${operatingDate}`).digest("hex");
-}
-
-async function syncFlightBestEffort(flightId: string) {
-  if (!isAmnConfigured()) return;
-  try {
-    await syncOneFlightToAmn(flightId);
-  } catch (error) {
-    console.error("AMN flight sync deferred to reconciliation", {
-      flightId,
-      error: error instanceof Error ? error.message : "AMN_SYNC_FAILED",
-    });
-  }
 }
 
 export async function previewScheduleGeneration(scheduleId: string, from: string, to: string) {
@@ -96,7 +82,7 @@ export async function generateFlightsForSchedule(scheduleId: string, from: strin
     const bookingCloseAt = new Date(occurrence.scheduledDeparture.getTime() - schedule.bookingCloseOffsetMinutes * 60_000);
 
     try {
-      const created = await prisma.flight.create({
+      await prisma.flight.create({
         data: {
           dataOrigin: AocDataOrigin.HISPAFLY_NATIVE,
           routeId: route.id,
@@ -124,7 +110,6 @@ export async function generateFlightsForSchedule(scheduleId: string, from: strin
         },
       });
       result.created += 1;
-      await syncFlightBestEffort(created.id);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         result.skipped += 1;
@@ -179,7 +164,7 @@ export async function createManualFlight(input: {
     if (!availability.allowed) throw new Error(availability.blockingReasons.join(" "));
   }
 
-  const created = await prisma.flight.create({
+  return prisma.flight.create({
     data: {
       dataOrigin: AocDataOrigin.HISPAFLY_NATIVE,
       routeId: route.id,
@@ -204,20 +189,16 @@ export async function createManualFlight(input: {
       manuallyModifiedAt: new Date(),
     },
   });
-  await syncFlightBestEffort(created.id);
-  return created;
 }
 
 export async function cancelNativeFlight(flightId: string, reason: string) {
   const flight = await prisma.flight.findUnique({ where: { id: flightId }, include: { bookings: true, dispatches: true } });
   if (!flight) throw new Error("flight_not_found");
   if (flight.status === NativeFlightStatus.COMPLETED) throw new Error("completed_flight_cannot_be_cancelled");
-  const cancelled = await prisma.flight.update({
+  return prisma.flight.update({
     where: { id: flightId },
     data: { status: NativeFlightStatus.CANCELLED, notes: [flight.notes, `Cancellation: ${reason}`].filter(Boolean).join("\n") },
   });
-  await syncFlightBestEffort(cancelled.id);
-  return cancelled;
 }
 
 export async function assignAircraftToFlight(flightId: string, aircraftId: string) {
@@ -236,7 +217,5 @@ export async function assignAircraftToFlight(flightId: string, aircraftId: strin
     endsAt: flight.scheduledArrival,
   });
   if (!availability.allowed) throw new Error(availability.blockingReasons.join(" "));
-  const updated = await prisma.flight.update({ where: { id: flightId }, data: { assignedAircraftId: aircraftId } });
-  await syncFlightBestEffort(updated.id);
-  return updated;
+  return prisma.flight.update({ where: { id: flightId }, data: { assignedAircraftId: aircraftId } });
 }
