@@ -107,10 +107,10 @@ export default async function AirportProgramacionBoard({
     <div className="page-header airport-programacion-header">
       <div>
         <div className="eyebrow">OPERACIONES · PROGRAMACIÓN</div>
-        <h1>Programación por aeropuerto</h1>
-        <p>Consulta en un solo tablero la Programación vigente de llegadas y salidas de cada aeropuerto. Los horarios se muestran en UTC y no incluyen seguimiento en tiempo real.</p>
+        <h1>Airport Slot Rotation</h1>
+        <p>Timeline operativo por aeropuerto y fecha: cada llegada y salida ocupa un slot de la programación. Los horarios se muestran en UTC.</p>
       </div>
-      <div className="button-row">{canCreate && selectedAirport && <Link className="button" href={`/staff/operations/programacion/new?departure=${selectedAirport.icao}&effectiveFrom=${dateValue(selectedDate)}`}>+ PROGRAMAR SALIDA</Link>}<Link className="button secondary" href="/staff/operations/programacion">ROTACIÓN Y GESTIÓN</Link></div>
+      <div className="button-row">{canCreate && selectedAirport && <Link className="button" href={`/staff/operations/programacion/new?departure=${selectedAirport.icao}&effectiveFrom=${dateValue(selectedDate)}`}>+ PROGRAMAR SALIDA</Link>}<Link className="button secondary" href="/staff/operations/programacion">GESTIONAR PROGRAMACIÓN</Link></div>
     </div>
 
     <form className="airport-board-filters">
@@ -140,6 +140,7 @@ export default async function AirportProgramacionBoard({
       <SummaryCard label="Borradores" value={drafts} note="Estado DRAFT"/>
     </section>
 
+    <AirportSlotTimeline movements={movements}/>
     <div className="airport-board-columns"><AircraftOperationsTable title="Llegadas" direction="ARRIVAL" movements={arrivals}/><AircraftOperationsTable title="Salidas" direction="DEPARTURE" movements={departures}/></div>
 
     {query.saved && <div className="notice success">PROGRAMACIÓN guardada como borrador.{query.createdScheduleId && <> <Link href={`/staff/operations/programacion/${query.createdScheduleId}`}>Abrir detalle →</Link></>}</div>}
@@ -158,6 +159,11 @@ export default async function AirportProgramacionBoard({
 
 function SummaryCard({ label, value, note }: { label: string; value: number; note: string }) {
   return <div className="airport-board-kpi"><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
+}
+
+function AirportSlotTimeline({ movements }: { movements: BoardMovement[] }) {
+  const ordered = [...movements].sort((left, right) => left.timeMinutesUtc - right.timeMinutesUtc || left.direction.localeCompare(right.direction));
+  return <section className="card" aria-label="Airport slot timeline"><header><div><h2>Timeline UTC</h2><p>ARR y DEP comparten la misma escala de 24 horas; no existe asignación previa de aeronave.</p></div></header><div style={{ display: "grid", gridTemplateColumns: "80px 1fr", gap: 8 }}><div/><div style={{ display: "flex", justifyContent: "space-between" }}><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>{ordered.map((movement) => <div key={`${movement.direction}-${movement.schedule.id}`} style={{ display: "contents" }}><strong>{movement.direction === "ARRIVAL" ? "ARR" : "DEP"}</strong><div style={{ position: "relative", minHeight: 36, borderRadius: 8, background: "var(--surface-muted, #eef2f6)" }}><Link href={`/staff/operations/programacion/${movement.schedule.id}`} style={{ position: "absolute", left: `${Math.min(96, movement.timeMinutesUtc / 1440 * 100)}%`, top: 4, transform: "translateX(-50%)", whiteSpace: "nowrap" }}><span className={`airport-schedule-status ${movement.schedule.status === "DRAFT" ? "draft" : "active"}`}>{formatUtcMinutes(movement.timeMinutesUtc)} · {movement.schedule.route.flightNumber ?? movement.schedule.code} · {movement.schedule.route.departure} → {movement.schedule.route.arrival}</span></Link></div></div>)}</div>{!ordered.length && <div className="airport-board-empty">No hay slots para esta fecha.</div>}</section>;
 }
 
 function AircraftOperationsTable({ title, direction, movements }: { title: string; direction: "ARRIVAL" | "DEPARTURE"; movements: BoardMovement[] }) {

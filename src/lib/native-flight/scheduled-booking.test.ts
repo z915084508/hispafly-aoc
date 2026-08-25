@@ -14,18 +14,19 @@ const ofpDetail = readFileSync(fileURLToPath(new URL("../../app/pilot/ofp/[id]/p
 for (const contract of [
   "claimScheduledFlight", "Serializable", "scheduled-flight-book:", "scheduleId", "operatingType", "ACTIVE_BOOKING_STATUSES",
   "currentAirportId !== flight.departureAirportId", "flight.assignedAircraftId ?? input.aircraftId", "fixed aircraft assignment",
-  "nativeFleetId !== flight.fleetId", "currentAirportId !== flight.departureAirportId", "flightDispatch.findFirst",
+  "flight.eligibleFleets.length", "eligibleFleetIds.includes", "currentAirportId !== flight.departureAirportId", "flightDispatch.findFirst",
   "SCHEDULED_FLIGHT_BOOKED", "NativeFlightStatus.BOOKED", "SCHEDULED_FLIGHT_BOOKING_CANCELLED",
   "allowExistingActiveDispatch: true",
   "NativeFlightStatus.OPEN_FOR_BOOKING", "NativeFlightStatus.SCHEDULED", "NativeFlightStatus.EXPIRED",
 ]) assert.ok(source.includes(contract), `Missing scheduled booking contract: ${contract}`);
 assert.ok(action.includes("createNativeBooking") && action.includes("/pilot/roster?success="));
-assert.ok(detail.includes("No crea Dispatch ni OFP") && detail.includes("allowExistingActiveDispatch: true") && detail.includes("required"));
+assert.ok(detail.includes("Solo se muestran aeronaves disponibles") && detail.includes("allowExistingActiveDispatch: true") && detail.includes("required"));
+assert.ok(detail.includes('operationalStatus: "AVAILABLE"') && detail.includes("currentAirportId: flight.departureAirportId") && detail.includes("HUB preferente"), "Dispatch pool is origin/fleet/availability filtered and HUB-prioritized.");
 assert.ok(board.includes("CREATE MY FLIGHT") && board.includes("/pilot/flight-offers/self-dispatch") && board.includes("loadPilotDepartures"));
 assert.ok(selfDispatchForm.includes("routes.filter((item) => item.departure === departure).map((item) => item.arrival)"), "Destination choices must be route-driven, not hidden by current aircraft availability.");
 assert.ok(selfDispatchPage.includes('operationMode: { in: ["FREE", "FLEX"] }'), "Self-dispatch must exclude SCHEDULED aircraft.");
 assert.ok(selfDispatchPage.includes("OCCUPIED_BOOKING_STATUSES") && selfDispatchPage.includes("nativeBookings: { none:"), "Booked flight identities must disappear from self-dispatch choices.");
-assert.ok(bookingDetail.includes('!booking.flight?.scheduleId'), "A scheduled reservation must not offer Dispatch preparation.");
+assert.ok(bookingDetail.includes("createPilotDispatchAction") && bookingDetail.includes('booking.status === "CONFIRMED"'), "A confirmed scheduled reservation proceeds to Pilot Dispatch.");
 assert.ok(ofpDetail.includes("canCancelReleasedDispatch") && ofpDetail.includes("cancelPilotBookingAction"), "A pilot must be able to cancel their future released native Dispatch from the OFP.");
 assert.ok(readFileSync(fileURLToPath(new URL("./self-dispatch.ts", import.meta.url)), "utf8").includes("self-dispatch-route:"), "Self-dispatch must serialize booking by route identity.");
 assert.ok(!source.includes("flightOffer.create") && !source.includes("ofpBriefing.create") && !source.includes("acarsSession.create"));

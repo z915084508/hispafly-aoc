@@ -1,7 +1,7 @@
 import type { FlightScheduleStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-const include = { route: { include: { departureAirport: true, arrivalAirport: true, fleetAssignments: { include: { fleet: true } }, fleetCompatibility: true } }, defaultFleet: true, assignedAircraft: { include: { currentAirport: true, conditionSnapshot: true } }, _count: { select: { flights: true } } } as const;
+const include = { route: { include: { departureAirport: true, arrivalAirport: true, fleetAssignments: { include: { fleet: true } }, fleetCompatibility: true } }, eligibleFleets: { include: { fleet: true } }, defaultFleet: true, assignedAircraft: { include: { currentAirport: true, conditionSnapshot: true } }, _count: { select: { flights: true } } } as const;
 
 export async function listFlightSchedules(input: { search?: string; status?: string; fleetId?: string; aircraftId?: string; effectiveDate?: string; page?: number }) {
   const page = Math.max(1, input.page ?? 1), pageSize = 25, search = input.search?.trim();

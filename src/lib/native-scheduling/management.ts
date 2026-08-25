@@ -8,7 +8,7 @@ import { deriveReturnScheduleDraft, type ReturnScheduleDraftRequest } from "./re
 
 const actorId = (actor: StaffIdentity) => actor.id === "development-staff" ? null : actor.id;
 const proposed = (input: ScheduleDraftInput, scheduleId?: string) => ({ scheduleId, routeId: input.routeId, daysOfWeek: input.daysOfWeek, departureTimeMinutesUtc: input.departureTimeMinutesUtc, arrivalTimeMinutesUtc: input.arrivalTimeMinutesUtc, scheduledDurationMinutes: input.scheduledDurationMinutes, defaultFleetId: input.defaultFleetId, assignedAircraftId: input.assignedAircraftId, effectiveFrom: input.effectiveFrom, effectiveUntil: input.effectiveUntil, bookingOpenOffsetMinutes: input.bookingOpenOffsetMinutes, bookingCloseOffsetMinutes: input.bookingCloseOffsetMinutes, generationHorizonDays: input.generationHorizonDays });
-const data = (input: ScheduleDraftInput) => ({ ...input, departureLocalTimeMinutes: input.departureTimeMinutesUtc, arrivalLocalTimeMinutes: input.arrivalTimeMinutesUtc, departureTimezone: "UTC", arrivalTimezone: "UTC" });
+const data = (input: ScheduleDraftInput) => { const { eligibleFleetIds, ...legacy } = input; return { ...legacy, assignedAircraftId: null, eligibleFleets: { create: eligibleFleetIds.map((fleetId) => ({ fleetId })) }, departureLocalTimeMinutes: input.departureTimeMinutesUtc, arrivalLocalTimeMinutes: input.arrivalTimeMinutesUtc, departureTimezone: "UTC", arrivalTimezone: "UTC" }; };
 const wantsAutoCode = (value: unknown) => String(value ?? "").trim().toLowerCase() === "yes";
 
 async function prepareCreateRaw(raw: Record<string, unknown>) {
@@ -21,15 +21,13 @@ async function prepareCreateRaw(raw: Record<string, unknown>) {
 }
 
 async function assertReferencesAndCode(input: ScheduleDraftInput, excludeId?: string) {
-  const [route, fleet, aircraft, duplicate] = await Promise.all([
+  const [route, fleets, duplicate] = await Promise.all([
     prisma.route.findUnique({ where: { id: input.routeId }, select: { id: true } }),
-    input.defaultFleetId ? prisma.fleet.findUnique({ where: { id: input.defaultFleetId }, select: { id: true } }) : null,
-    input.assignedAircraftId ? prisma.aircraft.findUnique({ where: { id: input.assignedAircraftId }, select: { id: true } }) : null,
+    prisma.fleet.findMany({ where: { id: { in: input.eligibleFleetIds } }, select: { id: true } }),
     prisma.flightSchedule.findFirst({ where: { code: input.code, id: excludeId ? { not: excludeId } : undefined }, select: { id: true } }),
   ]);
   if (!route) throw new ScheduleManagementError("ROUTE_NOT_FOUND", "La ruta seleccionada no existe.");
-  if (input.defaultFleetId && !fleet) throw new ScheduleManagementError("FLEET_NOT_FOUND", "La flota seleccionada no existe.");
-  if (input.assignedAircraftId && !aircraft) throw new ScheduleManagementError("AIRCRAFT_NOT_FOUND", "La aeronave seleccionada no existe.");
+  if (fleets.length !== input.eligibleFleetIds.length) throw new ScheduleManagementError("FLEET_NOT_FOUND", "Una de las flotas elegibles no existe.");
   if (duplicate) throw new ScheduleManagementError("DUPLICATE_CODE", "Ya existe una programación con este código.");
 }
 
@@ -107,7 +105,8 @@ export async function updateFlightScheduleDraft(id: string, raw: Record<string, 
     await assertReferencesAndCode(input, id);
     await validateProposedSchedule(proposed(input, id), { excludeScheduleId: id });
     const schedule = await prisma.$transaction(async (tx) => {
-      const updated = await tx.flightSchedule.update({ where: { id }, data: data(input) });
+      const { eligibleFleets, ...scheduleData } = data(input);
+      const updated = await tx.flightSchedule.update({ where: { id }, data: { ...scheduleData, eligibleFleets: { deleteMany: {}, ...eligibleFleets } } });
       const changedFields = Object.keys(data(input)).filter((field) => String(before[field as keyof typeof before] ?? "") !== String(data(input)[field as keyof ReturnType<typeof data>] ?? ""));
       await tx.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "SCHEDULE_DRAFT_UPDATED", entityType: "FlightSchedule", entityId: id, message: `${actor.name} actualizó el borrador ${updated.code}.`, metadata: { changedFields } } });
       return updated;
@@ -120,7 +119,8 @@ export async function duplicateFlightScheduleAsDraft(id: string, raw: Record<str
   try {
     const source = await prisma.flightSchedule.findUnique({ where: { id } });
     if (!source) throw new ScheduleManagementError("NOT_FOUND", "La programación original no existe.");
-    const result = await createFlightScheduleDraft({ code: raw.code, name: source.name, routeId: source.routeId, daysOfWeek: source.daysOfWeek, departureTimeMinutesUtc: source.departureTimeMinutesUtc, scheduledDurationMinutes: source.scheduledDurationMinutes, defaultFleetId: source.defaultFleetId, assignedAircraftId: source.assignedAircraftId, effectiveFrom: raw.effectiveFrom, effectiveUntil: raw.effectiveUntil, bookingOpenOffsetMinutes: source.bookingOpenOffsetMinutes, bookingCloseOffsetMinutes: source.bookingCloseOffsetMinutes, generationHorizonDays: source.generationHorizonDays, notes: source.notes }, actor);
+    const eligible = await prisma.flightScheduleEligibleFleet.findMany({ where: { scheduleId: source.id }, select: { fleetId: true } });
+    const result = await createFlightScheduleDraft({ code: raw.code, name: source.name, routeId: source.routeId, daysOfWeek: source.daysOfWeek, departureTimeMinutesUtc: source.departureTimeMinutesUtc, scheduledDurationMinutes: source.scheduledDurationMinutes, eligibleFleetIds: eligible.length ? eligible.map(({ fleetId }) => fleetId) : source.defaultFleetId ? [source.defaultFleetId] : [], effectiveFrom: raw.effectiveFrom, effectiveUntil: raw.effectiveUntil, bookingOpenOffsetMinutes: source.bookingOpenOffsetMinutes, bookingCloseOffsetMinutes: source.bookingCloseOffsetMinutes, generationHorizonDays: source.generationHorizonDays, notes: source.notes }, actor);
     await prisma.aocAuditLog.create({ data: { staffUserId: actorId(actor), action: "SCHEDULE_DRAFT_DUPLICATED", entityType: "FlightSchedule", entityId: result.schedule.id, message: `${actor.name} duplicó ${source.code} como ${result.schedule.code}.`, metadata: { sourceScheduleId: source.id } } });
     return result;
   } catch (error) { throw cleanError(error); }

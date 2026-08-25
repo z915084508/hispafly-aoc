@@ -1,7 +1,7 @@
 export type ScheduleDraftInput = {
   code: string; name: string | null; routeId: string; daysOfWeek: number[];
   departureTimeMinutesUtc: number; arrivalTimeMinutesUtc: number; scheduledDurationMinutes: number;
-  defaultFleetId: string | null; assignedAircraftId: string | null;
+  eligibleFleetIds: string[]; defaultFleetId: string | null; assignedAircraftId: string | null;
   effectiveFrom: Date; effectiveUntil: Date | null;
   bookingOpenOffsetMinutes: number; bookingCloseOffsetMinutes: number; generationHorizonDays: number;
   notes: string | null;
@@ -36,7 +36,9 @@ export function normalizeScheduleDraftInput(raw: Record<string, unknown>): Sched
   if (!Number.isInteger(bookingCloseOffsetMinutes) || bookingCloseOffsetMinutes < 0) throw new ScheduleManagementError("INVALID_BOOKING_CLOSE_OFFSET", "El cierre de reservas debe ser un número entero no negativo.");
   if (bookingOpenOffsetMinutes <= bookingCloseOffsetMinutes) throw new ScheduleManagementError("INVALID_BOOKING_WINDOW", "La apertura de reservas debe ocurrir antes que el cierre.");
   if (!Number.isInteger(generationHorizonDays) || generationHorizonDays < 1 || generationHorizonDays > 365) throw new ScheduleManagementError("INVALID_GENERATION_HORIZON", "El horizonte de generación debe estar entre 1 y 365 días.");
-  return { code, name: String(raw.name ?? "").trim() || null, routeId, daysOfWeek: [...daysOfWeek].sort(), departureTimeMinutesUtc, arrivalTimeMinutesUtc, scheduledDurationMinutes, defaultFleetId: String(raw.defaultFleetId ?? "").trim() || null, assignedAircraftId: String(raw.assignedAircraftId ?? "").trim() || null, effectiveFrom, effectiveUntil, bookingOpenOffsetMinutes, bookingCloseOffsetMinutes, generationHorizonDays, notes: String(raw.notes ?? "").trim() || null };
+  const eligibleFleetIds = [...new Set((Array.isArray(raw.eligibleFleetIds) ? raw.eligibleFleetIds : [raw.defaultFleetId]).map((id) => String(id ?? "").trim()).filter(Boolean))];
+  if (!eligibleFleetIds.length) throw new ScheduleManagementError("ELIGIBLE_FLEET_REQUIRED", "Selecciona al menos una flota elegible.");
+  return { code, name: String(raw.name ?? "").trim() || null, routeId, daysOfWeek: [...daysOfWeek].sort(), departureTimeMinutesUtc, arrivalTimeMinutesUtc, scheduledDurationMinutes, eligibleFleetIds, defaultFleetId: eligibleFleetIds[0] ?? null, assignedAircraftId: null, effectiveFrom, effectiveUntil, bookingOpenOffsetMinutes, bookingCloseOffsetMinutes, generationHorizonDays, notes: String(raw.notes ?? "").trim() || null };
 }
 
 export function assertDraftEditable(status: string) { if (status !== "DRAFT") throw new ScheduleManagementError("SCHEDULE_NOT_DRAFT", "Solo se pueden editar o archivar programaciones en borrador."); }

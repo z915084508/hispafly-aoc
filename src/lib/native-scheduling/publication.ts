@@ -6,7 +6,7 @@ import { buildScheduleGenerationPlan, generationIdentity, type GenerationSchedul
 import { toProposedSchedule } from "./presentation";
 import { validateProposedSchedule } from "./service";
 
-const scheduleInclude = { route: { include: { departureAirport: true, arrivalAirport: true, identityReservation: true } } } as const;
+const scheduleInclude = { route: { include: { departureAirport: true, arrivalAirport: true, identityReservation: true } }, eligibleFleets: true } as const;
 type Db = Prisma.TransactionClient | typeof prisma;
 type LoadedSchedule = Prisma.FlightScheduleGetPayload<{ include: typeof scheduleInclude }>;
 
@@ -57,7 +57,9 @@ async function generateWithDb(db: Prisma.TransactionClient, schedule: LoadedSche
   const createdFlightIds: string[] = [];
   for (const candidate of plan.candidates) {
     if (inspected.existingKeys.has(candidate.generationKey)) continue;
-    const flight = await db.flight.create({ data: { dataOrigin: AocDataOrigin.HISPAFLY_NATIVE, routeId: schedule.routeId, departureAirportId: schedule.route.departureAirportId, arrivalAirportId: schedule.route.arrivalAirportId, scheduleId: schedule.id, operatingDate: day(candidate.operatingDate), scheduledDeparture: candidate.scheduledDeparture, scheduledArrival: candidate.scheduledArrival, scheduledDurationMinutes: schedule.scheduledDurationMinutes, flightNumber: identity.flightNumber, callsign: identity.callsign, departureIcao: schedule.route.departureAirport.icao, arrivalIcao: schedule.route.arrivalAirport.icao, departureTimezone: candidate.departureTimezone, arrivalTimezone: candidate.arrivalTimezone, departureLocalTime: candidate.departureLocalTime, arrivalLocalTime: candidate.arrivalLocalTime, fleetId: schedule.defaultFleetId, assignedAircraftId: schedule.assignedAircraftId, status: candidate.status === "OPEN_FOR_BOOKING" ? NativeFlightStatus.OPEN_FOR_BOOKING : NativeFlightStatus.SCHEDULED, bookingOpenAt: candidate.bookingOpenAt, bookingCloseAt: candidate.bookingCloseAt, generationKey: candidate.generationKey, operatingType: "SCHEDULED" } });
+    const fleetIds = schedule.eligibleFleets.map(({ fleetId }) => fleetId);
+    const legacyFallback = fleetIds.length ? fleetIds : schedule.defaultFleetId ? [schedule.defaultFleetId] : [];
+    const flight = await db.flight.create({ data: { dataOrigin: AocDataOrigin.HISPAFLY_NATIVE, routeId: schedule.routeId, departureAirportId: schedule.route.departureAirportId, arrivalAirportId: schedule.route.arrivalAirportId, scheduleId: schedule.id, operatingDate: day(candidate.operatingDate), scheduledDeparture: candidate.scheduledDeparture, scheduledArrival: candidate.scheduledArrival, scheduledDurationMinutes: schedule.scheduledDurationMinutes, flightNumber: identity.flightNumber, callsign: identity.callsign, departureIcao: schedule.route.departureAirport.icao, arrivalIcao: schedule.route.arrivalAirport.icao, departureTimezone: candidate.departureTimezone, arrivalTimezone: candidate.arrivalTimezone, departureLocalTime: candidate.departureLocalTime, arrivalLocalTime: candidate.arrivalLocalTime, fleetId: legacyFallback[0] ?? null, assignedAircraftId: null, eligibleFleets: { create: legacyFallback.map((fleetId) => ({ fleetId })) }, status: candidate.status === "OPEN_FOR_BOOKING" ? NativeFlightStatus.OPEN_FOR_BOOKING : NativeFlightStatus.SCHEDULED, bookingOpenAt: candidate.bookingOpenAt, bookingCloseAt: candidate.bookingCloseAt, generationKey: candidate.generationKey, operatingType: "SCHEDULED" } });
     createdFlightIds.push(flight.id);
   }
   const skipReasons = plan.skipped.reduce<Record<string, number>>((result, item) => ({ ...result, [item.code]: (result[item.code] ?? 0) + 1 }), {});

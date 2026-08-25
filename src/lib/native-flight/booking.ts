@@ -127,7 +127,7 @@ export async function claimScheduledFlight(input: {
 
     const flight = await tx.flight.findUnique({
       where: { id: input.flightId },
-      include: { route: true, assignedAircraft: { include: { nativeFleet: true, conditionSnapshot: true, locationSnapshot: true } } },
+      include: { route: true, eligibleFleets: true, assignedAircraft: { include: { nativeFleet: true, conditionSnapshot: true, locationSnapshot: true } } },
     });
     if (!flight) throw new Error("Flight does not exist.");
     if (flight.operatingType !== "SCHEDULED" || !flight.scheduleId) throw new Error("Only a published scheduled Flight can be claimed here.");
@@ -161,7 +161,8 @@ export async function claimScheduledFlight(input: {
       const aircraftState = resolveAircraftState(aircraft);
       if (!aircraftState.available) throw new Error("Aircraft is not operationally available.");
       if (aircraft.conditionSnapshot && ["AOG", "IN_MAINTENANCE"].includes(aircraft.conditionSnapshot.operationalStatus)) throw new Error("Aircraft maintenance status blocks booking.");
-      if (flight.fleetId && aircraft.nativeFleetId !== flight.fleetId) throw new Error("Aircraft does not belong to the required fleet.");
+      const eligibleFleetIds = flight.eligibleFleets.length ? flight.eligibleFleets.map(({ fleetId }) => fleetId) : flight.fleetId ? [flight.fleetId] : [];
+      if (!aircraft.nativeFleetId || !eligibleFleetIds.includes(aircraft.nativeFleetId)) throw new Error("Aircraft does not belong to an eligible fleet.");
       if (aircraftState.currentAirportId && flight.departureAirportId && aircraftState.currentAirportId !== flight.departureAirportId) throw new Error("Aircraft is not at the departure airport.");
       const [conflict, dispatchConflict, flightConflict] = await Promise.all([tx.pilotBooking.findFirst({
         where: {
@@ -179,7 +180,7 @@ export async function claimScheduledFlight(input: {
         pilotId: input.pilotId,
         flightId: flight.id,
         routeId: flight.routeId,
-        fleetId: flight.fleetId,
+        fleetId: selectedAircraft?.nativeFleetId ?? flight.fleetId,
         aircraftId,
         departureIcao: flight.departureIcao,
         arrivalIcao: flight.arrivalIcao,

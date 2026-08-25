@@ -312,6 +312,16 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
       create: { aircraftId: dispatch.aircraft.id, vamsysAircraftId: dispatch.aircraft.vamsysAircraftId ?? `native:${dispatch.aircraft.id}`, registration: dispatch.aircraft.registration, aircraftType: dispatch.aircraft.aircraftType, currentAirportId: actualAirport.id, currentAirportIcao: actualAirport.icao, currentAirportIata: actualAirport.iata, status: "AVAILABLE", source: "NATIVE_PIREP", lastBookingId: dispatch.booking.id, lastPirepId: pirep.id, lastReportAt: completedAt, lastLatitude: actualAirport.latitude, lastLongitude: actualAirport.longitude },
       update: { currentAirportId: actualAirport.id, currentAirportIcao: actualAirport.icao, currentAirportIata: actualAirport.iata, status: "AVAILABLE", source: "NATIVE_PIREP", reservedByDispatchId: null, lastBookingId: dispatch.booking.id, lastPirepId: pirep.id, lastReportAt: completedAt, lastLatitude: actualAirport.latitude, lastLongitude: actualAirport.longitude },
     });
+    if (validation.status === "accepted") await tx.aircraftMovement.create({ data: {
+      aircraftId: dispatch.aircraft.id,
+      flightId: dispatch.flight.id,
+      pirepId: pirep.id,
+      departureIcao: dispatch.flight.departureIcao,
+      arrivalIcao: actualAirport.icao,
+      departedAt: telemetry.flightTimeMinutes ? new Date(completedAt.getTime() - telemetry.flightTimeMinutes * 60_000) : dispatch.selectedDepartureAt,
+      arrivedAt: completedAt,
+      blockMinutes: telemetry.flightTimeMinutes ?? null,
+    } });
     await tx.pilot.update({ where: { id: pilotId }, data: { currentAirportId: actualAirport.id, positionUpdatedAt: completedAt, positionSource: "NATIVE_PIREP" } });
     await tx.aocAuditLog.create({ data: { action: "NATIVE_ACARS_FLIGHT_COMPLETED", entityType: "Pirep", entityId: pirep.id, message: `${dispatch.flight.flightNumber} completed by HispaFly ACARS with PIREP status ${validation.status}.`, metadata: { sessionId, dispatchId: dispatch.id, bookingId: dispatch.booking.id, flightId: dispatch.flight.id, aircraftId: dispatch.aircraft.id, plannedArrivalIcao: dispatch.flight.arrivalIcao, actualArrivalIcao: actualAirport.icao, diverted, validation, summary: completionSummary, flightDistanceNm, score, fuelEconomics } as Prisma.InputJsonValue } });
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

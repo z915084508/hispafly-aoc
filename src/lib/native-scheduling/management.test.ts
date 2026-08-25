@@ -9,6 +9,8 @@ const normalized = normalizeScheduleDraftInput(valid);
 assert.equal(normalized.code, "HFY101-S26");
 assert.equal(normalized.arrivalTimeMinutesUtc, 545);
 assert.deepEqual(normalized.daysOfWeek, [1, 3, 5]);
+assert.deepEqual(normalized.eligibleFleetIds, ["fleet-1"]);
+assert.equal(normalized.assignedAircraftId, null, "planning never assigns a concrete aircraft");
 assert.equal(normalized.effectiveFrom.toISOString(), "2026-08-10T00:00:00.000Z");
 for (const malformed of [{ ...valid, daysOfWeek: [] }, { ...valid, daysOfWeek: [1, 1] }, { ...valid, departureTimeMinutesUtc: 1440 }, { ...valid, scheduledDurationMinutes: 0 }, { ...valid, effectiveFrom: "bad" }, { ...valid, effectiveUntil: "2026-08-09" }]) assert.throws(() => normalizeScheduleDraftInput(malformed), ScheduleManagementError);
 assert.deepEqual(scheduleCreatePolicy(), { status: "DRAFT", dataOrigin: "HISPAFLY_NATIVE" }, "client status and origin are ignored");
@@ -64,7 +66,8 @@ assert.match(management, /SCHEDULE_DRAFT_UPDATED/);
 assert.match(management, /SCHEDULE_DRAFT_DUPLICATED/);
 assert.match(management, /SCHEDULE_DRAFT_ARCHIVED/);
 assert.match(management, /status: "ARCHIVED", archivedAt: new Date\(\)/);
-assert.doesNotMatch(management, /flightSchedule\.delete|deleteMany/, "drafts are never hard deleted");
+assert.doesNotMatch(management, /flightSchedule\.(?:delete|deleteMany)/, "drafts are never hard deleted");
+assert.match(form, /name="eligibleFleetIds" multiple/, "Programacion supports one or more eligible fleets");
 assert.doesNotMatch(management, /tx\.flight\.create|prisma\.flight\.create/, "management creates no generated Flights");
 for (const forbidden of ["pilotBooking.create", "flightDispatch.create", "ofpBriefing.create"]) assert.doesNotMatch(management + actions, new RegExp(forbidden, "i"));
 
