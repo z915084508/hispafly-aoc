@@ -13,6 +13,7 @@ import { resolveSimbriefDispatchLoad } from "@/lib/simbrief/load";
 import { evaluateDispatchRelease } from "@/lib/dispatch-release/service";
 import { normalizeAlternateIcao } from "@/lib/dispatch-release/alternatePolicy";
 import { buildAppliedFuelPolicy, fuelPolicyJson, fuelPolicyPayload } from "@/lib/fuel-policy/service";
+import { confirmAmnPayload } from "@/lib/amn/payload";
 
 export function ofpContentHash(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -84,7 +85,7 @@ export async function importSimbriefOfp(ofpId: string, pilotId: string, simbrief
 export async function generateDispatchSimBriefOfp(input: { ofpId: string; pilotId: string; staffUserId?: string | null; alternateIcao?: string | null }) {
   const ofp = await prisma.ofpBriefing.findFirst({
     where: { id: input.ofpId, flightDispatch: { pilotId: input.pilotId } },
-    include: { flightDispatch: { include: { flightOffer: true, pilot: true, aircraft: { include: { conditionSnapshot: true, nativeFleet: true } } } } },
+    include: { flightDispatch: { include: { booking: true, flightOffer: true, pilot: true, aircraft: { include: { conditionSnapshot: true, nativeFleet: true } } } } },
   });
   if (!ofp) throw new Error("OFP not found or is not assigned to this pilot.");
   if (ofp.status === "VOIDED") throw new Error("This OFP can no longer be regenerated.");
@@ -205,6 +206,19 @@ export async function generateDispatchSimBriefOfp(input: { ofpId: string; pilotI
     } });
     if (fuelPolicy.tankering) await writeAuditLogSafely({ staffUserId: input.staffUserId, action: "TANKERING_APPLIED", entityType: "OfpBriefing", entityId: ofp.id, message: "Tankering recommendation applied to the generated SimBrief OFP.", metadata: { pilotId: input.pilotId, recommendedKg: fuelPolicy.tankering.recommendedKg, estimatedSavingCents: fuelPolicy.tankering.estimatedSavingCents } });
     await writeAuditLogSafely({ staffUserId: input.staffUserId, action: alternateIcao ? "SIMBRIEF_OFP_GENERATED_WITH_ALTERNATE" : "SIMBRIEF_OFP_GENERATED", entityType: "OfpBriefing", entityId: ofp.id, message: "SimBrief OFP generated and saved to AOC.", metadata: { pilotId: input.pilotId, dispatchId: dispatch.id, staticId, hasPdf: Boolean(pdfUrl), hasOfpUrl: Boolean(ofpUrl), alternateIcao } });
+    if (dispatch.dataOrigin === "HISPAFLY_NATIVE" && dispatch.booking?.amnPayloadRequestId) {
+      const externalFlightId = offer.flightNumber ?? dispatch.booking.flightNumber;
+      if (!externalFlightId) throw new Error("AMN Payload confirmation requires the original flight number.");
+      await confirmAmnPayload({
+        payloadRequestId: dispatch.booking.amnPayloadRequestId,
+        externalFlightId,
+        operatingDate: dispatch.selectedDepartureAt.toISOString().slice(0, 10),
+        externalBookingId: dispatch.booking.id,
+        externalDispatchId: dispatch.id,
+        externalOfpId: saved.id,
+      });
+      await writeAuditLogSafely({ action: "AMN_PAYLOAD_CONFIRMED_AFTER_OFP", entityType: "OfpBriefing", entityId: saved.id, message: "AMN Payload hold confirmed after SimBrief OFP generation succeeded.", metadata: { pilotId: input.pilotId, dispatchId: dispatch.id, bookingId: dispatch.booking.id, amnPayloadRequestId: dispatch.booking.amnPayloadRequestId } });
+    }
     await evaluateDispatchRelease({ ofpBriefingId: ofp.id });
     return saved;
   } catch (error) {

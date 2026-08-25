@@ -34,6 +34,8 @@ type AmnResponse = {
   cargo: { weightKg: number; volumeM3: number };
   estimatedTrafficPayloadKg: number;
   provenance: Record<string, unknown>;
+  allocationStatus: "HELD";
+  holdExpiresAt: string;
 };
 
 const integer = (value: unknown, name: string) => {
@@ -87,6 +89,7 @@ export async function requestAmnPayload(input: {
     throw new Error(`AMN ${error?.code ?? `HTTP_${response.status}`}: ${error?.message ?? "Payload request failed."}`);
   }
   if (!body || !("payloadRequestId" in body) || !body.capacity || !body.passengers || !body.cargo) throw new Error("AMN returned an invalid Payload response.");
+  if (body.allocationStatus !== "HELD" || !body.holdExpiresAt || Date.parse(body.holdExpiresAt) <= Date.now()) throw new Error("AMN did not return an active Payload hold.");
   const passengers = integer(body.passengers.count, "passenger count");
   const cargoWeightKg = integer(body.cargo.weightKg, "cargo weight");
   const sellableSeats = integer(body.capacity.sellableSeats, "seat capacity");
@@ -114,8 +117,21 @@ export async function requestAmnPayload(input: {
     maximumTrafficPayloadKg,
     estimatedTrafficPayloadKg,
     provenance: body.provenance,
-    expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+    expiresAt: body.holdExpiresAt,
   };
+}
+
+export async function confirmAmnPayload(input: { payloadRequestId: string; externalFlightId: string; operatingDate: string; externalBookingId: string; externalDispatchId: string; externalOfpId: string }): Promise<void> {
+  const { baseUrl, apiKey } = configuration();
+  const idempotencyKey = `confirm:${input.payloadRequestId}:${input.externalBookingId}`.slice(0, 128);
+  const response = await fetch(`${baseUrl}/api/v1/payload-confirmations`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify(input),
+    cache: "no-store", signal: AbortSignal.timeout(15_000),
+  });
+  const body = await response.json().catch(() => null) as { allocationStatus?: string; error?: { code?: string; message?: string } } | null;
+  if (!response.ok || body?.allocationStatus !== "CONFIRMED") throw new Error(`AMN ${body?.error?.code ?? `HTTP_${response.status}`}: ${body?.error?.message ?? "Payload confirmation failed."}`);
 }
 
 export async function declareAmnScheduledFlight(input: {
