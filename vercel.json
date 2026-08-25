@@ -1,5 +1,6 @@
 {
   "crons": [
+    { "path": "/api/cron/native-flight-generation", "schedule": "30 2 * * *" },
     { "path": "/api/cron/native-dispatch-expiry", "schedule": "0 3 * * *" }
   ]
 }
