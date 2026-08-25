@@ -88,6 +88,13 @@ export async function requestAmnPayload(input: {
   originIata: string; destinationIata: string; aircraftTypeCode: string;
   registration: string; routeId: string; aircraftId: string; idempotencyKey: string;
   sourceRouteId?: string | null; scheduledDepartureUtc?: string | null;
+  capacitySnapshot?: {
+    sellableSeats: number;
+    maximumCargoWeightKg: number;
+    maximumTrafficPayloadKg: number;
+    maximumCargoVolumeM3?: number | null;
+    source?: string | null;
+  } | null;
   loadStage?: AmnPayloadStage;
 }): Promise<AmnPayloadAllocation> {
   const body = await amnPost<AmnResponse>("/api/v1/live-payload-requests", {
@@ -100,6 +107,7 @@ export async function requestAmnPayload(input: {
     registration: input.registration,
     sourceRouteId: input.sourceRouteId ?? input.routeId,
     scheduledDepartureUtc: input.scheduledDepartureUtc ?? null,
+    capacitySnapshot: input.capacitySnapshot ?? null,
     loadStage: input.loadStage ?? "FINAL",
   }, input.idempotencyKey);
   if (body.allocationStatus !== "HELD" || !body.holdExpiresAt || Date.parse(body.holdExpiresAt) <= Date.now()) throw new Error("AMN did not return an active Payload hold.");
