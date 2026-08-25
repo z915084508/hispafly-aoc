@@ -4,6 +4,13 @@ import { requirePilotSession } from "@/lib/pilot/session";
 import { prisma } from "@/lib/prisma";
 import { requestAmnPayload, signAmnPayloadAllocation } from "@/lib/amn/payload";
 
+function fallbackFlightNumber(route: { id: string; callsign: string | null; routeCode: string | null }) {
+  const explicit = route.callsign?.trim() || route.routeCode?.trim();
+  if (explicit) return explicit.toUpperCase();
+  const suffix = Number.parseInt(createHash("sha256").update(route.id).digest("hex").slice(0, 6), 16) % 10_000;
+  return `HF${String(suffix).padStart(4, "0")}`;
+}
+
 export async function POST(request: Request) {
   try {
     await requirePilotSession();
@@ -35,8 +42,11 @@ export async function POST(request: Request) {
       orderBy: { scheduledDeparture: "asc" },
     });
 
-    const flightNumber = datedFlight?.flightNumber?.trim() || route.flightNumber?.trim();
-    if (!flightNumber) throw new Error("The route requires a flight number before AMN can allocate traffic.");
+    // Flight identity belongs to the dated PROGRAMACION flight when one exists.
+    // Route-level flightNumber is optional; ad-hoc/free dispatches receive a stable fallback identity.
+    const flightNumber = datedFlight?.flightNumber?.trim()
+      || route.flightNumber?.trim()
+      || fallbackFlightNumber(route);
     const operatingDate = datedFlight
       ? datedFlight.operatingDate.toISOString().slice(0, 10)
       : departureAt.toISOString().slice(0, 10);
