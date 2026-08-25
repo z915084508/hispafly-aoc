@@ -62,10 +62,6 @@ function configuration() {
   return { baseUrl, apiKey };
 }
 
-export function isAmnConfigured() {
-  return Boolean(process.env.AMN_API_BASE_URL?.trim() && process.env.AMN_API_KEY?.trim());
-}
-
 async function amnPost<T>(path: string, body: unknown, idempotencyKey: string): Promise<T> {
   const { baseUrl, apiKey } = configuration();
   const response = await fetch(`${baseUrl}${path}`, {
@@ -91,39 +87,6 @@ function signingSecret() {
   const secret = process.env.AUTH_SECRET?.trim() || process.env.AOC_PILOT_SESSION_SECRET?.trim();
   if (!secret || secret.length < 24) throw new Error("AOC allocation signing is not configured.");
   return secret;
-}
-
-export async function syncAmnOperationalAirport(
-  airport: AmnOperationalAirportMetadata,
-  idempotencyKey: string,
-): Promise<{ airportId: string; iata: string; icao: string; calibrationStatus: string; confidence: number }> {
-  return amnPost("/api/v1/operational-airports", airport, idempotencyKey);
-}
-
-export async function syncAmnNetworkRoute(input: {
-  externalRouteId: string;
-  routeCode?: string | null;
-  flightNumber?: string | null;
-  originIata: string;
-  destinationIata: string;
-  status: "ACTIVE" | "SUSPENDED" | "ARCHIVED";
-  effectiveFrom?: string | null;
-  effectiveUntil?: string | null;
-  defaultAircraftTypeCode?: string | null;
-  idempotencyKey: string;
-}): Promise<{ routeRecordId: string; externalRouteId: string }> {
-  const { idempotencyKey, ...body } = input;
-  return amnPost("/api/v1/network-routes", body, idempotencyKey);
-}
-
-export async function cancelAmnScheduledFlight(input: {
-  externalFlightId: string;
-  operatingDate: string;
-  reason?: string | null;
-  idempotencyKey: string;
-}): Promise<{ scheduleRecordId: string; status: "CANCELLED" }> {
-  const { idempotencyKey, ...body } = input;
-  return amnPost("/api/v1/scheduled-flight-cancellations", body, idempotencyKey);
 }
 
 export async function requestAmnPayload(input: {
