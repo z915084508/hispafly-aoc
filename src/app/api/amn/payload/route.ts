@@ -24,12 +24,18 @@ export async function POST(request: Request) {
       }),
       prisma.aircraft.findFirst({
         where: { id: body.aircraftId, archivedAt: null },
-        include: { locationSnapshot: true },
+        include: { locationSnapshot: true, nativeFleet: true, performanceProfile: true },
       }),
     ]);
     if (!route?.departureAirport?.iata || !route.arrivalAirport?.iata) throw new Error("The route requires IATA airport codes before AMN can allocate traffic.");
     if (!aircraft?.registration || !aircraft.aircraftType) throw new Error("The aircraft type and registration must be configured before requesting AMN Payload.");
     if ((aircraft.locationSnapshot?.currentAirportId ?? aircraft.currentAirportId) !== route.departureAirportId) throw new Error("The selected aircraft is not at the route departure airport.");
+
+    const seats = aircraft.seatCapacity ?? aircraft.nativeFleet?.typicalSeatCapacity ?? aircraft.nativeFleet?.maxPassengers ?? null;
+    if (!seats || seats <= 0) throw new Error("The selected aircraft requires a passenger seat capacity before AMN can allocate traffic.");
+    const cargoCapacityKg = Math.max(0, aircraft.cargoCapacityKg ?? aircraft.nativeFleet?.maxCargoKg ?? 0);
+    const maxTrafficPayloadKg = aircraft.performanceProfile?.maxPayloadKg
+      ?? Math.max(seats * 100, seats * 100 + cargoCapacityKg);
 
     const nearbyStart = new Date(departureAt.getTime() - 60_000);
     const nearbyEnd = new Date(departureAt.getTime() + 60_000);
@@ -42,8 +48,6 @@ export async function POST(request: Request) {
       orderBy: { scheduledDeparture: "asc" },
     });
 
-    // Flight identity belongs to the dated PROGRAMACION flight when one exists.
-    // Route-level flightNumber is optional; ad-hoc/free dispatches receive a stable fallback identity.
     const flightNumber = datedFlight?.flightNumber?.trim()
       || route.flightNumber?.trim()
       || fallbackFlightNumber(route);
@@ -67,6 +71,14 @@ export async function POST(request: Request) {
       sourceRouteId: route.id,
       scheduledDepartureUtc: departureAt.toISOString(),
       aircraftId: aircraft.id,
+      capacitySnapshot: {
+        sellableSeats: seats,
+        maximumCargoWeightKg: cargoCapacityKg,
+        maximumTrafficPayloadKg: maxTrafficPayloadKg,
+        source: aircraft.performanceProfile?.maxPayloadKg
+          ? "HISPAFLY_AOC_AIRCRAFT_PROFILE"
+          : "HISPAFLY_AOC_AIRCRAFT_DERIVED",
+      },
       idempotencyKey: `aoc:${requestIdentity}`,
       loadStage: "FINAL",
     });
