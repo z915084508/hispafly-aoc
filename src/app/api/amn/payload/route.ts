@@ -2,12 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { prisma } from "@/lib/prisma";
-import {
-  declareAmnScheduledFlight,
-  requestAmnPayload,
-  signAmnPayloadAllocation,
-} from "@/lib/amn/payload";
-import { toAmnAirportMetadata } from "@/lib/amn/network-sync";
+import { requestAmnPayload, signAmnPayloadAllocation } from "@/lib/amn/payload";
 
 export async function POST(request: Request) {
   try {
@@ -49,33 +44,18 @@ export async function POST(request: Request) {
     const requestIdentity = createHash("sha256")
       .update(`${body.idempotencyKey}|${externalFlightId}|${operatingDate}|${aircraft.registration}`)
       .digest("hex");
-    const originAirport = toAmnAirportMetadata(route.departureAirport);
-    const destinationAirport = toAmnAirportMetadata(route.arrivalAirport);
 
-    await declareAmnScheduledFlight({
-      externalFlightId,
-      flightNumber,
-      operatingDate,
-      originIata: originAirport.iata,
-      destinationIata: destinationAirport.iata,
-      originAirport,
-      destinationAirport,
-      scheduledDepartureUtc: departureAt.toISOString(),
-      aircraftTypeCode: aircraft.aircraftType,
-      registration: aircraft.registration,
-      sourceRouteId: route.id,
-      sourceScheduleId: datedFlight?.scheduleId ?? null,
-      idempotencyKey: `schedule:${requestIdentity}`,
-    });
     const allocation = await requestAmnPayload({
       externalFlightId,
       flightNumber,
       operatingDate,
-      originIata: originAirport.iata,
-      destinationIata: destinationAirport.iata,
+      originIata: route.departureAirport.iata.trim().toUpperCase(),
+      destinationIata: route.arrivalAirport.iata.trim().toUpperCase(),
       aircraftTypeCode: aircraft.aircraftType,
       registration: aircraft.registration,
       routeId: route.id,
+      sourceRouteId: route.id,
+      scheduledDepartureUtc: departureAt.toISOString(),
       aircraftId: aircraft.id,
       idempotencyKey: `aoc:${requestIdentity}`,
       loadStage: "FINAL",
