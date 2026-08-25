@@ -89,8 +89,8 @@ export async function POST(request: Request) {
     const marketFlights = await prisma.flight.findMany({
       where: {
         scheduledDeparture: { gte: start, lt: end },
-        departureAirport: { iata: originIata },
-        arrivalAirport: { iata: destinationIata },
+        departureAirportId: route.departureAirport.id,
+        arrivalAirportId: route.arrivalAirport.id,
         status: { notIn: ["CANCELLED", "COMPLETED", "EXPIRED"] },
       },
       include: { fleet: true, assignedAircraft: true },
