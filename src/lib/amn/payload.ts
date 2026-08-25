@@ -1,18 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { AmnOperationalAirportMetadata } from "./airport-metadata";
+export type { AmnOperationalAirportMetadata } from "./airport-metadata";
 
 export type AmnPayloadStage = "FORECAST" | "BOOKED" | "FINAL";
-
-export type AmnOperationalAirportMetadata = {
-  iata: string;
-  icao: string;
-  name?: string | null;
-  city?: string | null;
-  country?: string | null;
-  countryIso2?: string | null;
-  timezone?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-};
 
 export type AmnPayloadAllocation = {
   payloadRequestId: string;
@@ -93,6 +83,7 @@ export async function requestAmnPayload(input: {
   externalFlightId: string; flightNumber: string; operatingDate: string;
   originIata: string; destinationIata: string; aircraftTypeCode: string;
   registration: string; routeId: string; aircraftId: string; idempotencyKey: string;
+  sourceRouteId?: string | null; scheduledDepartureUtc?: string | null;
   loadStage?: AmnPayloadStage;
 }): Promise<AmnPayloadAllocation> {
   const body = await amnPost<AmnResponse>("/api/v1/payload-requests", {
@@ -103,6 +94,8 @@ export async function requestAmnPayload(input: {
     destinationIata: input.destinationIata,
     aircraftTypeCode: input.aircraftTypeCode,
     registration: input.registration,
+    sourceRouteId: input.sourceRouteId ?? input.routeId,
+    scheduledDepartureUtc: input.scheduledDepartureUtc ?? null,
     loadStage: input.loadStage ?? "FINAL",
   }, input.idempotencyKey);
   if (body.allocationStatus !== "HELD" || !body.holdExpiresAt || Date.parse(body.holdExpiresAt) <= Date.now()) throw new Error("AMN did not return an active Payload hold.");
@@ -140,26 +133,6 @@ export async function requestAmnPayload(input: {
 export async function confirmAmnPayload(input: { payloadRequestId: string; externalFlightId: string; operatingDate: string; externalBookingId: string; externalDispatchId: string; externalOfpId: string }): Promise<void> {
   const body = await amnPost<{ allocationStatus?: string }>("/api/v1/payload-confirmations", input, `confirm:${input.payloadRequestId}:${input.externalBookingId}`);
   if (body.allocationStatus !== "CONFIRMED") throw new Error("AMN Payload confirmation failed.");
-}
-
-export async function declareAmnScheduledFlight(input: {
-  externalFlightId: string; flightNumber: string; operatingDate: string;
-  originIata: string; destinationIata: string; scheduledDepartureUtc: string;
-  aircraftTypeCode: string; registration: string | null; idempotencyKey: string;
-  originAirport?: AmnOperationalAirportMetadata | null;
-  destinationAirport?: AmnOperationalAirportMetadata | null;
-  sourceRouteId?: string | null;
-  sourceScheduleId?: string | null;
-}): Promise<{
-  scheduleRecordId: string;
-  status: string;
-  airportResolution?: {
-    origin?: { calibrationStatus?: string; confidence?: number; source?: string };
-    destination?: { calibrationStatus?: string; confidence?: number; source?: string };
-  };
-}> {
-  const { idempotencyKey, ...body } = input;
-  return amnPost("/api/v1/scheduled-flights", body, idempotencyKey);
 }
 
 export function signAmnPayloadAllocation(allocation: AmnPayloadAllocation): string {
