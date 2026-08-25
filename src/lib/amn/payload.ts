@@ -86,7 +86,7 @@ export async function requestAmnPayload(input: {
   sourceRouteId?: string | null; scheduledDepartureUtc?: string | null;
   loadStage?: AmnPayloadStage;
 }): Promise<AmnPayloadAllocation> {
-  const body = await amnPost<AmnResponse>("/api/v1/payload-requests", {
+  const body = await amnPost<AmnResponse>("/api/v1/live-payload-requests", {
     externalFlightId: input.externalFlightId,
     flightNumber: input.flightNumber,
     operatingDate: input.operatingDate,
