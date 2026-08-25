@@ -3,6 +3,7 @@ export type AirportBoardDirection = "ARRIVAL" | "DEPARTURE";
 export type AirportBoardSchedule = {
   id: string;
   code: string;
+  flightNumber?: string | null;
   status: string;
   daysOfWeek: number[];
   departureTimeMinutesUtc: number;
@@ -108,6 +109,6 @@ export function buildAirportBoardMovements<T extends AirportBoardSchedule>(
 
   return movements.sort((left, right) =>
     left.timeMinutesUtc - right.timeMinutesUtc ||
-    (left.schedule.route.flightNumber ?? left.schedule.code).localeCompare(right.schedule.route.flightNumber ?? right.schedule.code),
+    (left.schedule.flightNumber ?? left.schedule.route.flightNumber ?? left.schedule.code).localeCompare(right.schedule.flightNumber ?? right.schedule.route.flightNumber ?? right.schedule.code),
   );
 }

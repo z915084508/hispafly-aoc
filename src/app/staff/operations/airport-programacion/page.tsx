@@ -81,6 +81,9 @@ export default async function AirportProgramacionBoard({
       { code: "asc" },
     ],
   }) : [];
+  // Legacy pages read the identity from Route. Keep that fallback, but make the
+  // Programación-owned identity authoritative everywhere on this board.
+  for (const schedule of schedules) schedule.route.flightNumber = schedule.flightNumber ?? schedule.route.flightNumber;
   const airportRoutes = selectedAirport ? await prisma.route.findMany({
     where: { active: true, archivedAt: null, operationalStatus: "ACTIVE", OR: [{ departureAirportId: selectedAirport.id }, { arrivalAirportId: selectedAirport.id }] },
     include: { defaultFleet: true, schedules: { where: { status: { not: "ARCHIVED" } }, select: { id: true, status: true } } },
