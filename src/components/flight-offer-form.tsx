@@ -5,6 +5,7 @@ import { createFlightOfferAction, getRouteFleetIdsAction } from "@/app/staff/fli
 import type { FlightOfferRouteOption } from "@/lib/flightOffers/options";
 import { useTranslations } from "@/lib/i18n/client";
 import { suggestedLoadFactor } from "@/lib/dispatch/loadFactor";
+import { HISPAFLY_PAYLOAD_POLICY } from "@/lib/payload/policy";
 
 interface AirportOption { icao: string; iata: string | null; name: string | null }
 interface FleetOption { id: string; name: string | null; code: string | null; passengers: number | null; cargoKg: number | null }
@@ -30,7 +31,7 @@ export function FlightOfferForm({ airports, routes, fleets, aircraft, initialVal
   const [passengers, setPassengers] = useState("");
   const [luggageKg, setLuggageKg] = useState("");
   const [loadFactor, setLoadFactor] = useState("80");
-  const [baggagePerPassenger, setBaggagePerPassenger] = useState("23");
+  const [baggagePerPassenger, setBaggagePerPassenger] = useState(String(HISPAFLY_PAYLOAD_POLICY.baggageKgPerPassenger));
   const [altitude, setAltitude] = useState("");
   const [userRoute, setUserRoute] = useState("");
   const [routeFleetIds, setRouteFleetIds] = useState<string[] | null>(null);

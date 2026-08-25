@@ -8,6 +8,7 @@ import { fleetIsAuthorized, validateSelfDispatchWindow } from "./self-dispatch-r
 import { resolveAircraftState } from "./aircraft-state";
 import { allocateScheduleIdentities } from "@/lib/native-scheduling/flight-identity";
 import type { AmnPayloadAllocation } from "@/lib/amn/payload";
+import { HISPAFLY_PAYLOAD_POLICY, passengerBaggageWeight } from "@/lib/payload/policy";
 
 const ACTIVE_BOOKING_STATUSES: PilotBookingStatus[] = ["PENDING", "CONFIRMED", "DISPATCH_PENDING", "DISPATCHED", "IN_PROGRESS", "BOOKED"];
 const ACTIVE_FLIGHT_STATUSES: NativeFlightStatus[] = ["SCHEDULED", "OPEN", "OPEN_FOR_BOOKING", "BOOKED", "DISPATCH_PENDING", "DISPATCHED", "BOARDING", "IN_PROGRESS", "DEPARTED", "AIRBORNE", "LANDED"];
@@ -89,8 +90,8 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
     } });
     const passengers = input.amnAllocation.passengers;
     const loadFactorPercent = Math.round(passengers / aircraft.seatCapacity * 1000) / 10;
-    const baggageKgPerPassenger = 23;
-    const luggageKg = Math.round(passengers * baggageKgPerPassenger);
+    const baggageKgPerPassenger = HISPAFLY_PAYLOAD_POLICY.baggageKgPerPassenger;
+    const luggageKg = passengerBaggageWeight(passengers, baggageKgPerPassenger);
     const freightKg = input.amnAllocation.cargoWeightKg;
     const cargoKg = luggageKg + freightKg;
     const booking = await tx.pilotBooking.create({ data: {
@@ -103,7 +104,7 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
       amnPayloadProvenance: input.amnAllocation.provenance as Prisma.InputJsonValue,
       expiresAt: input.departureAt, idempotencyKey: input.idempotencyKey, operationalNotes: "Created through HispaFly Native pilot self-dispatch.",
     } });
-    await tx.aocAuditLog.create({ data: { action: "PILOT_NATIVE_SELF_DISPATCH_CREATED", entityType: "PilotBooking", entityId: booking.id, message: `Pilot created self-dispatch ${flightNumber} ${flight.departureIcao}-${flight.arrivalIcao} with AMN Payload.`, metadata: { pilotId: input.pilotId, flightId: flight.id, routeId: route.id, aircraftId: aircraft.id, departureAt: input.departureAt.toISOString(), amnPayloadRequestId: input.amnAllocation.payloadRequestId, amnMarketSnapshotId: input.amnAllocation.marketSnapshotId } as Prisma.InputJsonValue } });
+    await tx.aocAuditLog.create({ data: { action: "PILOT_NATIVE_SELF_DISPATCH_CREATED", entityType: "PilotBooking", entityId: booking.id, message: `Pilot created self-dispatch ${flightNumber} ${flight.departureIcao}-${flight.arrivalIcao} with AMN Payload.`, metadata: { pilotId: input.pilotId, flightId: flight.id, routeId: route.id, aircraftId: aircraft.id, departureAt: input.departureAt.toISOString(), amnPayloadRequestId: input.amnAllocation.payloadRequestId, amnMarketSnapshotId: input.amnAllocation.marketSnapshotId, baggagePolicyId: HISPAFLY_PAYLOAD_POLICY.policyId, baggageKgPerPassenger } as Prisma.InputJsonValue } });
     return booking;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }

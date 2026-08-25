@@ -6,6 +6,7 @@ import { getPilotRouteDetailsAction } from "@/app/pilot/bookings/actions";
 import type { FlightOfferRouteOption } from "@/lib/flightOffers/options";
 import { useTranslations } from "@/lib/i18n/client";
 import { calculateDispatchPayload, suggestedLoadFactor } from "@/lib/dispatch/loadFactor";
+import { HISPAFLY_PAYLOAD_POLICY } from "@/lib/payload/policy";
 
 type FleetOption = { id: string; name: string | null; code: string | null; passengers: number | null; cargoKg: number | null };
 type AircraftOption = { vamsysAircraftId: string; registration: string | null; aircraftType: string | null; fleetId: string | null; status: string | null; seatCapacity: number | null };
@@ -26,7 +27,7 @@ export function PilotBookingForm({ routes, fleets, aircraft }: { routes: FlightO
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [loadFactorPercent, setLoadFactorPercent] = useState("80");
-  const [baggageKgPerPassenger, setBaggageKgPerPassenger] = useState("23");
+  const [baggageKgPerPassenger, setBaggageKgPerPassenger] = useState(String(HISPAFLY_PAYLOAD_POLICY.baggageKgPerPassenger));
   const [passengers, setPassengers] = useState("");
   const [luggageKg, setLuggageKg] = useState("");
   const [minimumDeparture] = useState(() => utcInput(new Date(Date.now() + 5 * 60_000)));

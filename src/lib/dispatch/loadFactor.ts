@@ -1,3 +1,5 @@
+import { HISPAFLY_PAYLOAD_POLICY, passengerBaggageWeight } from "../payload/policy.ts";
+
 export const HISPAFLY_BASES = ["LEBL", "LEPA", "LEVC", "LEMD"] as const;
 export const BASE_FUEL_DISCOUNT_PERCENT = 21;
 
@@ -27,9 +29,9 @@ export function calculateDispatchPayload(input: { seats: number; loadFactorPerce
   if (!Number.isFinite(input.seats) || input.seats <= 0) throw new Error("Aircraft seat capacity is required.");
   if (!Number.isFinite(input.loadFactorPercent) || input.loadFactorPercent < 0 || input.loadFactorPercent > 100) throw new Error("Load factor must be between 0 and 100.");
   const passengers = Math.min(input.seats, Math.max(0, Math.round(input.seats * input.loadFactorPercent / 100)));
-  const baggageKgPerPassenger = input.baggageKgPerPassenger ?? 23;
+  const baggageKgPerPassenger = input.baggageKgPerPassenger ?? HISPAFLY_PAYLOAD_POLICY.baggageKgPerPassenger;
   if (!Number.isFinite(baggageKgPerPassenger) || baggageKgPerPassenger < 0) throw new Error("Baggage per passenger must be zero or greater.");
-  return { passengers, luggageKg: Math.round(passengers * baggageKgPerPassenger), baggageKgPerPassenger };
+  return { passengers, luggageKg: passengerBaggageWeight(passengers, baggageKgPerPassenger), baggageKgPerPassenger };
 }
 
 export function baseFuelDiscountPercent(departure: string | null | undefined) {

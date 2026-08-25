@@ -19,7 +19,7 @@
     "test:staff-navigation": "node --experimental-strip-types src/lib/staff/navigation.test.ts",
     "test:staff-protection": "node --experimental-strip-types src/lib/staff/admin/protection.test.ts",
     "test:economy": "node --experimental-strip-types src/lib/economy/handling.test.ts",
-    "test:dispatch": "node --experimental-strip-types src/lib/dispatch/loadFactor.test.ts",
+    "test:dispatch": "node --experimental-strip-types src/lib/dispatch/loadFactor.test.ts && node --experimental-strip-types src/lib/payload/policy.test.ts",
     "test:amn-payload": "node --experimental-strip-types src/lib/amn/payload.test.ts",
     "test:flight-identity": "node --experimental-strip-types src/lib/dispatch/flightIdentity.test.ts",
     "test:simbrief-pdf": "node --experimental-strip-types src/lib/simbrief/pdf.test.ts",
