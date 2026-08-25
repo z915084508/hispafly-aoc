@@ -118,6 +118,22 @@ export async function requestAmnPayload(input: {
   };
 }
 
+export async function declareAmnScheduledFlight(input: {
+  externalFlightId: string; flightNumber: string; operatingDate: string;
+  originIata: string; destinationIata: string; scheduledDepartureUtc: string;
+  aircraftTypeCode: string; registration: string; idempotencyKey: string;
+}): Promise<{ scheduleRecordId: string; status: string }> {
+  const { baseUrl, apiKey } = configuration();
+  const response = await fetch(`${baseUrl}/api/v1/scheduled-flights`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": input.idempotencyKey },
+    body: JSON.stringify(input), cache: "no-store", signal: AbortSignal.timeout(15_000),
+  });
+  const body = await response.json().catch(() => null) as { scheduleRecordId?: string; status?: string; error?: { code?: string; message?: string } } | null;
+  if (!response.ok || !body?.scheduleRecordId) throw new Error(`AMN ${body?.error?.code ?? `HTTP_${response.status}`}: ${body?.error?.message ?? "Scheduled flight declaration failed."}`);
+  return { scheduleRecordId: body.scheduleRecordId, status: body.status ?? "DECLARED" };
+}
+
 export function signAmnPayloadAllocation(allocation: AmnPayloadAllocation): string {
   const payload = Buffer.from(JSON.stringify(allocation)).toString("base64url");
   const signature = createHmac("sha256", signingSecret()).update(payload).digest("base64url");

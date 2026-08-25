@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { prisma } from "@/lib/prisma";
-import { requestAmnPayload, signAmnPayloadAllocation } from "@/lib/amn/payload";
+import { declareAmnScheduledFlight, requestAmnPayload, signAmnPayloadAllocation } from "@/lib/amn/payload";
 
 export async function POST(request: Request) {
   try {
@@ -21,6 +21,12 @@ export async function POST(request: Request) {
     if (!flightNumber) throw new Error("The route requires a flight number before AMN can allocate traffic.");
     const operatingDate = departureAt.toISOString().slice(0, 10);
     const requestIdentity = createHash("sha256").update(`${body.idempotencyKey}|${route.id}|${operatingDate}|${aircraft.registration}`).digest("hex");
+    await declareAmnScheduledFlight({
+      externalFlightId: flightNumber, flightNumber, operatingDate,
+      originIata: route.departureAirport.iata, destinationIata: route.arrivalAirport.iata,
+      scheduledDepartureUtc: departureAt.toISOString(), aircraftTypeCode: aircraft.aircraftType,
+      registration: aircraft.registration, idempotencyKey: `schedule:${requestIdentity}`,
+    });
     const allocation = await requestAmnPayload({
       externalFlightId: flightNumber,
       flightNumber,

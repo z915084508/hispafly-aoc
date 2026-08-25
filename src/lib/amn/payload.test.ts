@@ -25,6 +25,7 @@ const allocation: AmnPayloadAllocation = {
 
 const token = signAmnPayloadAllocation(allocation);
 assert.deepEqual(verifyAmnPayloadAllocation(token), allocation);
-assert.throws(() => verifyAmnPayloadAllocation(`${token.slice(0, -1)}x`), /invalid/);
+const [encoded, signature] = token.split(".");
+assert.throws(() => verifyAmnPayloadAllocation(`${encoded}.${signature?.startsWith("A") ? "B" : "A"}${signature?.slice(1)}`), /invalid/);
 assert.throws(() => verifyAmnPayloadAllocation(signAmnPayloadAllocation({ ...allocation, expiresAt: "2020-01-01T00:00:00.000Z" })), /expired/);
 console.log("AMN Payload allocation: signed binding, tamper rejection and expiry passed.");
