@@ -29,5 +29,6 @@ assert.ok(selfDispatchPage.includes("OCCUPIED_BOOKING_STATUSES") && selfDispatch
 assert.ok(bookingDetail.includes("createPilotDispatchAction") && bookingDetail.includes('booking.status === "CONFIRMED"'), "A confirmed scheduled reservation proceeds to Pilot Dispatch.");
 assert.ok(ofpDetail.includes("canCancelReleasedDispatch") && ofpDetail.includes("cancelPilotBookingAction"), "A pilot must be able to cancel their future released native Dispatch from the OFP.");
 assert.ok(readFileSync(fileURLToPath(new URL("./self-dispatch.ts", import.meta.url)), "utf8").includes("self-dispatch-route:"), "Self-dispatch must serialize booking by route identity.");
+assert.ok(readFileSync(fileURLToPath(new URL("./self-dispatch.ts", import.meta.url)), "utf8").includes("allocateScheduleIdentities"), "Self-dispatch must allocate a valid unique HF/HPF identity instead of reusing the Route code.");
 assert.ok(!source.includes("flightOffer.create") && !source.includes("ofpBriefing.create") && !source.includes("acarsSession.create"));
 console.log("Scheduled Flight atomic booking contracts passed (24 focused assertions).");

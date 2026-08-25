@@ -6,6 +6,7 @@ import { checkPilotEligibility } from "./booking";
 import { aircraftIsInDelivery } from "./aircraft-delivery";
 import { fleetIsAuthorized, validateSelfDispatchWindow } from "./self-dispatch-rules";
 import { resolveAircraftState } from "./aircraft-state";
+import { allocateScheduleIdentities } from "@/lib/native-scheduling/flight-identity";
 
 const ACTIVE_BOOKING_STATUSES: PilotBookingStatus[] = ["PENDING", "CONFIRMED", "DISPATCH_PENDING", "DISPATCHED", "IN_PROGRESS", "BOOKED"];
 const ACTIVE_FLIGHT_STATUSES: NativeFlightStatus[] = ["SCHEDULED", "OPEN", "OPEN_FOR_BOOKING", "BOOKED", "DISPATCH_PENDING", "DISPATCHED", "BOARDING", "IN_PROGRESS", "DEPARTED", "AIRBORNE", "LANDED"];
@@ -68,8 +69,9 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
     const departureTimezone = route.departureAirport.timezone || "UTC", arrivalTimezone = route.arrivalAirport.timezone || "UTC";
     const dep = localParts(input.departureAt, departureTimezone), arr = localParts(arrivalAt, arrivalTimezone);
     const operatingDate = new Date(`${dep.year}-${dep.month}-${dep.day}T00:00:00.000Z`);
-    const flightNumber = route.flightNumber || route.routeCode || `HF${input.idempotencyKey.slice(0, 4).toUpperCase()}`;
-    const callsign = route.callsign || flightNumber.replace(/[^A-Z0-9]/gi, "").slice(0, 7);
+    const identity = (await allocateScheduleIdentities(tx, route.id)).outbound;
+    const flightNumber = identity.flightNumber;
+    const callsign = identity.callsign;
     const generationKey = createHash("sha256").update(`pilot-self-dispatch:${input.idempotencyKey}`).digest("hex");
     const flight = await tx.flight.create({ data: {
       dataOrigin: AocDataOrigin.HISPAFLY_NATIVE, routeId: route.id, departureAirportId: route.departureAirportId, arrivalAirportId: route.arrivalAirportId,
