@@ -25,7 +25,7 @@ export default async function EditRoute({ params, searchParams }: { params: Prom
     callsign: route.callsign,
     departureAirportId: route.departureAirportId,
     arrivalAirportId: route.arrivalAirportId,
-    defaultFleetId: route.defaultFleetId,
+    compatibleFleetIds: route.fleetAssignments.map(({ fleetId }) => fleetId),
     scheduledDurationMinutes: route.scheduledDurationMinutes,
     cruiseAltitude: route.cruiseAltitude,
     route: route.route,

@@ -37,7 +37,7 @@ export async function listRoutes(input: {
 
 export type NativeRouteInput = {
   routeCode: string; departureAirportId: string; arrivalAirportId: string;
-  flightNumber?: string | null; callsign?: string | null; defaultFleetId?: string | null;
+  flightNumber?: string | null; callsign?: string | null; defaultFleetId?: string | null; compatibleFleetIds?: string[];
   durationMinutes?: number | null; cruiseAltitude?: number | null; route?: string | null;
   networkPolicy?: string | null; effectiveFrom?: Date | null; effectiveUntil?: Date | null;
   internalNotes?: string | null; dataOrigin?: NativeOrigin; overrideConflicts?: boolean; overrideReason?: string;
@@ -45,15 +45,17 @@ export type NativeRouteInput = {
 
 async function validateReferences(tx: Prisma.TransactionClient, input: NativeRouteInput) {
   const basics = validateRouteBasics(input);
-  const [departure, arrival, fleet] = await Promise.all([
+  const compatibleFleetIds = [...new Set((input.compatibleFleetIds ?? (input.defaultFleetId ? [input.defaultFleetId] : [])).filter(Boolean))];
+  const [departure, arrival, fleets] = await Promise.all([
     tx.airport.findUnique({ where: { id: input.departureAirportId } }),
     tx.airport.findUnique({ where: { id: input.arrivalAirportId } }),
-    input.defaultFleetId ? tx.fleet.findUnique({ where: { id: input.defaultFleetId } }) : null,
+    tx.fleet.findMany({ where: { id: { in: compatibleFleetIds }, active: true, operationalStatus: "ACTIVE" } }),
   ]);
   if (!departure || !arrival) throw new Error("Route airports do not exist.");
   if (departure.status !== "ACTIVE" || arrival.status !== "ACTIVE") throw new Error("Archived or inactive airports cannot be assigned to a new route.");
-  if (input.defaultFleetId && (!fleet || fleet.operationalStatus !== "ACTIVE")) throw new Error("Default fleet must be active.");
-  return { basics, departure, arrival, fleet };
+  if (input.compatibleFleetIds && !compatibleFleetIds.length) throw new Error("Select at least one compatible fleet.");
+  if (fleets.length !== compatibleFleetIds.length) throw new Error("Every compatible fleet must be active.");
+  return { basics, departure, arrival, compatibleFleetIds };
 }
 
 async function conflictWarnings(tx: Prisma.TransactionClient, input: NativeRouteInput, routeId?: string) {
@@ -74,7 +76,7 @@ function routeData(input: NativeRouteInput, refs: Awaited<ReturnType<typeof vali
   return {
     routeCode: refs.basics.routeCode, flightNumber: refs.basics.flightNumber, callsign: refs.basics.callsign,
     departure: refs.departure.icao, arrival: refs.arrival.icao,
-    departureAirportId: refs.departure.id, arrivalAirportId: refs.arrival.id, defaultFleetId: refs.fleet?.id ?? null,
+    departureAirportId: refs.departure.id, arrivalAirportId: refs.arrival.id, defaultFleetId: refs.compatibleFleetIds[0] ?? null,
     scheduledDurationMinutes: refs.basics.durationMinutes, cruiseAltitude: input.cruiseAltitude ?? null,
     route: input.route?.trim().toUpperCase() || null, networkPolicy: input.networkPolicy?.trim() || null,
     effectiveFrom: input.effectiveFrom ?? null, effectiveUntil: input.effectiveUntil ?? null,
@@ -96,6 +98,7 @@ export async function createNativeRoute(input: NativeRouteInput, actor?: StaffId
       ...routeData(input, refs), operationalStatus: "DRAFT", syncStatus: "LOCAL_DRAFT", active: true,
       dataOrigin: input.dataOrigin ?? "HISPAFLY_NATIVE",
     } });
+    if (refs.compatibleFleetIds.length) await tx.routeFleetAssignment.createMany({ data: refs.compatibleFleetIds.map((fleetId) => ({ routeId: route.id, fleetId })), skipDuplicates: true });
     if (actor) {
       await tx.aocAuditLog.create({ data: {
         staffUserId: actorId(actor), action: "ROUTE_CREATED", entityType: "Route", entityId: route.id,
@@ -118,10 +121,12 @@ export async function updateNativeRoute(id: string, input: NativeRouteInput, act
     const refs = await validateReferences(tx, input), warnings = await conflictWarnings(tx, input, id);
     await assertConflictOverride(warnings, input);
     const route = await tx.route.update({ where: { id }, data: routeData(input, refs) });
+    await tx.routeFleetAssignment.deleteMany({ where: { routeId: id } });
+    if (refs.compatibleFleetIds.length) await tx.routeFleetAssignment.createMany({ data: refs.compatibleFleetIds.map((fleetId) => ({ routeId: id, fleetId })), skipDuplicates: true });
     await tx.aocAuditLog.create({ data: {
       staffUserId: actorId(actor), action: "ROUTE_UPDATED", entityType: "Route", entityId: id,
       message: `${actor.name} updated Native route ${route.routeCode}.`,
-      metadata: { before: { routeCode: before.routeCode, flightNumber: before.flightNumber, status: before.operationalStatus }, after: routeData(input, refs), warnings, overrideReason: input.overrideReason ?? null },
+      metadata: { before: { routeCode: before.routeCode, flightNumber: before.flightNumber, status: before.operationalStatus }, after: { ...routeData(input, refs), compatibleFleetIds: refs.compatibleFleetIds }, warnings, overrideReason: input.overrideReason ?? null },
     } });
     return route;
   }, { isolationLevel: "Serializable" });
@@ -151,13 +156,13 @@ export async function changeRouteStatus(id: string, status: RouteOperationalStat
 }
 
 export async function copyRouteToNativeDraft(id: string, input: { routeCode: string; overrideConflicts?: boolean; overrideReason?: string }, actor: StaffIdentity) {
-  const source = await prisma.route.findUnique({ where: { id } });
+  const source = await prisma.route.findUnique({ where: { id }, include: { fleetAssignments: true } });
   if (!source) throw new Error("Route not found.");
   if (!source.departureAirportId || !source.arrivalAirportId) throw new Error("Legacy route must be mapped to internal airports before it can be copied.");
   const copy = await createNativeRoute({
     routeCode: input.routeCode, flightNumber: source.flightNumber, callsign: source.callsign,
     departureAirportId: source.departureAirportId, arrivalAirportId: source.arrivalAirportId,
-    defaultFleetId: source.defaultFleetId, durationMinutes: source.scheduledDurationMinutes,
+    compatibleFleetIds: source.fleetAssignments.map(({ fleetId }) => fleetId), durationMinutes: source.scheduledDurationMinutes,
     cruiseAltitude: source.cruiseAltitude, route: source.route, networkPolicy: source.networkPolicy,
     effectiveFrom: source.effectiveFrom, effectiveUntil: source.effectiveUntil, internalNotes: source.internalNotes,
     dataOrigin: "HISPAFLY_NATIVE", overrideConflicts: input.overrideConflicts, overrideReason: input.overrideReason,

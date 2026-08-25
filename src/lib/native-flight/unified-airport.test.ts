@@ -19,7 +19,7 @@ assert.match(airportService, /action: status === "ARCHIVED" \? "AIRPORT_ARCHIVED
 
 // Route selectors include every active airport, regardless of provenance.
 for (const page of [routeCreatePage, routeEditPage]) {
-  assert.match(page, /airport\.findMany\(\{ where: \{ status: "ACTIVE" \}/);
+  assert.match(page, /airport\.findMany\(\{[\s\S]{0,80}where: \{ status: "ACTIVE" \}/);
   const airportQuery = page.match(/prisma\.airport\.findMany\([^\n]+/)?.[0] ?? "";
   assert.doesNotMatch(airportQuery, /dataOrigin|VAMSYS_LEGACY/);
 }

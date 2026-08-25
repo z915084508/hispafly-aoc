@@ -7,7 +7,7 @@ import styles from "./route-form.module.css";
 type Option = { id: string; label: string };
 type RouteValue = {
   id?: string; routeCode?: string | null; flightNumber?: string | null; callsign?: string | null;
-  departureAirportId?: string | null; arrivalAirportId?: string | null; defaultFleetId?: string | null;
+  departureAirportId?: string | null; arrivalAirportId?: string | null; compatibleFleetIds?: string[];
   scheduledDurationMinutes?: number | null; cruiseAltitude?: number | null; route?: string | null;
   networkPolicy?: string | null; effectiveFrom?: Date | null; effectiveUntil?: Date | null; internalNotes?: string | null;
 };
@@ -35,7 +35,7 @@ export function RouteForm({ action, route, airports, fleets, submitLabel }: {
   const editing = Boolean(route?.id);
   const [departureAirportId, setDepartureAirportId] = useState(route?.departureAirportId ?? "");
   const [arrivalAirportId, setArrivalAirportId] = useState(route?.arrivalAirportId ?? "");
-  const [defaultFleetId, setDefaultFleetId] = useState(route?.defaultFleetId ?? "");
+  const [compatibleFleetIds, setCompatibleFleetIds] = useState(route?.compatibleFleetIds ?? []);
   const [createReturnRoute, setCreateReturnRoute] = useState(!editing);
   const [routeCode, setRouteCode] = useState(route?.routeCode ?? "");
   const [durationMinutes, setDurationMinutes] = useState(route?.scheduledDurationMinutes?.toString() ?? "");
@@ -52,7 +52,7 @@ export function RouteForm({ action, route, airports, fleets, submitLabel }: {
     if (editing) return;
     const departure = next.departureAirportId ?? departureAirportId;
     const arrival = next.arrivalAirportId ?? arrivalAirportId;
-    const fleet = next.defaultFleetId ?? defaultFleetId;
+    const fleet = next.defaultFleetId ?? compatibleFleetIds[0] ?? "";
     const includeReturn = next.createReturnRoute ?? createReturnRoute;
     if (!departure || !arrival || departure === arrival) {
       setPreview(null);
@@ -106,7 +106,7 @@ export function RouteForm({ action, route, airports, fleets, submitLabel }: {
       <div className="route-form-grid">
         <label>Departure airport<select name="departureAirportId" required value={departureAirportId} disabled={editing} onChange={(event) => { const next = event.target.value; setDepartureAirportId(next); refreshPreview({ departureAirportId: next }); }}><option value="">Select departure</option>{airports.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>{editing && <input type="hidden" name="departureAirportId" value={departureAirportId}/>}<small>{editing ? "Locked after identity allocation" : "Select the operating origin"}</small></label>
         <label>Arrival airport<select name="arrivalAirportId" required value={arrivalAirportId} disabled={editing} onChange={(event) => { const next = event.target.value; setArrivalAirportId(next); refreshPreview({ arrivalAirportId: next }); }}><option value="">Select arrival</option>{airports.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>{editing && <input type="hidden" name="arrivalAirportId" value={arrivalAirportId}/>}<small>{editing ? "Locked after identity allocation" : "Select the operating destination"}</small></label>
-        <label>Default fleet<select name="defaultFleetId" value={defaultFleetId} onChange={(event) => { const next = event.target.value; setDefaultFleetId(next); refreshPreview({ defaultFleetId: next }); }}><option value="">No default fleet</option>{fleets.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select><small>Fleet cruise speed improves the duration estimate</small></label>
+        <label>Compatible fleets<select name="compatibleFleetIds" multiple required size={Math.min(8, Math.max(4, fleets.length))} value={compatibleFleetIds} onChange={(event) => { const next = [...event.currentTarget.selectedOptions].map((option) => option.value); setCompatibleFleetIds(next); refreshPreview({ defaultFleetId: next[0] ?? "" }); }}>{fleets.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select><small>Select every fleet authorized on this route. The first selection is used only for the duration estimate.</small></label>
         <label>Network policy<input name="networkPolicy" placeholder={preview?.marketLabel ?? "Automatically use market classification"} defaultValue={route?.networkPolicy ?? ""}/><small>Leave blank to store the automatic market classification</small></label>
       </div>
       {!editing && <label className={styles.returnToggle}>

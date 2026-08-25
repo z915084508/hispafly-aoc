@@ -22,7 +22,9 @@ assert.equal(periodsOverlap(new Date("2026-01-01"), new Date("2026-01-31"), new 
 const routeService = readFileSync(new URL("./route.ts", import.meta.url), "utf8");
 assert.doesNotMatch(routeService, /@\/lib\/vamsys|fetch\(|axios|VAMSYS_API/);
 assert.match(routeService, /departureAirportId/);
-assert.match(routeService, /defaultFleetId/);
+assert.match(routeService, /compatibleFleetIds/);
+assert.match(routeService, /routeFleetAssignment\.createMany/);
+assert.match(routeService, /routeFleetAssignment\.deleteMany/);
 assert.match(routeService, /LEGACY_ROUTE_COPIED/);
 
 const schema = readFileSync(new URL("../../../prisma/schema.prisma", import.meta.url), "utf8");

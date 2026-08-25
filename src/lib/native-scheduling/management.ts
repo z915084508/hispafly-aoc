@@ -22,12 +22,14 @@ async function prepareCreateRaw(raw: Record<string, unknown>) {
 
 async function assertReferencesAndCode(input: ScheduleDraftInput, excludeId?: string) {
   const [route, fleets, duplicate] = await Promise.all([
-    prisma.route.findUnique({ where: { id: input.routeId }, select: { id: true } }),
+    prisma.route.findUnique({ where: { id: input.routeId }, select: { id: true, fleetAssignments: { select: { fleetId: true } } } }),
     prisma.fleet.findMany({ where: { id: { in: input.eligibleFleetIds } }, select: { id: true } }),
     prisma.flightSchedule.findFirst({ where: { code: input.code, id: excludeId ? { not: excludeId } : undefined }, select: { id: true } }),
   ]);
   if (!route) throw new ScheduleManagementError("ROUTE_NOT_FOUND", "La ruta seleccionada no existe.");
   if (fleets.length !== input.eligibleFleetIds.length) throw new ScheduleManagementError("FLEET_NOT_FOUND", "Una de las flotas elegibles no existe.");
+  const compatibleFleetIds = route.fleetAssignments.map(({ fleetId }) => fleetId);
+  if (compatibleFleetIds.length && input.eligibleFleetIds.some((fleetId) => !compatibleFleetIds.includes(fleetId))) throw new ScheduleManagementError("FLEET_NOT_COMPATIBLE", "Una de las flotas elegibles no está autorizada en esta ruta.");
   if (duplicate) throw new ScheduleManagementError("DUPLICATE_CODE", "Ya existe una programación con este código.");
 }
 

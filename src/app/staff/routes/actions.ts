@@ -14,7 +14,7 @@ function routeInput(form: FormData) {
   return {
     routeCode: value(form, "routeCode"), flightNumber: value(form, "flightNumber"),
     callsign: value(form, "callsign"), departureAirportId: value(form, "departureAirportId"),
-    arrivalAirportId: value(form, "arrivalAirportId"), defaultFleetId: value(form, "defaultFleetId") || null,
+    arrivalAirportId: value(form, "arrivalAirportId"), compatibleFleetIds: form.getAll("compatibleFleetIds").map(String),
     durationMinutes: optionalNumber(form, "durationMinutes"), cruiseAltitude: optionalNumber(form, "cruiseAltitude"),
     route: value(form, "route"), networkPolicy: value(form, "networkPolicy"),
     effectiveFrom: optionalDate(form, "effectiveFrom"), effectiveUntil: optionalDate(form, "effectiveUntil"),
@@ -26,7 +26,7 @@ function automaticRouteInput(form: FormData) {
   return {
     departureAirportId: value(form, "departureAirportId"),
     arrivalAirportId: value(form, "arrivalAirportId"),
-    defaultFleetId: value(form, "defaultFleetId") || null,
+    compatibleFleetIds: form.getAll("compatibleFleetIds").map(String),
     durationMinutes: optionalNumber(form, "durationMinutes"),
     cruiseAltitude: optionalNumber(form, "cruiseAltitude"),
     route: value(form, "route"),

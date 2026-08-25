@@ -17,6 +17,7 @@ type AutomaticRouteInput = {
   departureAirportId: string;
   arrivalAirportId: string;
   defaultFleetId?: string | null;
+  compatibleFleetIds?: string[];
   durationMinutes?: number | null;
   cruiseAltitude?: number | null;
   route?: string | null;
@@ -53,22 +54,27 @@ async function loadReferences(tx: Prisma.TransactionClient, input: AutomaticRout
   if (input.departureAirportId === input.arrivalAirportId) throw new Error("Departure and arrival airports must differ.");
   validateEffectivePeriod(input.effectiveFrom, input.effectiveUntil);
 
-  const [departure, arrival, fleet] = await Promise.all([
+  const compatibleFleetIds = [...new Set((input.compatibleFleetIds ?? (input.defaultFleetId ? [input.defaultFleetId] : [])).filter(Boolean))];
+  const referenceFleetId = input.defaultFleetId ?? compatibleFleetIds[0] ?? null;
+  const [departure, arrival, fleet, compatibleFleets] = await Promise.all([
     tx.airport.findUnique({ where: { id: input.departureAirportId }, select: {
       id: true, icao: true, iata: true, country: true, latitude: true, longitude: true, status: true,
     } }),
     tx.airport.findUnique({ where: { id: input.arrivalAirportId }, select: {
       id: true, icao: true, iata: true, country: true, latitude: true, longitude: true, status: true,
     } }),
-    input.defaultFleetId ? tx.fleet.findUnique({ where: { id: input.defaultFleetId }, select: {
+    referenceFleetId ? tx.fleet.findUnique({ where: { id: referenceFleetId }, select: {
       id: true, code: true, name: true, cruiseSpeedKts: true, operationalStatus: true,
     } }) : null,
+    compatibleFleetIds.length ? tx.fleet.findMany({ where: { id: { in: compatibleFleetIds }, active: true, operationalStatus: "ACTIVE" }, select: { id: true } }) : [],
   ]);
 
   if (!departure || !arrival) throw new Error("Route airports do not exist.");
   if (departure.status !== "ACTIVE" || arrival.status !== "ACTIVE") throw new Error("Both airports must be active.");
-  if (input.defaultFleetId && (!fleet || fleet.operationalStatus !== "ACTIVE")) throw new Error("Default fleet must be active.");
-  return { departure: departure as AirportReference, arrival: arrival as AirportReference, fleet: fleet as FleetReference | null };
+  if (referenceFleetId && (!fleet || fleet.operationalStatus !== "ACTIVE")) throw new Error("Reference fleet must be active.");
+  if (input.compatibleFleetIds && !compatibleFleetIds.length) throw new Error("Select at least one compatible fleet.");
+  if (compatibleFleets.length !== compatibleFleetIds.length) throw new Error("Every compatible fleet must be active.");
+  return { departure: departure as AirportReference, arrival: arrival as AirportReference, fleet: fleet as FleetReference | null, compatibleFleetIds };
 }
 
 function planningDefaults(refs: Awaited<ReturnType<typeof loadReferences>>, requestedDuration?: number | null) {
@@ -148,6 +154,7 @@ async function createInTransaction(tx: Prisma.TransactionClient, input: Automati
     durationMinutes: planning.durationMinutes,
     marketLabel,
   }) });
+  if (refs.compatibleFleetIds.length) await tx.routeFleetAssignment.createMany({ data: refs.compatibleFleetIds.map((fleetId) => ({ routeId: outbound.id, fleetId })), skipDuplicates: true });
   await tx.routeIdentityReservation.create({ data: {
     routeId: outbound.id,
     flightNumber: identities.outbound.flightNumber,
@@ -166,6 +173,7 @@ async function createInTransaction(tx: Prisma.TransactionClient, input: Automati
       durationMinutes: planning.durationMinutes,
       marketLabel,
     }) });
+    if (refs.compatibleFleetIds.length) await tx.routeFleetAssignment.createMany({ data: refs.compatibleFleetIds.map((fleetId) => ({ routeId: returnRoute!.id, fleetId })), skipDuplicates: true });
     await tx.routeIdentityReservation.create({ data: {
       routeId: returnRoute.id,
       flightNumber: identities.return.flightNumber,
@@ -185,6 +193,7 @@ async function createInTransaction(tx: Prisma.TransactionClient, input: Automati
       marketType,
       marketLabel,
       planning,
+      compatibleFleetIds: refs.compatibleFleetIds,
       outboundRouteId: outbound.id,
       returnRouteId: returnRoute?.id ?? null,
       outboundIdentity: identities.outbound,
