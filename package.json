@@ -21,6 +21,7 @@
     "test:economy": "node --experimental-strip-types src/lib/economy/handling.test.ts",
     "test:dispatch": "node --experimental-strip-types src/lib/dispatch/loadFactor.test.ts && node --experimental-strip-types src/lib/payload/policy.test.ts",
     "test:amn-payload": "node --experimental-strip-types src/lib/amn/payload.test.ts",
+    "test:amn-export": "node --experimental-strip-types src/lib/amn/export-contract.test.ts",
     "test:flight-identity": "node --experimental-strip-types src/lib/dispatch/flightIdentity.test.ts",
     "test:simbrief-pdf": "node --experimental-strip-types src/lib/simbrief/pdf.test.ts",
     "test:simbrief-user-id": "node --experimental-strip-types src/lib/simbrief/userId.test.ts",

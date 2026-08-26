@@ -1,0 +1,3 @@
+import assert from "node:assert/strict";import { buildAmnExport } from "./export-contract.ts";
+const date=new Date("2026-08-27T10:00:00Z");const result=buildAmnExport({generatedAt:date,aircraft:[{id:"a1",registration:"EC-ABC",aircraftType:"A320",seatCapacity:null,cargoCapacityKg:null,updatedAt:date}],routes:[{id:"r1",departureAirport:{iata:"MAD"},arrivalAirport:{iata:"BCN"},operationalStatus:"ACTIVE",updatedAt:date}],flights:[]});
+assert.equal(result.fleet.length,1);assert.equal(result.routes.length,1);assert.equal(result.airports.length,2);assert.equal(result.issues[0]?.code,"CONFIGURATION_REQUIRED");console.log("HISPAFLY AMN read-only export contract validated.");
