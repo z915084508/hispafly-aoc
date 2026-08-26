@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requirePilotSession } from "@/lib/pilot/session";
 import { prisma } from "@/lib/prisma";
 import { requestAmnPayload, signAmnPayloadAllocation } from "@/lib/amn/payload";
+import { writeAuditLogSafely } from "@/lib/audit/log";
 
 function fallbackFlightNumber(route: { id: string; callsign: string | null; routeCode: string | null }) {
   const explicit = route.callsign?.trim() || route.routeCode?.trim();
@@ -12,9 +13,15 @@ function fallbackFlightNumber(route: { id: string; callsign: string | null; rout
 }
 
 export async function POST(request: Request) {
+  let pilotId: string | null = null;
+  let routeId: string | null = null;
+  let aircraftId: string | null = null;
   try {
-    await requirePilotSession();
+    const pilot = await requirePilotSession();
+    pilotId = pilot.id;
     const body = await request.json() as { routeId?: string; aircraftId?: string; departureAt?: string; idempotencyKey?: string };
+    routeId = body.routeId ?? null;
+    aircraftId = body.aircraftId ?? null;
     const departureAt = new Date(String(body.departureAt ?? ""));
     if (!body.routeId || !body.aircraftId || !body.idempotencyKey || Number.isNaN(departureAt.getTime())) throw new Error("Select a route, aircraft and valid UTC departure first.");
     const [route, aircraft] = await Promise.all([
@@ -82,13 +89,20 @@ export async function POST(request: Request) {
       idempotencyKey: `aoc:${requestIdentity}`,
       loadStage: "FINAL",
     });
+    await writeAuditLogSafely({ action: "AMN_AUTOPAYLOAD_ALLOCATED", entityType: "Pilot", entityId: pilotId, message: "AMN AutoPayload allocation succeeded.", metadata: { pilotId, routeId, aircraftId, externalFlightId, payloadRequestId: allocation.payloadRequestId, marketSnapshotId: allocation.marketSnapshotId } });
     return NextResponse.json({ allocation, token: signAmnPayloadAllocation(allocation), externalFlightId }, {
       status: 201,
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "AMN Payload request failed." }, {
-      status: 422,
+    const message = error instanceof Error ? error.message : "AMN Payload request failed.";
+    await writeAuditLogSafely({ action: "AMN_AUTOPAYLOAD_FAILED", entityType: "Pilot", entityId: pilotId, message, metadata: { pilotId, routeId, aircraftId } });
+    const status = /timed out|timeout|abort/i.test(message) ? 504
+      : /credential|configured|access/i.test(message) ? 503
+      : /MISMATCH|LOCKED|CONFLICT|ALREADY/i.test(message) ? 409
+      : 422;
+    return NextResponse.json({ error: message }, {
+      status,
       headers: { "Cache-Control": "no-store" },
     });
   }

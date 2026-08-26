@@ -207,7 +207,12 @@ export async function generateDispatchSimBriefOfp(input: { ofpId: string; pilotI
     if (fuelPolicy.tankering) await writeAuditLogSafely({ staffUserId: input.staffUserId, action: "TANKERING_APPLIED", entityType: "OfpBriefing", entityId: ofp.id, message: "Tankering recommendation applied to the generated SimBrief OFP.", metadata: { pilotId: input.pilotId, recommendedKg: fuelPolicy.tankering.recommendedKg, estimatedSavingCents: fuelPolicy.tankering.estimatedSavingCents } });
     await writeAuditLogSafely({ staffUserId: input.staffUserId, action: alternateIcao ? "SIMBRIEF_OFP_GENERATED_WITH_ALTERNATE" : "SIMBRIEF_OFP_GENERATED", entityType: "OfpBriefing", entityId: ofp.id, message: "SimBrief OFP generated and saved to AOC.", metadata: { pilotId: input.pilotId, dispatchId: dispatch.id, staticId, hasPdf: Boolean(pdfUrl), hasOfpUrl: Boolean(ofpUrl), alternateIcao } });
     if (dispatch.dataOrigin === "HISPAFLY_NATIVE" && dispatch.booking?.amnPayloadRequestId) {
-      const externalFlightId = offer.flightNumber ?? dispatch.booking.flightNumber;
+      const amnProvenance = dispatch.booking.amnPayloadProvenance && typeof dispatch.booking.amnPayloadProvenance === "object" && !Array.isArray(dispatch.booking.amnPayloadProvenance)
+        ? dispatch.booking.amnPayloadProvenance as Record<string, unknown>
+        : null;
+      const externalFlightId = typeof amnProvenance?.externalFlightId === "string"
+        ? amnProvenance.externalFlightId
+        : offer.flightNumber ?? dispatch.booking.flightNumber;
       if (!externalFlightId) throw new Error("AMN Payload confirmation requires the original flight number.");
       await confirmAmnPayload({
         payloadRequestId: dispatch.booking.amnPayloadRequestId,

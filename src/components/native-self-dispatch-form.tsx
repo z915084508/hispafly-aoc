@@ -68,7 +68,12 @@ export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbr
     if (!routeId || !aircraftId || !departureAt || locked) return;
     setAmnLoading(true); setAmnError(""); setAmnAllocation(null); setAmnToken("");
     try {
-      const response = await fetch("/api/amn/payload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ routeId, aircraftId, departureAt: `${departureAt}:00Z`, idempotencyKey }) });
+      // Each click is a distinct allocation attempt. Reusing the page's booking
+      // idempotency key made a transient failed AMN request poison every retry.
+      const attemptId = typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const response = await fetch("/api/amn/payload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ routeId, aircraftId, departureAt: `${departureAt}:00Z`, idempotencyKey: `${idempotencyKey}:${attemptId}` }) });
       const body = await response.json() as { allocation?: AmnAllocation; token?: string; error?: string };
       if (!response.ok || !body.allocation || !body.token) throw new Error(body.error || "AMN Payload request failed.");
       setAmnAllocation(body.allocation); setAmnToken(body.token);

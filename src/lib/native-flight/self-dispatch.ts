@@ -101,7 +101,7 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
       network: input.network || "vatsim", altitude: input.altitude || route.cruiseAltitude, passengers, cargoKg, loadFactorPercent,
       baggageKgPerPassenger, luggageKg, freightKg, userRoute: input.userRoute || route.route,
       amnPayloadRequestId: input.amnAllocation.payloadRequestId, amnMarketSnapshotId: input.amnAllocation.marketSnapshotId, amnPayloadStage: input.amnAllocation.loadStage,
-      amnPayloadProvenance: input.amnAllocation.provenance as Prisma.InputJsonValue,
+      amnPayloadProvenance: { ...input.amnAllocation.provenance, externalFlightId: input.amnAllocation.externalFlightId } as Prisma.InputJsonValue,
       expiresAt: input.departureAt, idempotencyKey: input.idempotencyKey, operationalNotes: "Created through HispaFly Native pilot self-dispatch.",
     } });
     await tx.aocAuditLog.create({ data: { action: "PILOT_NATIVE_SELF_DISPATCH_CREATED", entityType: "PilotBooking", entityId: booking.id, message: `Pilot created self-dispatch ${flightNumber} ${flight.departureIcao}-${flight.arrivalIcao} with AMN Payload.`, metadata: { pilotId: input.pilotId, flightId: flight.id, routeId: route.id, aircraftId: aircraft.id, departureAt: input.departureAt.toISOString(), amnPayloadRequestId: input.amnAllocation.payloadRequestId, amnMarketSnapshotId: input.amnAllocation.marketSnapshotId, baggagePolicyId: HISPAFLY_PAYLOAD_POLICY.policyId, baggageKgPerPassenger } as Prisma.InputJsonValue } });

@@ -63,7 +63,11 @@ async function amnPost<T>(path: string, body: unknown, idempotencyKey: string): 
     },
     body: JSON.stringify(body),
     cache: "no-store",
-    signal: AbortSignal.timeout(15_000),
+    // The live endpoint resolves the source flight, snapshots the market and then
+    // assembles the allocation. A 15 second client deadline could expire while
+    // AMN was still completing those writes, leaving a valid hold behind while
+    // the pilot saw a failure.
+    signal: AbortSignal.timeout(45_000),
   });
   const payload = await response.json().catch(() => null) as T & { error?: { code?: string; message?: string } } | null;
   if (!response.ok || !payload) {
