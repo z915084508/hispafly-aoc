@@ -12,7 +12,7 @@ export async function applyEventDisposition(db: PrismaClient, input: { pirepId: 
     if (!pirep) throw new Error("PIREP not found.");
     const event = pirep.operationalEvents.find(e => e.id === eventId);
     if (!event) throw new Error("Operational event not found in this PIREP.");
-    const policy = await loadScoringPolicy(tx, pirep.flightDispatch?.flight.fleetId);
+    const policy = await loadScoringPolicy(tx, pirep.flightDispatch?.flight?.fleetId);
     const efficiency = finite(object(pirep.scoringDetails).efficiencyScore);
     const scoring = dispositionScore(policy, pirep.operationalEvents, eventId, status, efficiency, { landingG: pirep.landingG, landingRate: pirep.landingRate });
     await tx.operationalEvent.update({ where: { id: event.id }, data: { status, dispositionReason: reason, reviewedById: staff.id, reviewedByName: staff.name, reviewedAt: new Date() } });

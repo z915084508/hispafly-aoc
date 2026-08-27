@@ -59,7 +59,7 @@ async function calibrateFuelBias(vamsysAircraftId: string | null, reportId: stri
 
 export async function createOrUpdateFlightAnalysis(pirepId: string) {
   const pirep = await prisma.pirep.findUnique({ where: { id: pirepId }, include: { flightDispatch: { include: { ofpBriefing: true, flight: { select: { fleetId: true } } } }, flightAnalysisReport: true, operationalEvents: true } });
-  if (!pirep || pirep.status !== "accepted") return null;
+  if (!pirep) return null;
   const ofp = pirep.flightDispatch?.ofpBriefing?.status === "SIGNED" ? pirep.flightDispatch.ofpBriefing : null;
   const planned = plannedValues(ofp?.ofpSnapshot);
   const actualBlockMinutes = pirep.blockTimeMinutes;
@@ -110,6 +110,6 @@ export async function createOrUpdateFlightAnalysis(pirepId: string) {
     for (const item of applied) if (item.eventId) await tx.operationalEvent.update({ where: { id: item.eventId }, data: { scoreImpact: item.impact, requiresReview: item.requiresReview } });
   });
   if (created) await writeAuditLogSafely({ action: "FLIGHT_ANALYSIS_CREATED", entityType: "FlightAnalysisReport", entityId: report.id, message: "Post-flight planned versus actual analysis created.", metadata: { pirepId, ofpBriefingId: ofp?.id ?? null, efficiencyScore: score, fuelDataComplete } });
-  await calibrateFuelBias(pirep.vamsysAircraftId, report.id);
+  if (pirep.status === "accepted") await calibrateFuelBias(pirep.vamsysAircraftId, report.id);
   return report;
 }

@@ -180,14 +180,28 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
     const diverted = actualAirport.icao !== dispatch.flight.arrivalIcao;
     const flightDistanceNm = greatCircleDistanceNm(dispatch.flight.departureAirport, actualAirport);
     const operationalEvents = normalizeOperationalEvents(events, operationalBuffer, sessionId);
+    // An interrupted/restarted client may never send closure. Retain that evidence without estimating duration or peak.
+    for (const event of operationalEvents) {
+      if (event.source === "ACARS_FOQA" && event.scoreEligible && !event.endedAt) {
+        event.status = "DATA_QUALITY"; event.scoreEligible = false; event.scoreImpact = 0;
+        event.metadata.dataQualityReason = "Episode closure missing at completion";
+      }
+    }
+    // Touchdown sensor/completion evidence is authoritative for landing quality. Do not also score a client FOQA copy.
+    const clientLandingEvidence = operationalEvents.filter(e => e.eventType === "LANDING_QUALITY");
     const touchdowns = events.filter(e => e.type === "Landing");
+    if (touchdowns.length || landingG != null || landingRate != null)
+      for (let i = operationalEvents.length - 1; i >= 0; i--) if (operationalEvents[i].eventType === "LANDING_QUALITY") operationalEvents.splice(i, 1);
     for (const [index, touchdown] of touchdowns.entries()) {
       operationalEvents.push({ episodeId: `touchdown:${touchdown.sequenceNumber}`, eventType: "LANDING_QUALITY", ruleCode: "LANDING_QUALITY_V2",
         timestamp: touchdown.recordedAt, startedAt: touchdown.recordedAt, confirmedAt: touchdown.recordedAt,
         status: "CONFIRMED", severity: "INFO", flightPhase: "LANDING", source: "AOC_AUTO", scoreEligible: true,
         scoreImpact: 0, originalImpact: 0, requiresReview: false,
-        metadata: { landingG: index === touchdowns.length - 1 ? landingG : null, landingRate: touchdown.numericValue ?? landingRate } });
+        metadata: { landingG: index === touchdowns.length - 1 ? landingG : null, landingRate: touchdown.numericValue ?? landingRate, clientLandingEvidence: clientLandingEvidence.map(e => e.metadata) } });
     }
+    if (!touchdowns.length && (landingG != null || landingRate != null)) operationalEvents.push({ episodeId: "completion-touchdown", eventType: "LANDING_QUALITY", ruleCode: "LANDING_QUALITY_V2", timestamp: completedAt,
+      status: "CONFIRMED", severity: "INFO", flightPhase: "LANDING", source: "AOC_AUTO", scoreEligible: true, scoreImpact: 0, originalImpact: 0, requiresReview: false,
+      metadata: { landingG, landingRate, evidenceSource: "COMPLETION_SUMMARY" } });
     if (diverted && !operationalEvents.some(e => e.eventType === "DIVERSION")) operationalEvents.push({ episodeId: "diversion", eventType: "DIVERSION", ruleCode: "DIVERSION_V2", timestamp: completedAt,
       severity: "NOTICE", status: "CONFIRMED", source: "AOC_AUTO", flightPhase: "Completed", scoreEligible: true, scoreImpact: 0, originalImpact: 0, requiresReview: true,
       metadata: { plannedDestination: dispatch.flight.arrivalIcao, actualDestination: actualAirport.icao } });
@@ -241,7 +255,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
       blockTimeMinutes: telemetry.blockTimeMinutes,
     });
     if (validation.status === "accepted" && scoring.invalidated) validation = { status: "rejected", rejectCode: "R07", comment: "The scoring policy detected an invalid flight-integrity event." };
-    else if (validation.status === "accepted" && scoring.requiresReview) validation = { status: "manual_review", rejectCode: "R07", comment: "The scoring policy requires Staff review of a flight-integrity event." };
+    else if (validation.status === "accepted" && scoring.requiresReview) validation = { status: "manual_review", rejectCode: "R07", comment: "A confirmed FOQA episode requires Staff review." };
     const pirep = await tx.pirep.create({
       data: {
         dataOrigin: "HISPAFLY_NATIVE", acarsSessionId: sessionId, pilotId,
@@ -267,7 +281,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
           ...fuelEconomics,
         } as Prisma.InputJsonValue,
         status: validation.status, rejectCode: validation.rejectCode, staffComment: validation.comment,
-        reviewedByName: validation.status === "accepted" ? "HISPAFLY ACARS Policy v1" : "HISPAFLY ACARS Automatic Validation",
+        reviewedByName: validation.status === "accepted" ? "HISPAFLY ACARS Policy v2" : "HISPAFLY ACARS Automatic Validation",
         reviewedAt: completedAt,
         rejectedAt: validation.status === "rejected" ? completedAt : null,
         acceptedAt: validation.status === "accepted" ? completedAt : null,
@@ -310,6 +324,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
   if (body.completed && pirepId) {
     const completedPirep = await prisma.pirep.findUnique({ where: { id: pirepId }, select: { status: true } });
     if (completedPirep?.status === "accepted") await completeNativePirepPostProcessing(pirepId);
+    else await createOrUpdateFlightAnalysis(pirepId);
     await syncPilotAutomaticRank(pilotId);
   }
   return { acceptedPositions: body.positions?.length ?? 0, acceptedEvents: body.events?.length ?? 0, completed: Boolean(body.completed), pirepId };

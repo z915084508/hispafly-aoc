@@ -37,3 +37,14 @@ const bonus=score([overspeed,...Array.from({length:10},(_,i)=>event("STABLE_APPR
 assert.equal(bonus.operationalScore,100);
 assert.equal((bonus.details as {positiveBonus:number}).positiveBonus,5);
 console.log("FOQA v2 scoring and disposition regression tests passed");
+assert.equal(score([event("CLIMB_GEAR_LATE",{...gear,peakValue:2000,durationSeconds:60})]).operationalScore,97);
+const approach=(recovered=false):ScoringEvent=>event("UNSTABLE_APPROACH",{timestamp:"2026-08-27T18:00:00Z",durationSeconds:10,metadata:{minimumRadioAltitudeFeet:400,endReason:recovered?"Condition recovered":null}});
+const outcome=(type:string)=>event(type,{timestamp:"2026-08-27T18:01:00Z",scoreEligible:false});
+assert.equal(score([approach(),outcome("GO_AROUND")]).operationalScore,98);
+assert.equal(score([approach(),outcome("LANDING")]).operationalScore,90);
+assert.equal(score([approach(true),outcome("LANDING")]).operationalScore,98);
+assert.equal(score([event("GEAR_OVERSPEED",{threshold:250,peakValue:254})]).operationalScore,95);
+assert.equal(score([event("FLAP_OVERSPEED",{threshold:200,peakValue:216})]).operationalScore,85);
+assert.equal(score([event("LOW_LANDING_FUEL",{threshold:1000,value:700})]).requiresReview,true);
+const invalidationPolicy={...policy,rules:policy.rules.map(r=>r.code==="SLEW"?{...r,action:"INVALIDATE" as const}:r)};
+assert.equal(calculatePirepScore(invalidationPolicy,[event("SLEW")],100).invalidated,true);

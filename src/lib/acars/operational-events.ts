@@ -48,7 +48,11 @@ export function normalizeOperationalEvents(events: RawEvent[], operationalEvents
     const snapshot = get(payload, "Snapshot") ?? input.aircraftSnapshot ?? null;
     // Missing/invalid normalization cannot become a pilot deviation, even on older clients.
     if (["CLIMB_GEAR_LATE", "CRUISE_GEAR"].includes(eventType) &&
-      (get(snapshot, "IsGearRetractable") !== true || get(snapshot, "IsOnGround") !== false || finite(get(snapshot, "GearPositionPercent")) == null)) status = "DATA_QUALITY";
+      (get(snapshot, "IsGearRetractable") !== true || get(snapshot, "IsOnGround") !== false || finite(get(snapshot, "GearPositionPercent")) == null || Number(get(snapshot, "GearPositionPercent")) < 0 || Number(get(snapshot, "GearPositionPercent")) > 100)) status = "DATA_QUALITY";
+    if (/FLAPS|FLAP_INVALID|FLAP_OVERSPEED/.test(eventType) && foqa) {
+      const flaps = finite(get(snapshot, "FlapsPositionPercent"));
+      if (flaps == null || flaps < 0 || flaps > 100) status = "DATA_QUALITY";
+    }
     const severityValue = get(payload, "Severity") ?? input.severity;
     const severity = typeof severityValue === "number" ? ["INFO", "MINOR", "MAJOR", "SEVERE"][severityValue] ?? "INFO" : String(severityValue ?? "INFO").toUpperCase();
     const eligible = status === "CONFIRMED" && (get(payload, "ScoreEligible") ?? input.scoreEligible ?? (foqa || ["TIME_ACCELERATION", "SLEW", "DIVERSION"].includes(eventType))) === true;

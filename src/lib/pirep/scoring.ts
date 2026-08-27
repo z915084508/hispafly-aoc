@@ -71,7 +71,7 @@ export function scoreEvent(e: ScoringEvent, events: ScoringEvent[] = []): { impa
     if (field(snap, "IsGearRetractable") !== true || field(snap, "IsOnGround") !== false || gear == null || gear <= 5 || gear > 100) return none;
     if (code === "CRUISE_GEAR") return penalty(duration >= 60 ? 12 : 8, duration >= 60);
     if (peak == null) return none;
-    return penalty(peak > 5000 || duration >= 60 ? 6 : peak > 2500 || duration >= 15 ? 3 : 1, duration >= 60);
+    return penalty(peak > 5000 || duration > 60 ? 6 : peak > 2500 || duration >= 15 ? 3 : 1, duration > 60);
   }
   if (["GEAR_OVERSPEED", "DESCENT_GEAR_SPEED", "FLAP_OVERSPEED"].includes(code)) {
     const threshold = finite(e.threshold); if (peak == null || threshold == null || peak <= threshold) return none;
