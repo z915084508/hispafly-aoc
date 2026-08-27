@@ -1,3 +1,4 @@
+import { PirepScoreSummary } from "@/components/pirep-score-summary";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/data-table";
@@ -69,7 +70,8 @@ export default async function PilotPirepDetailPage({ params }: { params: Promise
       <PirepMetric label="Points" value={formatNumber(pirep.points)} />
     </PirepSection>
     <OperationalAnalysis analysis={pirep.flightAnalysisReport}/>
-    <PirepSection title="Operational Events"><OperationalEventsTimeline events={pirep.operationalEvents} /></PirepSection>
+    <PirepScoreSummary score={pirep.score} details={pirep.scoringDetails} />
+    <PirepSection title="Flight Operational Log"><OperationalEventsTimeline events={pirep.operationalEvents} /></PirepSection>
     <PirepSection title="Tu nómina y cartera">
       <PirepMetric label="Nómina" value={pirep.payrollRecord ? formatMoney(pirep.payrollRecord.amountCents, pirep.payrollRecord.currency) : "Sin nómina"} note={pirep.payrollRecord?.status ?? "No se ha generado un registro"} />
       <PirepMetric label="Pago base" value={pirep.payrollRecord ? formatMoney(pirep.payrollRecord.basePayCents, pirep.payrollRecord.currency) : "—"} />

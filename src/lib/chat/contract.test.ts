@@ -18,7 +18,7 @@ assert.match(route, /user\.pilot\.status !== "active"/);
 assert.match(route, /case "send_direct"/);
 assert.match(service, /announcementOnly && !isStaff/);
 assert.match(service, /SEND_COOLDOWN_MS = 750/);
-assert.match(service, /blocked.*Direct messages are unavailable/s);
+assert.match(service, /blocked[\s\S]*Direct messages are unavailable/);
 assert.match(service, /clientMessageId/);
 assert.match(service, /lastReadAAt/);
 

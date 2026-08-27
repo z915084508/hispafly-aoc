@@ -38,8 +38,8 @@ const leblToLepa = greatCircleDistanceNm(
 assert.ok(leblToLepa !== null && leblToLepa >= 105 && leblToLepa <= 115);
 assert.equal(greatCircleDistanceNm({ latitude: null, longitude: 2 }, { latitude: 39, longitude: 2 }), null);
 assert.equal(nativePirepScore(-103), 100);
-assert.equal(nativePirepScore(-400), 95);
-assert.equal(nativePirepScore(-2300), 0);
+assert.equal(nativePirepScore(-400), 100);
+assert.equal(nativePirepScore(-2300), 75);
 
 validateTelemetryBatch({ currentPhase: "Cruise", positions: [{ sequenceNumber: 1, recordedAt: "2026-07-21T10:00:00Z", latitude: 40, longitude: -3, headingDegrees: 180, fuelKg: 5000 }] });
 validateTelemetryBatch({ currentPhase: "Completed", completion: { initialFuelKg: 4400, finalFuelKg: 2562, fuelUsedKg: 1838, landingRateFeetPerMinute: -363 } });

@@ -8,6 +8,7 @@ import { ensureNativePayrollSettlement } from "@/lib/payroll/nativeSettlement";
 import { generateCompanyExpensesForPirep } from "@/lib/economy/companyExpenses";
 import { createOrUpdateFlightAnalysis } from "@/lib/flight-analysis/service";
 import { validateNativePirep } from "@/lib/pirep/policy";
+import { normalizeOperationalEvents, mergeOperationalBuffer, type OperationalEventInput } from "@/lib/acars/operational-events";
 import { calculatePirepScore, loadScoringPolicy } from "@/lib/pirep/scoring";
 
 export type AcarsStartInput = {
@@ -33,12 +34,6 @@ type CompletionInput = {
   landingG?: number | null;
   aircraftTypeIcao?: string | null;
 };
-type OperationalEventInput = {
-  eventType: string; severity: string; timestamp: string; flightPhase?: string | null; source: string;
-  latitude?: number | null; longitude?: number | null; altitudeFeet?: number | null;
-  groundSpeedKnots?: number | null; fuelKg?: number | null;
-  aircraftSnapshot?: unknown; metadata?: unknown;
-};
 export type TelemetryInput = {
   currentPhase: string;
   completed?: boolean;
@@ -47,17 +42,6 @@ export type TelemetryInput = {
   events?: EventInput[];
   operationalEvents?: OperationalEventInput[];
 };
-
-const operationalTypes: Record<string, string> = {
-  OffBlock: "BLOCK_OFF", EngineStarted: "ENGINE_START", TaxiOutStarted: "TAXI", Takeoff: "TAKEOFF",
-  Passing10000: "PASSING_10000", TopOfDescent: "TOD", Landing: "LANDING", OnBlock: "BLOCK_ON",
-  GoAround: "GO_AROUND", Diversion: "DIVERSION", Overspeed: "OVERSPEED", HardLanding: "HARD_LANDING",
-  PauseStarted: "PAUSE", SimulationRateChanged: "SIM_RATE",
-  SpeedRestrictionWaiverEnabled: "ATC_SPEED_AUTHORIZATION_ENABLED",
-  SpeedRestrictionWaiverDisabled: "ATC_SPEED_AUTHORIZATION_DISABLED",
-};
-const operationalSeverity = (type: string) => ["OVERSPEED", "HARD_LANDING"].includes(type) ? "WARNING"
-  : ["GO_AROUND", "DIVERSION", "PAUSE", "SIM_RATE"].includes(type) ? "NOTICE" : "INFO";
 
 const nativeNetwork = (value: string | null | undefined) => value?.trim().toUpperCase() || "OFFLINE";
 const roundedNonNegative = (value: number | null | undefined) =>
@@ -151,10 +135,12 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
       data: body.events.map((item) => ({ ...item, sessionId, recordedAt: new Date(item.recordedAt) })),
       skipDuplicates: true,
     });
+    const operationalBuffer = mergeOperationalBuffer(current.operationalEventBuffer, body.operationalEvents ?? []);
     await tx.acarsSession.update({
       where: { id: sessionId },
       data: {
         lastHeartbeatAt: new Date(), currentPhase: body.currentPhase,
+        operationalEventBuffer: JSON.parse(JSON.stringify(operationalBuffer)) as Prisma.InputJsonValue,
         status: body.completed ? "COMPLETED" : "ACTIVE", completedAt: body.completed ? new Date() : undefined,
       },
     });
@@ -193,16 +179,39 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
     const actualAirport = closestAirport && closestAirport.distance <= 15 ? closestAirport.airport : dispatch.flight.arrivalAirport;
     const diverted = actualAirport.icao !== dispatch.flight.arrivalIcao;
     const flightDistanceNm = greatCircleDistanceNm(dispatch.flight.departureAirport, actualAirport);
-    const scoringEventTypes = events.flatMap((event) => {
-      const mapped = operationalTypes[event.type];
-      if (!mapped) return [];
-      if (mapped === "OVERSPEED" && /taxi|ground/i.test(event.message ?? "")) return ["TAXI_OVERSPEED"];
-      if (mapped === "SIM_RATE") return ["TIME_ACCELERATION"];
-      return [mapped];
-    });
-    if (diverted) scoringEventTypes.push("DIVERSION");
+    const operationalEvents = normalizeOperationalEvents(events, operationalBuffer, sessionId);
+    // An interrupted/restarted client may never send closure. Retain that evidence without estimating duration or peak.
+    for (const event of operationalEvents) {
+      if (event.source === "ACARS_FOQA" && event.scoreEligible && !event.endedAt) {
+        event.status = "DATA_QUALITY"; event.scoreEligible = false; event.scoreImpact = 0;
+        event.metadata.dataQualityReason = "Episode closure missing at completion";
+      }
+    }
+    // Touchdown sensor/completion evidence is authoritative for landing quality. Do not also score a client FOQA copy.
+    const clientLandingEvidence = operationalEvents.filter(e => e.eventType === "LANDING_QUALITY");
+    const touchdowns = events.filter(e => e.type === "Landing");
+    if (touchdowns.length || landingG != null || landingRate != null)
+      for (let i = operationalEvents.length - 1; i >= 0; i--) if (operationalEvents[i].eventType === "LANDING_QUALITY") operationalEvents.splice(i, 1);
+    for (const [index, touchdown] of touchdowns.entries()) {
+      operationalEvents.push({ episodeId: `touchdown:${touchdown.sequenceNumber}`, eventType: "LANDING_QUALITY", ruleCode: "LANDING_QUALITY_V2",
+        timestamp: touchdown.recordedAt, startedAt: touchdown.recordedAt, confirmedAt: touchdown.recordedAt,
+        status: "CONFIRMED", severity: "INFO", flightPhase: "LANDING", source: "AOC_AUTO", scoreEligible: true,
+        scoreImpact: 0, originalImpact: 0, requiresReview: false,
+        metadata: { landingG: index === touchdowns.length - 1 ? landingG : null, landingRate: touchdown.numericValue ?? landingRate, clientLandingEvidence: clientLandingEvidence.map(e => e.metadata) } });
+    }
+    if (!touchdowns.length && (landingG != null || landingRate != null)) operationalEvents.push({ episodeId: "completion-touchdown", eventType: "LANDING_QUALITY", ruleCode: "LANDING_QUALITY_V2", timestamp: completedAt,
+      status: "CONFIRMED", severity: "INFO", flightPhase: "LANDING", source: "AOC_AUTO", scoreEligible: true, scoreImpact: 0, originalImpact: 0, requiresReview: false,
+      metadata: { landingG, landingRate, evidenceSource: "COMPLETION_SUMMARY" } });
+    if (diverted && !operationalEvents.some(e => e.eventType === "DIVERSION")) operationalEvents.push({ episodeId: "diversion", eventType: "DIVERSION", ruleCode: "DIVERSION_V2", timestamp: completedAt,
+      severity: "NOTICE", status: "CONFIRMED", source: "AOC_AUTO", flightPhase: "Completed", scoreEligible: true, scoreImpact: 0, originalImpact: 0, requiresReview: true,
+      metadata: { plannedDestination: dispatch.flight.arrivalIcao, actualDestination: actualAirport.icao } });
     const scoringPolicy = await loadScoringPolicy(tx, dispatch.flight.fleetId);
-    const scoring = calculatePirepScore(scoringPolicy, scoringEventTypes, null, { landingG });
+    const scoring = calculatePirepScore(scoringPolicy, operationalEvents, null, { landingG, landingRate });
+    const appliedRules = (scoring.details as { appliedRules: Array<{ episodeId: string | null; code: string; impact: number; originalImpact: number; requiresReview: boolean }> }).appliedRules;
+    for (const event of operationalEvents) {
+      const applied = appliedRules.find(r => r.episodeId === event.episodeId && r.code === event.eventType);
+      if (applied) { event.scoreImpact = applied.impact; event.originalImpact = applied.originalImpact; event.requiresReview = applied.requiresReview; }
+    }
     const score = scoring.totalScore;
     const passengers = dispatch.booking.passengers ?? 0;
     const network = nativeNetwork(dispatch.booking.network);
@@ -246,7 +255,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
       blockTimeMinutes: telemetry.blockTimeMinutes,
     });
     if (validation.status === "accepted" && scoring.invalidated) validation = { status: "rejected", rejectCode: "R07", comment: "The scoring policy detected an invalid flight-integrity event." };
-    else if (validation.status === "accepted" && scoring.requiresReview) validation = { status: "manual_review", rejectCode: "R07", comment: "The scoring policy requires Staff review of a flight-integrity event." };
+    else if (validation.status === "accepted" && scoring.requiresReview) validation = { status: "manual_review", rejectCode: "R07", comment: "A confirmed FOQA episode requires Staff review." };
     const pirep = await tx.pirep.create({
       data: {
         dataOrigin: "HISPAFLY_NATIVE", acarsSessionId: sessionId, pilotId,
@@ -272,30 +281,17 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
           ...fuelEconomics,
         } as Prisma.InputJsonValue,
         status: validation.status, rejectCode: validation.rejectCode, staffComment: validation.comment,
-        reviewedByName: validation.status === "accepted" ? "HISPAFLY ACARS Policy v1" : "HISPAFLY ACARS Automatic Validation",
+        reviewedByName: validation.status === "accepted" ? "HISPAFLY ACARS Policy v2" : "HISPAFLY ACARS Automatic Validation",
         reviewedAt: completedAt,
         rejectedAt: validation.status === "rejected" ? completedAt : null,
         acceptedAt: validation.status === "accepted" ? completedAt : null,
         acarsSoftware: current.acarsVersion,
         source: "HISPAFLY_ACARS", flownAt: completedAt,
         rawData: { contractVersion: "1.3", sessionId, dispatchId: dispatch.id, summary: completionSummary, landingG, flightDistanceNm, score, diverted } as Prisma.InputJsonValue,
-        operationalEvents: { create: [
-          ...events.flatMap((event) => {
-            let eventType = operationalTypes[event.type];
-            if (!eventType) return [];
-            if (eventType === "OVERSPEED" && /taxi|ground/i.test(event.message ?? "")) eventType = "TAXI_OVERSPEED";
-            if (eventType === "SIM_RATE") eventType = "TIME_ACCELERATION";
-            return [{ eventType, severity: operationalSeverity(eventType), timestamp: event.recordedAt,
-              flightPhase: event.phaseAfter ?? event.phaseBefore, source: "ACARS_AUTO",
-              latitude: event.latitude, longitude: event.longitude, altitudeFeet: event.altitudeFeet,
-              groundSpeedKnots: event.groundSpeedKnots, fuelKg: event.fuelKg,
-              aircraftSnapshot: { latitude: event.latitude, longitude: event.longitude, altitudeFeet: event.altitudeFeet, groundSpeedKnots: event.groundSpeedKnots, fuelKg: event.fuelKg } as Prisma.InputJsonValue,
-              metadata: { message: event.message, numericValue: event.numericValue, textValue: event.textValue } as Prisma.InputJsonValue }];
-          }),
-          ...(diverted ? [{ eventType: "DIVERSION", severity: "NOTICE", timestamp: completedAt, flightPhase: "Completed", source: "AOC_AUTO",
-            latitude: finalPosition?.latitude, longitude: finalPosition?.longitude,
-            metadata: { plannedDestination: dispatch.flight.arrivalIcao, actualDestination: actualAirport.icao, diversionAirport: actualAirport.icao, reason: "OTHER" } as Prisma.InputJsonValue }] : []),
-        ] },
+        operationalEvents: { create: operationalEvents.map(event => ({ ...event,
+          aircraftSnapshot: event.aircraftSnapshot == null ? Prisma.JsonNull : JSON.parse(JSON.stringify(event.aircraftSnapshot)) as Prisma.InputJsonValue,
+          metadata: JSON.parse(JSON.stringify(event.metadata)) as Prisma.InputJsonValue,
+        })) },
       },
     });
     await tx.pirepReview.create({ data: { pirepId: pirep.id, fromStatus: "validation", toStatus: validation.status, rejectCode: validation.rejectCode, staffComment: validation.comment, reviewerName: "HISPAFLY ACARS Automatic Validation", automatic: true, impact: { flightHoursCredited: validation.status === "accepted", walletRewardCredited: validation.status === "accepted", rankProgressCredited: validation.status === "accepted" } } });
@@ -328,6 +324,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
   if (body.completed && pirepId) {
     const completedPirep = await prisma.pirep.findUnique({ where: { id: pirepId }, select: { status: true } });
     if (completedPirep?.status === "accepted") await completeNativePirepPostProcessing(pirepId);
+    else await createOrUpdateFlightAnalysis(pirepId);
     await syncPilotAutomaticRank(pilotId);
   }
   return { acceptedPositions: body.positions?.length ?? 0, acceptedEvents: body.events?.length ?? 0, completed: Boolean(body.completed), pirepId };

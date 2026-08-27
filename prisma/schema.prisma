@@ -1759,6 +1759,7 @@ model FlightDispatch {
 }
 
 model AcarsSession {
+  operationalEventBuffer Json?
   id              String          @id @default(cuid())
   localSessionId  String          @unique
   pilotId         String
@@ -1831,6 +1832,26 @@ model OperationalEvent {
   id               String   @id @default(cuid())
   pirepId          String
   pirep            Pirep    @relation(fields: [pirepId], references: [id], onDelete: Cascade)
+  episodeId        String?
+  ruleCode         String?
+  status           String   @default("CONFIRMED")
+  startedAt        DateTime?
+  confirmedAt      DateTime?
+  endedAt          DateTime?
+  durationSeconds  Float?
+  value            Float?
+  peakValue        Float?
+  endValue         Float?
+  threshold        Float?
+  scoreEligible    Boolean  @default(false)
+  scoreImpact      Int      @default(0)
+  originalImpact   Int      @default(0)
+  confidence       Float?
+  requiresReview   Boolean  @default(false)
+  dispositionReason String?
+  reviewedById     String?
+  reviewedByName   String?
+  reviewedAt       DateTime?
   eventType        String
   severity         String   @default("INFO")
   timestamp        DateTime
@@ -1845,6 +1866,7 @@ model OperationalEvent {
   metadata         Json?
   createdAt        DateTime @default(now())
 
+  @@unique([pirepId, eventType, episodeId])
   @@index([pirepId, timestamp])
   @@index([eventType, timestamp])
 }

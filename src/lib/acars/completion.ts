@@ -1,3 +1,4 @@
+import { landingQuality } from "../pirep/scoring.ts";
 export type CompletionPosition = {
   recordedAt: Date;
   fuelKg: number | null;
@@ -89,8 +90,8 @@ export function greatCircleDistanceNm(departure: AirportCoordinates, arrival: Ai
 }
 
 export function nativePirepScore(landingRate: number | null): number {
-  if (landingRate === null) return 100;
-  return Math.max(0, Math.min(100, Math.round(100 - Math.max(0, Math.abs(landingRate) - 300) / 20)));
+  // Legacy callers use the same v2 landing band, never a second continuous landing-rate scale.
+  return 100 + landingQuality(null, landingRate).impact;
 }
 
 export function validateTelemetryBatch(body: {

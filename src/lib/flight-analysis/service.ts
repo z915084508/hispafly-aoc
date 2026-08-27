@@ -58,8 +58,8 @@ async function calibrateFuelBias(vamsysAircraftId: string | null, reportId: stri
 }
 
 export async function createOrUpdateFlightAnalysis(pirepId: string) {
-  const pirep = await prisma.pirep.findUnique({ where: { id: pirepId }, include: { flightDispatch: { include: { ofpBriefing: true, flight: { select: { fleetId: true } } } }, flightAnalysisReport: true, operationalEvents: { select: { eventType: true } } } });
-  if (!pirep || pirep.status !== "accepted") return null;
+  const pirep = await prisma.pirep.findUnique({ where: { id: pirepId }, include: { flightDispatch: { include: { ofpBriefing: true, flight: { select: { fleetId: true } } } }, flightAnalysisReport: true, operationalEvents: true } });
+  if (!pirep) return null;
   const ofp = pirep.flightDispatch?.ofpBriefing?.status === "SIGNED" ? pirep.flightDispatch.ofpBriefing : null;
   const planned = plannedValues(ofp?.ofpSnapshot);
   const actualBlockMinutes = pirep.blockTimeMinutes;
@@ -100,10 +100,16 @@ export async function createOrUpdateFlightAnalysis(pirepId: string) {
   const data = { ofpBriefingId: ofp?.id ?? null, plannedBlockMinutes: planned.blockMinutes, actualBlockMinutes, blockTimeDiffMinutes, plannedFlightMinutes: planned.flightMinutes, actualFlightMinutes, flightTimeDiffMinutes, plannedTripFuelKg, actualFuelUsedKg, fuelDiffKg, fuelDiffPercent, plannedRoute: planned.route, actualDistanceNm: pirep.flightDistanceNm, landingRate: pirep.landingRate, landingG, summary };
   const created = !pirep.flightAnalysisReport;
   const report = await prisma.flightAnalysisReport.upsert({ where: { pirepId }, create: { pirepId, ...data }, update: data });
-  const scoringPolicy = await loadScoringPolicy(prisma, pirep.flightDispatch?.flight?.fleetId);
-  const scoring = calculatePirepScore(scoringPolicy, pirep.operationalEvents.map((event) => event.eventType), score, { landingG });
-  await prisma.pirep.update({ where: { id: pirepId }, data: { score: scoring.totalScore, points: scoring.totalScore, scoringDetails: scoring.details } });
+  await prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pirep-score:${pirepId}`}))`;
+    const latest = await tx.pirep.findUniqueOrThrow({ where: { id: pirepId }, include: { operationalEvents: true } });
+    const scoringPolicy = await loadScoringPolicy(tx, pirep.flightDispatch?.flight?.fleetId);
+    const scoring = calculatePirepScore(scoringPolicy, latest.operationalEvents, score, { landingG, landingRate: latest.landingRate });
+    await tx.pirep.update({ where: { id: pirepId }, data: { score: scoring.totalScore, points: scoring.totalScore, scoringDetails: scoring.details } });
+    const applied = (scoring.details as { appliedRules: Array<{ eventId: string | null; impact: number; requiresReview: boolean }> }).appliedRules;
+    for (const item of applied) if (item.eventId) await tx.operationalEvent.update({ where: { id: item.eventId }, data: { scoreImpact: item.impact, requiresReview: item.requiresReview } });
+  });
   if (created) await writeAuditLogSafely({ action: "FLIGHT_ANALYSIS_CREATED", entityType: "FlightAnalysisReport", entityId: report.id, message: "Post-flight planned versus actual analysis created.", metadata: { pirepId, ofpBriefingId: ofp?.id ?? null, efficiencyScore: score, fuelDataComplete } });
-  await calibrateFuelBias(pirep.vamsysAircraftId, report.id);
+  if (pirep.status === "accepted") await calibrateFuelBias(pirep.vamsysAircraftId, report.id);
   return report;
 }

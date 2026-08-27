@@ -1,5 +1,6 @@
 "use server";
 
+import { applyEventDisposition } from "@/lib/pirep/event-disposition-service";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -193,4 +194,13 @@ export async function reprocessPirepEconomy(id: string) {
   }
 
   finish(id, feedback.type, feedback.message);
+}
+
+export async function setEventDisposition(pirepId: string, eventId: string, formData: FormData) {
+  const staff = await authorize(pirepId, "disposition FOQA event");
+  const status = String(formData.get("status") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!reason || reason.length > 2000) throw new Error("An audit reason of 1–2000 characters is required.");
+  await applyEventDisposition(prisma, { pirepId, eventId, status, reason, staff });
+  finish(pirepId, "success", "Event disposition saved. FOQA score recalculated; evidence and audit history retained.");
 }

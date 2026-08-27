@@ -29,6 +29,6 @@ export function efficiencyScore(input: { fuelDiffPercent: number | null; blockTi
   // a separate telemetry/data-quality warning.
   if (input.fuelDiffPercent !== null) score -= Math.max(0, input.fuelDiffPercent) * 1.5;
   if (input.blockTimeDiffMinutes !== null) score -= Math.max(0, input.blockTimeDiffMinutes) * 0.4;
-  if (input.landingRate !== null) score -= Math.max(0, Math.abs(input.landingRate) - 300) / 20;
+  // Landing technique belongs exclusively to LANDING_QUALITY (FOQA v2).
   return Math.max(0, Math.min(100, Math.round(score)));
 }
