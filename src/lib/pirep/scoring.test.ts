@@ -48,3 +48,5 @@ assert.equal(score([event("FLAP_OVERSPEED",{threshold:200,peakValue:216})]).oper
 assert.equal(score([event("LOW_LANDING_FUEL",{threshold:1000,value:700})]).requiresReview,true);
 const invalidationPolicy={...policy,rules:policy.rules.map(r=>r.code==="SLEW"?{...r,action:"INVALIDATE" as const}:r)};
 assert.equal(calculatePirepScore(invalidationPolicy,[event("SLEW")],100).invalidated,true);
+
+assert.equal(score([event("CLIMB_GEAR_LATE",{...gear,peakValue:1500,durationSeconds:30})]).operationalScore,100);

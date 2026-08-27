@@ -47,7 +47,7 @@ export function normalizeOperationalEvents(events: RawEvent[], operationalEvents
     if (malformed || eventType === "TELEMETRY_DROPOUT") status = "DATA_QUALITY";
     const snapshot = get(payload, "Snapshot") ?? input.aircraftSnapshot ?? null;
     // Missing/invalid normalization cannot become a pilot deviation, even on older clients.
-    if (["CLIMB_GEAR_LATE", "CRUISE_GEAR"].includes(eventType) &&
+    if (["CLIMB_GEAR_LATE", "CRUISE_GEAR", "GEAR_OVERSPEED", "DESCENT_GEAR_SPEED"].includes(eventType) &&
       (get(snapshot, "IsGearRetractable") !== true || get(snapshot, "IsOnGround") !== false || finite(get(snapshot, "GearPositionPercent")) == null || Number(get(snapshot, "GearPositionPercent")) < 0 || Number(get(snapshot, "GearPositionPercent")) > 100)) status = "DATA_QUALITY";
     if (/FLAPS|FLAP_INVALID|FLAP_OVERSPEED/.test(eventType) && foqa) {
       const flaps = finite(get(snapshot, "FlapsPositionPercent"));
