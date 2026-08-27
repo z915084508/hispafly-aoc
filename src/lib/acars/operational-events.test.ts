@@ -1,0 +1,15 @@
+import assert from "node:assert/strict";
+import { normalizeOperationalEvents, mergeOperationalBuffer } from "./operational-events.ts";
+const timestamp="2026-08-27T18:00:00Z";
+const payload={RuleId:"CLIMB_GEAR_LATE",Phase:"CLIMB",EventName:"Gear late",Severity:2,Timestamp:timestamp,EpisodeId:"one",StartedAt:timestamp,ConfirmedAt:timestamp,DurationSeconds:13,PeakValue:2180,ScoreEligible:true,Snapshot:{GearPositionPercent:100,IsGearRetractable:true,IsOnGround:false}};
+const raw={sequenceNumber:1,type:"FoqaEvent",recordedAt:timestamp,textValue:JSON.stringify(payload)};
+const op={eventType:"FOQA_EVENT",timestamp,metadata:{TextValue:JSON.stringify(payload)}};
+const events=normalizeOperationalEvents([raw],[op],"session");
+assert.equal(events.length,1);assert.equal(events[0].eventType,"CLIMB_GEAR_LATE");assert.equal(events[0].ruleCode,"CLIMB_GEAR_LATE_V2");assert.equal(events[0].severity,"MAJOR");assert.equal(events[0].source,"ACARS_FOQA");assert.equal(events[0].scoreImpact,-1);
+const malformed=normalizeOperationalEvents([{...raw,textValue:"{oops"}],[],"session")[0];
+assert.equal(malformed.status,"DATA_QUALITY");assert.equal(malformed.scoreEligible,false);assert.equal(malformed.scoreImpact,0);
+const unreliable=normalizeOperationalEvents([{...raw,textValue:JSON.stringify({...payload,Snapshot:{GearPositionPercent:100}})}],[],"session")[0];assert.equal(unreliable.status,"DATA_QUALITY");
+const updated=normalizeOperationalEvents([raw,{...raw,sequenceNumber:2,type:"FoqaEpisodeUpdate",textValue:JSON.stringify({...payload,DurationSeconds:65,PeakValue:5500})}],[op],"session");assert.equal(updated.length,1);assert.equal(updated[0].scoreImpact,-6);
+const buffer=mergeOperationalBuffer(mergeOperationalBuffer(null,[op]),[op]);assert.equal(buffer.length,1);assert.equal(normalizeOperationalEvents([],buffer,"session").length,1);
+const dropout=normalizeOperationalEvents([{...raw,type:"SimulatorDisconnected",textValue:null}],[],"session")[0];assert.equal(dropout.status,"DATA_QUALITY");assert.equal(dropout.scoreImpact,0);
+console.log("FOQA ingestion mapping, buffer and dedup tests passed");

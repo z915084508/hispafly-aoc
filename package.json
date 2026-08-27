@@ -59,7 +59,8 @@
     "test:acars-chat": "node --experimental-strip-types src/lib/chat/contract.test.ts",
     "test:identity-email": "node --experimental-strip-types src/lib/auth/delivery.test.ts",
     "test:routes": "node --experimental-strip-types src/lib/vamsys/routes/routes.test.ts && node --experimental-strip-types src/lib/vamsys/routes/planning.test.ts",
-    "test:fleets": "node --experimental-strip-types src/lib/vamsys/fleets/fleets.test.ts"
+    "test:fleets": "node --experimental-strip-types src/lib/vamsys/fleets/fleets.test.ts",
+    "test:foqa": "node --experimental-strip-types src/lib/pirep/scoring.test.ts && node --experimental-strip-types src/lib/acars/operational-events.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",

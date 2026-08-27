@@ -1,3 +1,5 @@
+import { setEventDisposition } from "./actions";
+import { PirepScoreSummary } from "@/components/pirep-score-summary";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/data-table";
@@ -92,7 +94,8 @@ export default async function StaffPirepDetailPage({ params, searchParams }: { p
       {pirep.reviewHistory.map((review) => <PirepMetric key={review.id} label={`${review.fromStatus.toUpperCase()} → ${review.toStatus.toUpperCase()}`} value={review.rejectCode ? `${review.rejectCode} · ${PIREP_REJECT_REASONS[review.rejectCode]}` : "Decision"} note={`${review.reviewerName} · ${formatDateTime(review.createdAt)}${review.staffComment ? ` · ${review.staffComment}` : ""}`} />)}
       {!pirep.reviewHistory.length && <PirepMetric label="History" value="No review decisions recorded" />}
     </PirepSection>
-    <PirepSection title="Operational Events"><OperationalEventsTimeline events={pirep.operationalEvents} /></PirepSection>
+    <PirepScoreSummary score={pirep.score} details={pirep.scoringDetails} />
+    <PirepSection title="Flight Operational Log"><OperationalEventsTimeline events={pirep.operationalEvents} dispositionAction={setEventDisposition.bind(null, pirep.id)} /></PirepSection>
     <PirepSection title="Economía de compañía" className="pirep-economy-total">
       <PirepMetric label="Ingresos pasajeros" value={formatMoney(pirep.passengerRevenueCents)} />
       <PirepMetric label="Coste combustible" value={formatMoney(pirep.fuelCostCents)} note={pirep.fuelPriceSource ?? "Sin precio guardado"} />
