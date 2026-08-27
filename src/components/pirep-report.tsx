@@ -28,6 +28,7 @@ export function PirepReportStyles() {
     .pirep-section { padding: 0; overflow: hidden; }
     .pirep-section-title { margin: 0; padding: 13px 18px; color: white; background: #1d232b; font-size: 11px; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
     .pirep-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .pirep-metrics > .operational-events-timeline { grid-column: 1 / -1; min-width: 0; padding: 18px; }
     .pirep-metric { min-height: 92px; padding: 17px 18px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
     .pirep-metric-label { color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
     .pirep-metric-value { margin-top: 8px; color: var(--ink); font-size: 19px; font-weight: 800; overflow-wrap: anywhere; }

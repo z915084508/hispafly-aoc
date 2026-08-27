@@ -17,7 +17,7 @@ export function OperationalEventsTimeline({ events, dispositionAction }: { event
   const [filter, setFilter] = useState<string>("ALL");
   const sorted = [...events].sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   const shown = sorted.filter(e => filter === "ALL" || filter === "FOQA" && (e.source === "ACARS_FOQA" || e.scoreEligible) || filter === "SCORED" && e.scoreImpact !== 0 || filter === "INFO" && e.severity === "INFO" || filter === "REVIEW" && e.requiresReview || filter === "DATA QUALITY" && e.status === "DATA_QUALITY");
-  return <div>
+  return <div className="operational-events-timeline">
     <p>{events.length} Events · {events.filter(e => e.scoreImpact !== 0).length} Scored · {events.filter(e => e.severity === "INFO").length} Info · {events.filter(e => e.requiresReview).length} Review · {events.filter(e => e.status === "DATA_QUALITY").length} Data Quality</p>
     <div role="group" aria-label="Operational log filters" style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0" }}>{filters.map(x => <button key={x} type="button" aria-pressed={filter === x} onClick={() => setFilter(x)}>{x}</button>)}</div>
     <p className="meta">All times UTC. Open an event to inspect evidence and disposition.</p>
