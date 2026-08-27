@@ -21,6 +21,8 @@ jobs:
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/foqa
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -29,7 +31,15 @@ jobs:
           version: 10
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec prisma validate && pnpm exec prisma generate
-      - run: pnpm exec prisma migrate deploy
+      # Historical July migrations cannot bootstrap an empty DB (missing FlightScheduleStatus).
+      # Test this additive migration against the exact pre-v2 schema instead of rewriting history.
+      - name: Validate v2 migration against baseline schema
+        run: |
+          git show 8137288f82fe744b57edf867672ee40e6aab09f8:prisma/schema.prisma > /tmp/foqa-baseline.prisma
+          pnpm exec prisma db push --schema /tmp/foqa-baseline.prisma --skip-generate
+          pnpm exec prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260827210000_foqa_scoring_v2/migration.sql
+          pnpm exec prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
       - run: pnpm test:foqa && pnpm test:acars-completion && pnpm test:flight-analysis
+      - run: FOQA_TEST_DATABASE=1 node --experimental-strip-types src/lib/pirep/foqa-database.test.ts
       - run: pnpm exec tsc --noEmit
       - run: pnpm exec next build

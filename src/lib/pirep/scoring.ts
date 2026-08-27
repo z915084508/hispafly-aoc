@@ -21,7 +21,11 @@ export const DEFAULT_SCORING_RULES: ScoringRule[] = [
 // Retain policy identity/weights. Legacy landing rewards and sample-count points cannot override v2 safety bands.
 export const mergeScoringRules = (value: unknown): ScoringRule[] => {
   const stored = Array.isArray(value) ? value as ScoringRule[] : [];
-  return DEFAULT_SCORING_RULES.map(base => ({ ...base, enabled: stored.find(x => x.code === base.code)?.enabled ?? base.enabled }));
+  return DEFAULT_SCORING_RULES.map(base => {
+    const previous = stored.find(x => x.code === base.code);
+    return { ...base, enabled: previous?.enabled ?? base.enabled,
+      action: ["SLEW", "TELEPORT", "MID_AIR_REFUELING"].includes(base.code) && previous?.action === "INVALIDATE" ? "INVALIDATE" : base.action };
+  });
 };
 export async function loadScoringPolicy(db: PrismaClient | Prisma.TransactionClient, fleetId?: string | null): Promise<ScoringPolicy> {
   const record = (fleetId ? await db.pirepScoringPolicy.findFirst({ where: { active: true, scopeKey: `FLEET:${fleetId}` } }) : null)
@@ -113,7 +117,9 @@ export function calculatePirepScore(policy: ScoringPolicy, operationalEvents: Sc
   let sop = 0, bonuses = 0;
   const applied = events.map(e => {
     const result = scoreEvent(e, events);
-    const disabled = policy.rules.find(r => r.code === e.eventType)?.enabled === false;
+    const configured = policy.rules.find(r => r.code === e.eventType);
+    const disabled = configured?.enabled === false;
+    if (result.review && configured?.action === "INVALIDATE" && result.category === "INTEGRITY") result.invalidate = true;
     let impact = disabled ? 0 : result.impact;
     if (result.category === "SOP_LIGHT") { impact = Math.max(impact, -8 - sop); sop += impact; }
     if (impact > 0) { impact = Math.min(impact, 5 - bonuses); bonuses += impact; }
