@@ -44,6 +44,8 @@
     "test:native-pilot-booking": "node --experimental-strip-types src/lib/native-flight/booking-rules.test.ts && node --experimental-strip-types src/lib/native-flight/departures.test.ts && node --experimental-strip-types src/lib/native-flight/scheduled-booking.test.ts && node --experimental-strip-types src/lib/native-flight/self-dispatch-rules.test.ts && node --experimental-strip-types src/lib/roster/service.test.ts",
     "test:pilot-position": "node --experimental-strip-types src/lib/pilot/position.test.ts",
     "test:pilot-career": "node --experimental-strip-types src/lib/pilot/career.test.ts",
+    "test:promotion-guardrails": "node --experimental-strip-types src/lib/pilot/promotion-guardrails.test.ts",
+    "test:promotion-eligibility": "node --experimental-strip-types src/lib/pilot-evaluation/eligibility.test.ts",
     "test:native-dispatch": "node --experimental-strip-types src/lib/native-flight/dispatch-rules.test.ts",
     "test:native-cutover": "node --experimental-strip-types src/lib/native-cutover/classification.test.ts && node --experimental-strip-types src/lib/native-cutover/write-gate.test.ts",
     "test:security": "node --experimental-strip-types src/lib/security/secretBox.test.ts",

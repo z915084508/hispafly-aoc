@@ -23,8 +23,8 @@ function finish(id: string, type: "success" | "error", message: string): never {
   redirect(`/staff/pireps/${id}?${type}=${encodeURIComponent(message)}`);
 }
 
-async function authorize(id: string, action: string) {
-  return requireStaffPermission("PIREP_SCORE", {
+async function authorize(id: string, action: string, permission: "PIREP_SCORE" | "PIREP_ACCEPT" | "PIREP_REJECT" = "PIREP_SCORE") {
+  return requireStaffPermission(permission, {
     entityType: "Pirep",
     entityId: id,
     attemptedAction: action,
@@ -41,7 +41,7 @@ export async function refreshVamsysPirepDetail(id: string) {
 
 export async function acceptPirep(id: string) {
   try {
-    const staff = await authorize(id, "accept PIREP");
+    const staff = await authorize(id, "accept PIREP", "PIREP_ACCEPT");
     await reviewPirep({ pirepId: id, toStatus: "accepted", staffComment: "Accepted by staff review.", reviewer: staff });
   } catch (error) {
     finish(id, "error", error instanceof Error ? error.message : "PIREP could not be accepted.");
@@ -61,7 +61,7 @@ export async function sendPirepToManualReview(id: string, formData: FormData) {
 
 export async function rejectPirep(id: string, formData: FormData) {
   try {
-    const staff = await authorize(id, "reject PIREP");
+    const staff = await authorize(id, "reject PIREP", "PIREP_REJECT");
     await reviewPirep({ pirepId: id, toStatus: "rejected", rejectCode: String(formData.get("rejectCode") ?? "") as PirepRejectCode, staffComment: String(formData.get("staffComment") ?? ""), reviewer: staff });
   } catch (error) {
     finish(id, "error", error instanceof Error ? error.message : "PIREP could not be rejected.");

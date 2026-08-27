@@ -32,6 +32,54 @@ enum PilotStatus {
   inactive
 }
 
+enum EvaluationWindow {
+  LAST_10_FLIGHTS
+  LAST_30_FLIGHTS
+  LAST_90_DAYS
+  LAST_12_MONTHS
+  CAREER
+}
+
+enum PilotAssessmentType {
+  COMMAND
+  LINE_CHECK
+  TRAINING
+  CRM
+  CONDUCT
+}
+
+enum AssessmentRecommendation {
+  NOT_RECOMMENDED
+  DEVELOPMENT_REQUIRED
+  RECOMMENDED
+  STRONGLY_RECOMMENDED
+}
+
+enum PromotionStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  MORE_EVIDENCE_REQUIRED
+  APPROVED
+  REJECTED
+  WITHDRAWN
+  CANCELLED
+}
+
+enum PromotionEligibilityStatus {
+  ELIGIBLE
+  NOT_ELIGIBLE
+  REVIEW_REQUIRED
+}
+
+enum PromotionReviewDecision {
+  RECOMMEND
+  DO_NOT_RECOMMEND
+  REQUEST_MORE_EVIDENCE
+  APPROVE
+  REJECT
+}
+
 enum PayrollRecordStatus {
   pending
   approved
@@ -393,18 +441,18 @@ model StaffPermissionOverride {
 }
 
 model Pilot {
-  id                         String                      @id @default(cuid())
-  dataOrigin                 AocDataOrigin               @default(HISPAFLY_NATIVE)
-  vamsysPilotId              String?                     @unique
-  authUserId                 String?                     @unique
-  authUser                   AuthUser?                   @relation(fields: [authUserId], references: [id], onDelete: SetNull)
-  vamsysUserId               String?                     @unique
+  id                         String                          @id @default(cuid())
+  dataOrigin                 AocDataOrigin                   @default(HISPAFLY_NATIVE)
+  vamsysPilotId              String?                         @unique
+  authUserId                 String?                         @unique
+  authUser                   AuthUser?                       @relation(fields: [authUserId], references: [id], onDelete: SetNull)
+  vamsysUserId               String?                         @unique
   username                   String?
   firstName                  String?
   lastName                   String?
-  callsign                   String?                     @unique
+  callsign                   String?                         @unique
   displayName                String
-  email                      String?                     @unique
+  email                      String?                         @unique
   vatsimId                   String?
   ivaoId                     String?
   discordId                  String?
@@ -415,11 +463,11 @@ model Pilot {
   rank                       String?
   appointment                String?
   base                       String?
-  status                     PilotStatus                 @default(active)
-  acarsBetaAccess            Boolean                     @default(false)
-  walletBalanceCents         Int                         @default(0)
+  status                     PilotStatus                     @default(active)
+  acarsBetaAccess            Boolean                         @default(false)
+  walletBalanceCents         Int                             @default(0)
   currentAirportId           String?
-  currentAirport             Airport?                    @relation("PilotCurrentAirport", fields: [currentAirportId], references: [id], onDelete: SetNull)
+  currentAirport             Airport?                        @relation("PilotCurrentAirport", fields: [currentAirportId], references: [id], onDelete: SetNull)
   positionUpdatedAt          DateTime?
   positionSource             String?
   pireps                     Pirep[]
@@ -432,20 +480,24 @@ model Pilot {
   lastOperationsSyncAt       DateTime?
   operationsRawData          Json?
   notes                      PilotNote[]
+  evaluationPeriods          PilotEvaluationPeriod[]
+  assessments                PilotAssessment[]
+  promotionCases             PilotPromotionCase[]
+  qualificationRestrictions  PilotQualificationRestriction[]
   flightDispatches           FlightDispatch[]
-  createdFlightOffers        FlightOffer[]               @relation("PilotCreatedFlightOffers")
+  createdFlightOffers        FlightOffer[]                   @relation("PilotCreatedFlightOffers")
   pilotBookings              PilotBooking[]
   efbPerformanceCalculations EfbPerformanceCalculation[]
   efbDepartureReadiness      EfbDepartureReadiness[]
-  chatMessages               ChatMessage[]               @relation("ChatMessageSender")
-  directConversationsA       DirectConversation[]        @relation("DirectParticipantA")
-  directConversationsB       DirectConversation[]        @relation("DirectParticipantB")
-  chatBlocksCreated          ChatBlock[]                 @relation("ChatBlocker")
-  chatBlocksReceived         ChatBlock[]                 @relation("ChatBlocked")
+  chatMessages               ChatMessage[]                   @relation("ChatMessageSender")
+  directConversationsA       DirectConversation[]            @relation("DirectParticipantA")
+  directConversationsB       DirectConversation[]            @relation("DirectParticipantB")
+  chatBlocksCreated          ChatBlock[]                     @relation("ChatBlocker")
+  chatBlocksReceived         ChatBlock[]                     @relation("ChatBlocked")
   chatPresence               ChatPresence?
   chatRestriction            ChatRestriction?
-  createdAt                  DateTime                    @default(now())
-  updatedAt                  DateTime                    @updatedAt
+  createdAt                  DateTime                        @default(now())
+  updatedAt                  DateTime                        @updatedAt
 
   @@index([status])
   @@index([base])
@@ -572,6 +624,125 @@ model PilotNote {
   updatedAt       DateTime  @updatedAt
 
   @@index([pilotId, sourceCreatedAt])
+}
+
+model PilotEvaluationPeriod {
+  id                    String               @id @default(cuid())
+  pilotId               String
+  pilot                 Pilot                @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  windowType            EvaluationWindow
+  periodStart           DateTime
+  periodEnd             DateTime
+  overallScore          Int?
+  safetyScore           Int?
+  sopScore              Int?
+  operationsScore       Int?
+  reliabilityScore      Int?
+  commandReadinessScore Int?
+  acceptedFlights       Int                  @default(0)
+  rejectedFlights       Int                  @default(0)
+  manualReviewFlights   Int                  @default(0)
+  majorEvents           Int                  @default(0)
+  criticalEvents        Int                  @default(0)
+  noShowCount           Int                  @default(0)
+  calculationVersion    Int                  @default(1)
+  evidenceSnapshot      Json
+  calculatedAt          DateTime             @default(now())
+  finalizedAt           DateTime?
+  finalizedByStaffId    String?
+  promotionCases        PilotPromotionCase[]
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@unique([pilotId, windowType, periodEnd, calculationVersion])
+  @@index([pilotId, windowType, calculatedAt])
+}
+
+model PilotAssessment {
+  id                String                   @id @default(cuid())
+  pilotId           String
+  pilot             Pilot                    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  assessmentType    PilotAssessmentType
+  commandScore      Int?
+  crmScore          Int?
+  sopKnowledgeScore Int?
+  conductScore      Int?
+  recommendation    AssessmentRecommendation
+  comment           String
+  assessedByStaffId String
+  assessedAt        DateTime                 @default(now())
+  validUntil        DateTime?
+  supersededAt      DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@index([pilotId, assessmentType, assessedAt])
+  @@index([validUntil])
+}
+
+model PilotPromotionCase {
+  id                    String                     @id @default(cuid())
+  pilotId               String
+  pilot                 Pilot                      @relation(fields: [pilotId], references: [id], onDelete: Restrict)
+  fromRank              String
+  targetRank            String
+  status                PromotionStatus            @default(DRAFT)
+  eligibilityStatus     PromotionEligibilityStatus
+  eligibilitySnapshot   Json
+  evaluationPeriodId    String?
+  evaluationPeriod      PilotEvaluationPeriod?     @relation(fields: [evaluationPeriodId], references: [id], onDelete: SetNull)
+  requestedAt           DateTime                   @default(now())
+  requestedByPilotId    String?
+  openedByStaffId       String?
+  decidedAt             DateTime?
+  decidedByStaffId      String?
+  decisionReason        String?
+  effectiveAt           DateTime?
+  previousRankSnapshot  Json?
+  resultingRankSnapshot Json?
+  version               Int                        @default(1)
+  reviews               PilotPromotionReview[]
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+
+  @@index([pilotId, status, requestedAt])
+  @@index([status, requestedAt])
+}
+
+model PilotPromotionReview {
+  id               String                  @id @default(cuid())
+  promotionCaseId  String
+  promotionCase    PilotPromotionCase      @relation(fields: [promotionCaseId], references: [id], onDelete: Cascade)
+  reviewerStaffId  String
+  decision         PromotionReviewDecision
+  comment          String
+  evidenceSnapshot Json?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@unique([promotionCaseId, reviewerStaffId])
+  @@index([reviewerStaffId, createdAt])
+}
+
+model PilotQualificationRestriction {
+  id                String    @id @default(cuid())
+  pilotId           String
+  pilot             Pilot     @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  type              String
+  severity          String
+  blocksPromotion   Boolean   @default(true)
+  blocksDispatch    Boolean   @default(false)
+  reason            String
+  startsAt          DateTime  @default(now())
+  expiresAt         DateTime?
+  resolvedAt        DateTime?
+  createdByStaffId  String
+  resolvedByStaffId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([pilotId, resolvedAt, expiresAt])
+  @@index([blocksPromotion, resolvedAt])
 }
 
 model OperationsApiState {
