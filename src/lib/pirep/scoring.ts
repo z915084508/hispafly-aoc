@@ -75,7 +75,7 @@ export function scoreEvent(e: ScoringEvent, events: ScoringEvent[] = []): { impa
   }
   if (["GEAR_OVERSPEED", "DESCENT_GEAR_SPEED", "FLAP_OVERSPEED"].includes(code)) {
     const threshold = finite(e.threshold); if (peak == null || threshold == null || peak <= threshold) return none;
-    const exceedance = peak - threshold, flap = code === "FLAP_OVERSPEED";
+    const exceedance = finite(m.peakExceedance) ?? peak - threshold, flap = code === "FLAP_OVERSPEED";
     return penalty(exceedance > 15 ? flap ? 15 : 20 : exceedance > 5 ? flap ? 8 : 10 : flap ? 4 : 5, exceedance > 15);
   }
   if (code === "TAXI_OUT_FLAPS") return penalty(m.runwayApproachGate === true ? 2 : 0);

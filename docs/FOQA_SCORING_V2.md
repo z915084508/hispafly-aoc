@@ -47,7 +47,7 @@ CI found a pre-existing clean-database bootstrap failure in `20260716170000_nati
 ## Capability limits
 
 - Reliable runway proximity, transponder, aircraft-specific VFE/detent mapping, stable-approach/warmup/cooldown positive evidence, GPWS/TAWS and fuel/integrity signals are not all exposed by current connectors. The scoring engine supports those confirmed events but does not invent telemetry or enable a detector without its inputs.
-- Current ACARS detects missing takeoff flap extension; full fleet-specific valid takeoff flap ranges still require aircraft profiles.
+- ACARS supports explicit takeoff flap min/max profiles and VFE by validated detent. When no range is supplied it retains missing-extension detection. Current connectors do not yet populate the optional detent/runway-proximity fields; those detections remain inactive until trustworthy inputs are supplied.
 - Older connectors without explicit retractability degrade gear scoring to DATA_QUALITY rather than assuming retractability.
 - AOC's current completion API supplies a final landing G. For multiple touchdowns, earlier touchdowns use their recorded rates; only the final touchdown receives the completion G.
 - Browser visual verification requires an authenticated app instance with this branch and a migrated test database.

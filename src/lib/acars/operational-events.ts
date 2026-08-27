@@ -59,13 +59,13 @@ export function normalizeOperationalEvents(events: RawEvent[], operationalEvents
     const event: NormalizedOperationalEvent = { episodeId, eventType, timestamp, startedAt, confirmedAt, endedAt, durationSeconds,
       ruleCode: string(get(payload, "RuleCode")) ?? input.ruleCode ?? `${eventType}_V2`, status, severity,
       flightPhase: string(get(payload, "Phase")) ?? input.flightPhase ?? null, source: foqa ? "ACARS_FOQA" : input.source ?? "ACARS_AUTO",
-      value: finite(get(payload, "Value")) ?? finite(input.value), peakValue: finite(get(payload, "PeakValue")) ?? finite(input.peakValue),
+      value: finite(get(payload, "Value")) ?? finite(input.value) ?? (!foqa ? finite(get(meta, "NumericValue")) : null), peakValue: finite(get(payload, "PeakValue")) ?? finite(input.peakValue),
       endValue: finite(get(payload, "EndValue")) ?? finite(input.endValue), threshold: finite(get(payload, "Threshold")) ?? finite(input.threshold),
       confidence: finite(get(payload, "Confidence")) ?? finite(input.confidence) ?? (malformed ? 0 : 1), scoreEligible: eligible,
       scoreImpact: 0, originalImpact: 0, requiresReview: false, aircraftSnapshot: snapshot,
       latitude: finite(input.latitude), longitude: finite(input.longitude), altitudeFeet: finite(input.altitudeFeet), groundSpeedKnots: finite(input.groundSpeedKnots), fuelKg: finite(input.fuelKg),
       metadata: { ...meta, foqa: payload, dataQualityReason: malformed ? "Malformed or inconsistent FOQA payload" : null,
-        minimumRadioAltitudeFeet: finite(get(payload, "MinimumRadioAltitudeFeet")),
+        peakExceedance: finite(get(payload, "PeakExceedance")), minimumRadioAltitudeFeet: finite(get(payload, "MinimumRadioAltitudeFeet")), runwayApproachGate: get(payload, "RunwayApproachGate") === true,
         eventName: string(get(payload, "EventName")), endReason: string(get(payload, "EndReason")) } };
     // Both transport channels normalize to the same episode. Closure updates replace confirmation, never add a penalty.
     const key = `${eventType}:${episodeId}`, previous = merged.get(key);
