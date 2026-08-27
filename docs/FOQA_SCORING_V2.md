@@ -36,7 +36,7 @@ Starts at 100. Operational 70%, efficiency 30%; unavailable efficiency is explic
 
 ## Staff disposition and concurrency
 
-PIREP_SCORE permission is checked server-side. Every disposition requires a reason. A transaction locks the PIREP scoring key, changes disposition, recomputes all impacts/caps and final score, and inserts an audit entry. Original payload and original impact are not overwritten. Reconfirmation does not bypass missing-data eligibility. Flight analysis uses the same lock and reads the latest dispositions before writing scores. PIREP acceptance, payroll and rejected-flight eligibility remain separate review decisions.
+PIREP_SCORE permission is checked server-side. Every disposition requires a reason. A transaction locks the PIREP scoring key, changes disposition, recomputes all impacts/caps and final score, and inserts an audit entry. Original payload and original impact are not overwritten. Reconfirmation does not bypass missing-data eligibility. Flight analysis uses the same lock and reads the latest dispositions before writing scores. PIREP acceptance, payroll and rejected-flight eligibility remain separate review decisions. Monetary payroll landing bonuses/penalties are outside this FOQA score change and remain unchanged.
 
 ## Migration / rollout
 
