@@ -2,6 +2,8 @@ import { Prisma, type PirepRejectCode, type PirepStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ensureNativePayrollSettlement } from "@/lib/payroll/nativeSettlement";
 import { syncPilotAutomaticRank } from "@/lib/pilot/career-service";
+import { derivePirepRejectionRiskSignal } from "@/lib/pilot-risk/pirep-signals";
+import { recordPilotRiskSignal } from "@/lib/pilot-risk/repository";
 import { PIREP_REJECT_REASONS } from "./policy";
 
 type Reviewer = { id?: string | null; name: string; automatic?: boolean };
@@ -49,6 +51,10 @@ export async function reviewPirep(input: ReviewInput) {
     return { updated, acceptedAfterReview, impact };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   if (result.updated.status === "accepted") await ensureNativePayrollSettlement(result.updated.id);
+  if (result.updated.status === "rejected" && result.updated.rejectCode) {
+    const signal = derivePirepRejectionRiskSignal({ pilotId: result.updated.pilotId, pirepId: result.updated.id, rejectCode: result.updated.rejectCode, staffComment: result.updated.staffComment });
+    if (signal) await recordPilotRiskSignal(signal);
+  }
   await syncPilotAutomaticRank(result.updated.pilotId);
   return result;
 }
