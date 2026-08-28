@@ -281,7 +281,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
           ...fuelEconomics,
         } as Prisma.InputJsonValue,
         status: validation.status, rejectCode: validation.rejectCode, staffComment: validation.comment,
-        reviewedByName: validation.status === "accepted" ? "HISPAFLY ACARS Policy v2" : "HISPAFLY ACARS Automatic Validation",
+        reviewedByName: "HISPAFLY ACARS Policy v2",
         reviewedAt: completedAt,
         rejectedAt: validation.status === "rejected" ? completedAt : null,
         acceptedAt: validation.status === "accepted" ? completedAt : null,
@@ -294,7 +294,7 @@ export async function ingestTelemetry(pilotId: string, sessionId: string, body: 
         })) },
       },
     });
-    await tx.pirepReview.create({ data: { pirepId: pirep.id, fromStatus: "validation", toStatus: validation.status, rejectCode: validation.rejectCode, staffComment: validation.comment, reviewerName: "HISPAFLY ACARS Automatic Validation", automatic: true, impact: { flightHoursCredited: validation.status === "accepted", walletRewardCredited: validation.status === "accepted", rankProgressCredited: validation.status === "accepted" } } });
+    await tx.pirepReview.create({ data: { pirepId: pirep.id, fromStatus: "validation", toStatus: validation.status, rejectCode: validation.rejectCode, staffComment: validation.comment, reviewerName: "HISPAFLY ACARS Policy v2", automatic: true, impact: { flightHoursCredited: validation.status === "accepted", walletRewardCredited: validation.status === "accepted", rankProgressCredited: validation.status === "accepted" } } });
     pirepId = pirep.id;
     await tx.flightDispatch.update({ where: { id: dispatch.id }, data: { status: "FLOWN", completedAt, matchedPirepId: pirep.id, errorMessage: null } });
     await tx.pilotBooking.update({ where: { id: dispatch.booking.id }, data: { status: "COMPLETED", matchedPirepId: pirep.id, errorMessage: null } });
