@@ -20,6 +20,7 @@ export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbr
   const [amnError, setAmnError] = useState("");
   const [amnLoading, setAmnLoading] = useState(false);
   const [holdSeconds, setHoldSeconds] = useState(0);
+  const [nowMs, setNowMs] = useState<number | null>(null);
   const [altitude, setAltitude] = useState("");
   const [userRoute, setUserRoute] = useState("");
   const route = routes.find((item) => item.id === routeId) ?? null;
@@ -36,17 +37,28 @@ export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbr
   const totalCargoKg = luggageKg + freightKg;
   const arrivalAt = route && departureAt ? new Date(new Date(`${departureAt}:00Z`).getTime() + route.duration * 60_000) : null;
   const locked = Boolean(amnAllocation && amnToken && holdSeconds > 0);
+  const departureMs = departureAt ? Date.parse(`${departureAt}:00Z`) : Number.NaN;
+  const departureInvalid = nowMs !== null && Number.isFinite(departureMs) && departureMs < nowMs + 15 * 60_000;
 
   useEffect(() => {
+    let restoreTimer: number | undefined;
     try {
       const stored = JSON.parse(sessionStorage.getItem(HOLD_STORAGE_KEY) ?? "null") as { allocation: AmnAllocation; token: string; routeId: string; aircraftId: string; departureAt: string; arrival: string } | null;
       if (!stored || Date.parse(stored.allocation.expiresAt) <= Date.now()) { sessionStorage.removeItem(HOLD_STORAGE_KEY); return; }
-      setAmnAllocation(stored.allocation); setAmnToken(stored.token); setRouteId(stored.routeId); setAircraftId(stored.aircraftId); setDepartureAt(stored.departureAt); setArrival(stored.arrival);
+      restoreTimer = window.setTimeout(() => {
+        setAmnAllocation(stored.allocation); setAmnToken(stored.token); setRouteId(stored.routeId); setAircraftId(stored.aircraftId); setDepartureAt(stored.departureAt); setArrival(stored.arrival);
+      }, 0);
     } catch { sessionStorage.removeItem(HOLD_STORAGE_KEY); }
+    return () => { if (restoreTimer !== undefined) window.clearTimeout(restoreTimer); };
   }, []);
 
   useEffect(() => {
-    if (!amnAllocation) { setHoldSeconds(0); return; }
+    const updateNow = () => setNowMs(Date.now());
+    updateNow(); const timer = window.setInterval(updateNow, 30_000); return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!amnAllocation) return;
     const update = () => {
       const remaining = Math.max(0, Math.ceil((Date.parse(amnAllocation.expiresAt) - Date.now()) / 1000));
       setHoldSeconds(remaining);
@@ -54,6 +66,11 @@ export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbr
     };
     update(); const timer = window.setInterval(update, 1000); return () => window.clearInterval(timer);
   }, [amnAllocation]);
+
+  useEffect(() => {
+    if (!amnAllocation || !amnToken) return;
+    sessionStorage.setItem(HOLD_STORAGE_KEY, JSON.stringify({ allocation: amnAllocation, token: amnToken, routeId, aircraftId, departureAt, arrival }));
+  }, [aircraftId, amnAllocation, amnToken, arrival, departureAt, routeId]);
 
   function applyRoute(nextRoute: RouteOption | null) {
     setRouteId(nextRoute?.id ?? ""); setAircraftId(""); setAltitude(nextRoute?.altitude ? String(nextRoute.altitude) : ""); setUserRoute(nextRoute?.userRoute ?? ""); clearAmnAllocation();
@@ -92,12 +109,12 @@ export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbr
     </div></fieldset>
     {selectedAircraft && (selectedAircraft.stale || selectedAircraft.external) && <div className="notice"><strong>Aircraft position requires confirmation.</strong><p>{selectedAircraft.registration} is shown at {selectedAircraft.airportIcao}, but the position is {selectedAircraft.stale ? "older than 72 hours" : "not stale"}{selectedAircraft.external ? " and came from an external vAMSYS movement" : ""}. Last updated {new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(selectedAircraft.updatedAt))} UTC.</p><label><input type="checkbox" name="acknowledgeLocationWarning" value="yes" required/> I confirm this aircraft is currently available at {selectedAircraft.airportIcao}.</label></div>}
     <fieldset><legend><span>02</span> Schedule</legend><div className="pilot-booking-grid">
-      <label className="span-2">Departure date and time (UTC){locked && <input type="hidden" name="departureAt" value={departureAt}/>}<input type="datetime-local" name={locked ? undefined : "departureAt"} value={departureAt} onChange={(event) => { setDepartureAt(event.target.value); clearAmnAllocation(); }} disabled={locked} required/></label>
+      <label className="span-2">Departure date and time (UTC)<input type="datetime-local" name="departureAt" value={departureAt} onChange={(event) => setDepartureAt(event.target.value)} required/>{departureInvalid && <span className="meta" role="alert">Scheduled departure is no longer valid. Select a new departure time to continue.</span>}</label>
       <label className="span-2">Calculated arrival (UTC)<input value={arrivalAt && !Number.isNaN(arrivalAt.getTime()) ? `${arrivalAt.toISOString().slice(0, 16).replace("T", " ")} UTC` : "Calculated from route duration"} readOnly/></label>
     </div></fieldset>
     <fieldset><legend><span>03</span> AMN Payload and flight plan</legend>
       <input type="hidden" name="amnPayloadToken" value={amnToken}/>
-      <div className="button-row"><button className="button secondary" type="button" onClick={generateAmnPayload} disabled={!routeId || !aircraftId || !departureAt || amnLoading || locked}>{amnLoading ? "Requesting AMN traffic…" : locked ? `AMN Payload Locked · ${String(Math.floor(holdSeconds / 60)).padStart(2, "0")}:${String(holdSeconds % 60).padStart(2, "0")}` : "Auto Generate Payload"}</button><span className="meta">A hold is not a Booking or Dispatch. Route, aircraft and time remain locked until OFP preparation confirms it or the timer expires.</span></div>
+      <div className="button-row"><button className="button secondary" type="button" onClick={generateAmnPayload} disabled={!routeId || !aircraftId || !departureAt || departureInvalid || amnLoading || locked}>{amnLoading ? "Requesting AMN traffic…" : locked ? `AMN Payload Locked · ${String(Math.floor(holdSeconds / 60)).padStart(2, "0")}:${String(holdSeconds % 60).padStart(2, "0")}` : "Auto Generate Payload"}</button><span className="meta">A hold is not a Booking or Dispatch. Route and aircraft remain locked while the AMN payload hold is active. Departure time may still be adjusted.</span></div>
       {amnError && <div className="feedback error"><strong>AMN did not allocate Payload.</strong><br/>{amnError}</div>}
       {amnAllocation && <div className="feedback success"><strong>AMN Payload allocated</strong> · {amnAllocation.loadStage} · Request {amnAllocation.payloadRequestId}<br/>Market snapshot {amnAllocation.marketSnapshotId}</div>}
       <div className="pilot-booking-grid">
@@ -113,6 +130,6 @@ export function NativeSelfDispatchForm({ routes, aircraft, idempotencyKey, simbr
       <label className="span-2">Operational route<textarea name="userRoute" value={userRoute} onChange={(event) => setUserRoute(event.target.value)} placeholder="Leave blank to let SimBrief calculate the route"/></label>
     </div></fieldset>
     {!simbriefConnected && <div className="notice"><strong>Connect Navigraph / SimBrief before continuing.</strong> The booking workflow will use the existing SimBrief API to generate, store and sign the OFP. <a href="/api/auth/navigraph/start">Connect now</a></div>}
-    <div className="pilot-booking-submit"><div><strong>{amnAllocation ? "AMN Payload ready for SimBrief" : "AMN Payload required"}</strong><span>Creates the Flight, Booking and Dispatch using the immutable AMN allocation, then opens the SimBrief OFP workflow.</span></div><button className="button" disabled={!departure || !arrival || !routeId || !aircraftId || !departureAt || !simbriefConnected || !amnToken}>Prepare SimBrief OFP</button></div>
+    <div className="pilot-booking-submit"><div><strong>{amnAllocation ? "AMN Payload ready for SimBrief" : "AMN Payload required"}</strong><span>Creates the Flight, Booking and Dispatch using the immutable AMN allocation, then opens the SimBrief OFP workflow.</span></div><button className="button" disabled={!departure || !arrival || !routeId || !aircraftId || !departureAt || departureInvalid || !simbriefConnected || !amnToken}>Prepare SimBrief OFP</button></div>
   </form>;
 }
