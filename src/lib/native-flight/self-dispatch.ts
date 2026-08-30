@@ -57,7 +57,7 @@ export async function createNativeSelfDispatch(input: { pilotId: string; routeId
     if (!aircraft.nativeFleetId || aircraft.nativeFleet?.operationalStatus !== "ACTIVE") throw new Error("The selected aircraft Fleet is not active.");
     if (!aircraft.seatCapacity || aircraft.seatCapacity <= 0) throw new Error("Aircraft seat capacity must be configured before self-dispatch.");
     if (!aircraft.registration || !aircraft.aircraftType) throw new Error("Aircraft registration and ICAO type must be configured before AMN Payload allocation.");
-    if (input.amnAllocation.routeId !== route.id || input.amnAllocation.aircraftId !== aircraft.id || input.amnAllocation.operatingDate !== input.departureAt.toISOString().slice(0, 10)) throw new Error("AMN Payload allocation does not match this operation.");
+    if (input.amnAllocation.routeId !== route.id || input.amnAllocation.aircraftId !== aircraft.id) throw new Error("AMN Payload allocation does not match this route or aircraft.");
     if (input.amnAllocation.registration.toUpperCase() !== aircraft.registration.toUpperCase() || input.amnAllocation.aircraftTypeCode.toUpperCase() !== aircraft.aircraftType.toUpperCase()) throw new Error("AMN Payload allocation does not match the selected aircraft identity.");
     if (input.amnAllocation.passengers > aircraft.seatCapacity || input.amnAllocation.passengers > input.amnAllocation.sellableSeats) throw new Error("AMN passenger allocation exceeds aircraft capacity.");
     if (input.amnAllocation.cargoWeightKg > input.amnAllocation.maximumCargoWeightKg || input.amnAllocation.estimatedTrafficPayloadKg > input.amnAllocation.maximumTrafficPayloadKg) throw new Error("AMN cargo allocation exceeds aircraft capacity.");

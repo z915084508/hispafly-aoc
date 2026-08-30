@@ -52,7 +52,7 @@ export async function createNativeSelfDispatchAction(formData: FormData) {
     await assertNavigraphConnected(pilot.id);
     const allocation = verifyAmnPayloadAllocation(String(formData.get("amnPayloadToken") ?? ""));
     const departureAt = new Date(`${rawDeparture}:00Z`);
-    if (allocation.routeId !== String(formData.get("routeId") ?? "") || allocation.aircraftId !== String(formData.get("aircraftId") ?? "") || allocation.operatingDate !== departureAt.toISOString().slice(0, 10)) throw new Error("Route, aircraft or date changed after AMN allocated Payload. Generate it again.");
+    if (allocation.routeId !== String(formData.get("routeId") ?? "") || allocation.aircraftId !== String(formData.get("aircraftId") ?? "")) throw new Error("Route or aircraft changed after AMN allocated Payload. Generate it again.");
     const booking = await createNativeSelfDispatch({
       pilotId: pilot.id, routeId: String(formData.get("routeId") ?? ""), aircraftId: String(formData.get("aircraftId") ?? ""),
       departureAt, idempotencyKey: String(formData.get("idempotencyKey") ?? ""),
