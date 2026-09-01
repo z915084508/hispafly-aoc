@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { writeAuditLogSafely } from "@/lib/audit/log";
 import { assertNativeIds, assertNativeOrigin } from "@/lib/native-cutover/write-gate";
 import { resolveAircraftState } from "./aircraft-state";
+import { staffBookingCancellationPolicy } from "./booking-rules";
 
 const ACTIVE_BOOKING_STATUSES: PilotBookingStatus[] = [
   PilotBookingStatus.PENDING,
@@ -243,6 +244,75 @@ export async function cancelNativeBooking(bookingId: string, pilotId: string, re
       if (booking.flight && !terminal.has(booking.flight.status)) await tx.flight.update({ where: { id: booking.flight.id }, data: { status: NativeFlightStatus.CANCELLED } });
       await tx.aocAuditLog.create({ data: { action: "PILOT_BOOKING_CANCELLED", entityType: "PilotBooking", entityId: booking.id, message: "Pilot cancelled a native booking.", metadata: { pilotId, reason } } });
     }
+    return updated;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+export async function cancelNativeBookingByStaff(input: {
+  bookingId: string;
+  staff: { id: string; name: string };
+  reason: string;
+  canVoidReleasedDispatch: boolean;
+}) {
+  const reason = input.reason.trim();
+  if (!reason) throw new Error("A cancellation reason is required.");
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`staff-booking-cancel:${input.bookingId}`}))`;
+    const booking = await tx.pilotBooking.findUnique({
+      where: { id: input.bookingId },
+      include: {
+        flight: true,
+        matchedPirep: { select: { id: true } },
+        dispatch: { include: { flightOffer: true, ofpBriefing: true, aircraft: { include: { locationSnapshot: true } } } },
+      },
+    });
+    if (!booking) throw new Error("Booking not found.");
+    const now = new Date();
+    const policy = staffBookingCancellationPolicy({
+      dataOrigin: booking.dataOrigin,
+      bookingStatus: booking.status,
+      selectedDepartureAt: booking.selectedDepartureAt,
+      flightStatus: booking.flight?.status,
+      scheduledDeparture: booking.flight?.scheduledDeparture,
+      dispatchStatus: booking.dispatch?.status,
+      hasMatchedPirep: Boolean(booking.matchedPirep),
+      now,
+    });
+    if (!policy.allowed) throw new Error(policy.reason ?? "Booking cannot be cancelled.");
+    if (policy.idempotent) return booking;
+    if (policy.requiredPermission === "DISPATCH_VOID" && !input.canVoidReleasedDispatch) throw new Error("DISPATCH_VOID permission is required to cancel a released Dispatch.");
+    const restoredFlightStatus = booking.flight?.scheduleId
+      ? booking.flight.bookingOpenAt && booking.flight.bookingOpenAt > now ? NativeFlightStatus.SCHEDULED
+        : booking.flight.bookingCloseAt && booking.flight.bookingCloseAt <= now ? NativeFlightStatus.EXPIRED
+        : NativeFlightStatus.OPEN_FOR_BOOKING
+      : booking.flight ? NativeFlightStatus.CANCELLED : null;
+
+    const dispatch = booking.dispatch;
+    if (dispatch) {
+      const released = dispatch.status === FlightDispatchStatus.RELEASED;
+      await tx.flightDispatch.update({ where: { id: dispatch.id }, data: released
+        ? { status: FlightDispatchStatus.VOIDED, voidedAt: now, voidReason: reason, isCurrent: false }
+        : { status: FlightDispatchStatus.CANCELLED, cancelledAt: now, errorMessage: reason, isCurrent: false } });
+      if (dispatch.ofpBriefing) await tx.dispatchRelease.updateMany({ where: { ofpBriefingId: dispatch.ofpBriefing.id }, data: { status: released ? "VOIDED" : "CANCELLED" } });
+      const pilotCreatedOffer = dispatch.flightOffer["createdByPilotId"];
+      const offerStatus = restoredFlightStatus === NativeFlightStatus.EXPIRED || dispatch.flightOffer.validUntil <= now ? "EXPIRED" : pilotCreatedOffer ? "CANCELLED" : "PUBLISHED";
+      await tx.flightOffer.update({ where: { id: dispatch.flightOfferId }, data: { status: offerStatus } });
+      if (dispatch.aircraftId && dispatch.aircraft?.locationSnapshot?.reservedByDispatchId === dispatch.id) {
+        await tx.aircraftLocationSnapshot.update({ where: { id: dispatch.aircraft.locationSnapshot.id }, data: { status: "AVAILABLE", reservedByDispatchId: null, lastReportAt: now } });
+        await tx.aircraft.updateMany({ where: { id: dispatch.aircraftId, operationalStatus: { in: ["RESERVED", "DISPATCHED"] } }, data: { operationalStatus: "AVAILABLE" } });
+      }
+    }
+
+    const updated = await tx.pilotBooking.update({ where: { id: booking.id }, data: { status: PilotBookingStatus.CANCELLED, cancelledAt: now, cancellationReason: reason } });
+    if (booking.flight && restoredFlightStatus) await tx.flight.update({ where: { id: booking.flight.id }, data: { status: restoredFlightStatus } });
+    await tx.aocAuditLog.create({ data: {
+      staffUserId: input.staff.id,
+      action: "STAFF_BOOKING_CANCELLED",
+      entityType: "PilotBooking",
+      entityId: booking.id,
+      message: `${input.staff.name} cancelled a native booking${dispatch?.status === FlightDispatchStatus.RELEASED ? " and voided its released Dispatch" : ""}.`,
+      metadata: { reason, staffId: input.staff.id, staffName: input.staff.name, flightId: booking.flightId, dispatchId: dispatch?.id ?? null, previousDispatchStatus: dispatch?.status ?? null },
+    } });
     return updated;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
