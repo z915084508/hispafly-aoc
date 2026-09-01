@@ -4,20 +4,17 @@ import { prisma } from "@/lib/prisma";
 import { requireStaffPermission } from "@/lib/staff/authorization";
 import { checkAircraftAvailability } from "@/lib/native-flight/availability";
 import { writeAuditLogSafely } from "@/lib/audit/log";
+import { cancelNativeBookingByStaff } from "@/lib/native-flight/booking";
+import { staffHasPermission } from "@/lib/staff/permissions";
 const value = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 export async function staffCancelBookingAction(form: FormData) {
   const id = value(form, "bookingId"), reason = value(form, "reason");
   const staff = await requireStaffPermission("BOOKING_CANCEL", { entityType: "PilotBooking", entityId: id, attemptedAction: "cancel booking" });
   let target = `/staff/bookings/${id}`;
   try {
-    if (!reason) throw new Error("A cancellation reason is required.");
-    const booking = await prisma.pilotBooking.findUnique({ where: { id }, include: { dispatch: true } });
-    if (!booking) throw new Error("Booking not found.");
-    if (booking.dataOrigin === "VAMSYS_LEGACY") throw new Error("Legacy booking is read-only.");
-    if (["COMPLETED","FLOWN","IN_PROGRESS"].includes(booking.status)) throw new Error("Historical or active booking cannot be directly cancelled.");
-    if (booking.dispatch) throw new Error("Dispatch-controlled cancellation belongs to TASK 5.6.");
-    await prisma.pilotBooking.update({ where: { id }, data: { status: "CANCELLED", cancelledAt: new Date(), cancellationReason: reason } });
-    await writeAuditLogSafely({ staffUserId: staff.id, action: "STAFF_BOOKING_CANCELLED", entityType: "PilotBooking", entityId: id, message: `${staff.name} cancelled a native booking.`, metadata: { reason } });
+    const booking = await prisma.pilotBooking.findUnique({ where: { id }, select: { dispatch: { select: { status: true } } } });
+    if (booking?.dispatch?.status === "RELEASED") await requireStaffPermission("DISPATCH_VOID", { entityType: "PilotBooking", entityId: id, attemptedAction: "cancel a booking with a released Dispatch" });
+    await cancelNativeBookingByStaff({ bookingId: id, staff, reason, canVoidReleasedDispatch: staffHasPermission(staff, "DISPATCH_VOID") });
     target += "?success=Booking+cancelled";
   } catch (error) { target += `?error=${encodeURIComponent(error instanceof Error ? error.message : "Cancellation failed")}`; }
   redirect(target);
