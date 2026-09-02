@@ -1,3 +1,5 @@
+import { normalizeCountryCode } from "@/lib/native-flight/route-automation";
+
 export type AmnOperationalAirportMetadata = {
   iata: string;
   icao: string;
@@ -25,7 +27,10 @@ export function toAmnAirportMetadata(airport: {
   const country = airport.country?.trim() || null;
   const region = airport.region?.trim().toUpperCase() || "";
   const regionIso2 = region.match(/^([A-Z]{2})(?:[-_]|$)/)?.[1] ?? null;
-  const countryIso2 = regionIso2 ?? (country && /^[A-Za-z]{2}$/.test(country) ? country.toUpperCase() : null);
+  // Imported airport rows store an operational region such as "EUROPE" and a
+  // human-readable country such as "Spain". AMN requires the ISO-2 country
+  // code, so do not mistake `region` for the country-code source.
+  const countryIso2 = regionIso2 ?? normalizeCountryCode(country);
   return {
     iata: airport.iata.trim().toUpperCase(),
     icao: airport.icao.trim().toUpperCase(),
