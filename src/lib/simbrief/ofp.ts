@@ -14,6 +14,7 @@ import { evaluateDispatchRelease } from "@/lib/dispatch-release/service";
 import { normalizeAlternateIcao } from "@/lib/dispatch-release/alternatePolicy";
 import { buildAppliedFuelPolicy, fuelPolicyJson, fuelPolicyPayload } from "@/lib/fuel-policy/service";
 import { confirmAmnPayload } from "@/lib/amn/payload";
+import { amnConfirmationIdentity } from "@/lib/amn/confirmation-identity";
 
 export function ofpContentHash(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -210,14 +211,10 @@ export async function generateDispatchSimBriefOfp(input: { ofpId: string; pilotI
       const amnProvenance = dispatch.booking.amnPayloadProvenance && typeof dispatch.booking.amnPayloadProvenance === "object" && !Array.isArray(dispatch.booking.amnPayloadProvenance)
         ? dispatch.booking.amnPayloadProvenance as Record<string, unknown>
         : null;
-      const externalFlightId = typeof amnProvenance?.externalFlightId === "string"
-        ? amnProvenance.externalFlightId
-        : offer.flightNumber ?? dispatch.booking.flightNumber;
-      if (!externalFlightId) throw new Error("AMN Payload confirmation requires the original flight number.");
+      const identity = amnConfirmationIdentity(amnProvenance, offer.flightNumber ?? dispatch.booking.flightNumber, dispatch.selectedDepartureAt);
       await confirmAmnPayload({
         payloadRequestId: dispatch.booking.amnPayloadRequestId,
-        externalFlightId,
-        operatingDate: dispatch.selectedDepartureAt.toISOString().slice(0, 10),
+        ...identity,
         externalBookingId: dispatch.booking.id,
         externalDispatchId: dispatch.id,
         externalOfpId: saved.id,

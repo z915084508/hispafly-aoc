@@ -114,6 +114,7 @@ export async function requestAmnPayload(input: {
     capacitySnapshot: input.capacitySnapshot ?? null,
     loadStage: input.loadStage ?? "FINAL",
   }, input.idempotencyKey);
+  if (body.externalFlightId !== input.externalFlightId || body.operatingDate !== input.operatingDate) throw new Error("AMN PAYLOAD_IDENTITY_MISMATCH: allocation does not belong to the requested flight and operating date.");
   if (body.allocationStatus !== "HELD" || !body.holdExpiresAt || Date.parse(body.holdExpiresAt) <= Date.now()) throw new Error("AMN did not return an active Payload hold.");
   const passengers = integer(body.passengers.count, "passenger count");
   const cargoWeightKg = integer(body.cargo.weightKg, "cargo weight");
@@ -141,7 +142,7 @@ export async function requestAmnPayload(input: {
     maximumCargoWeightKg,
     maximumTrafficPayloadKg,
     estimatedTrafficPayloadKg,
-    provenance: body.provenance,
+    provenance: { ...body.provenance, externalFlightId: input.externalFlightId, operatingDate: input.operatingDate },
     expiresAt: body.holdExpiresAt,
   };
 }
