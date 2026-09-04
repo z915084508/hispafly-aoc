@@ -1,5 +1,6 @@
 import { Prisma, type PirepRejectCode, type PirepStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { deliverAmnPirep } from "@/lib/amn/pirep-delivery";
 import { ensureNativePayrollSettlement } from "@/lib/payroll/nativeSettlement";
 import { syncPilotAutomaticRank } from "@/lib/pilot/career-service";
 import { PIREP_REJECT_REASONS } from "./policy";
@@ -50,5 +51,6 @@ export async function reviewPirep(input: ReviewInput) {
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   if (result.updated.status === "accepted") await ensureNativePayrollSettlement(result.updated.id);
   await syncPilotAutomaticRank(result.updated.pilotId);
+  if (result.updated.status === "accepted") await deliverAmnPirep(result.updated.id).catch(() => undefined);
   return result;
 }
