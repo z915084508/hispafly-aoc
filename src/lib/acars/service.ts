@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { deliverAmnPirep } from "@/lib/amn/pirep-delivery";
 import { prisma } from "@/lib/prisma";
 import { calculateFuelCostSnapshot } from "@/lib/economy/fuel";
 import { calculatePassengerRevenue } from "@/lib/revenue/passengerRevenue";
@@ -63,6 +64,7 @@ function trustedCompletionFuel(completion: CompletionInput | null | undefined) {
 
 async function completeNativePirepPostProcessing(pirepId: string) {
   const results = await Promise.allSettled([
+    deliverAmnPirep(pirepId),
     ensureNativePayrollSettlement(pirepId),
     generateCompanyExpensesForPirep(pirepId),
     createOrUpdateFlightAnalysis(pirepId),
