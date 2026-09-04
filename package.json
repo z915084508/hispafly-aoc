@@ -58,7 +58,7 @@
     "test:acars-access": "node --experimental-strip-types src/lib/acars/access.test.ts",
     "test:acars-channels": "node --experimental-strip-types src/lib/acars/release-channel.test.ts",
     "test:acars-chat": "node --experimental-strip-types src/lib/chat/contract.test.ts",
-    "test:amn": "node --experimental-strip-types src/lib/amn/payload.test.ts && node --experimental-strip-types src/lib/amn/airport-metadata.test.ts && node --experimental-strip-types src/lib/amn/departure-time-lock.test.ts",
+    "test:amn": "node --experimental-strip-types src/lib/amn/payload.test.ts && node --experimental-strip-types src/lib/amn/airport-metadata.test.ts && node --experimental-strip-types src/lib/amn/departure-time-lock.test.ts && node --experimental-strip-types src/lib/amn/confirmation-identity.test.ts",
     "test:identity-email": "node --experimental-strip-types src/lib/auth/delivery.test.ts",
     "test:routes": "node --experimental-strip-types src/lib/vamsys/routes/routes.test.ts && node --experimental-strip-types src/lib/vamsys/routes/planning.test.ts",
     "test:fleets": "node --experimental-strip-types src/lib/vamsys/fleets/fleets.test.ts",

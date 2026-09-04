@@ -12,7 +12,8 @@ assert.doesNotMatch(form, /disabled=\{locked\} required\/>/);
 assert.match(form, /Route and aircraft remain locked while the AMN payload hold is active\. Departure time may still be adjusted\./);
 assert.match(form, /Scheduled departure is no longer valid\. Select a new departure time to continue\./);
 assert.doesNotMatch(action, /allocation\.operatingDate/);
-assert.doesNotMatch(service, /amnAllocation\.operatingDate/);
+assert.match(service, /operatingDate: input\.amnAllocation\.operatingDate/, "Persist the allocation day for confirmation without locking departure edits");
+assert.doesNotMatch(service, /if\s*\([^\n]*amnAllocation\.operatingDate/, "Allocation day must not become a departure-time lock");
 assert.match(action, /allocation\.routeId[\s\S]*allocation\.aircraftId/);
 assert.match(service, /amnAllocation\.routeId[\s\S]*amnAllocation\.aircraftId/);
 
