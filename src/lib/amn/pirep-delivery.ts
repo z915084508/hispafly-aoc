@@ -4,6 +4,20 @@ import { prisma } from "@/lib/prisma";
 
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
+export function resolveAmnPirepIdentity(identityValue: unknown, selectedDepartureAt: Date) {
+  const identity = object(identityValue);
+  const externalFlightId = typeof identity.externalFlightId === "string" ? identity.externalFlightId : "";
+  if (!externalFlightId) throw new Error("ALLOCATION_IDENTITY_MISSING");
+  let operatingDate = typeof identity.operatingDate === "string" ? identity.operatingDate : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(operatingDate)) {
+    const encodedDeparture = externalFlightId.match(/:(\d{4}-\d{2}-\d{2}T.*Z)$/)?.[1];
+    const encodedTime = encodedDeparture ? Date.parse(encodedDeparture) : Number.NaN;
+    if (!Number.isFinite(encodedTime) || Math.abs(encodedTime - selectedDepartureAt.getTime()) > 1_000) throw new Error("ALLOCATION_IDENTITY_MISSING");
+    operatingDate = new Date(encodedTime).toISOString().slice(0, 10);
+  }
+  return { externalFlightId, operatingDate };
+}
+
 /** The accepted native PIREP is the durable queue. No legacy record can send traffic. */
 export async function deliverAmnPirep(pirepId: string) {
   const pirep = await prisma.pirep.findUnique({ where: { id: pirepId }, include: { pilotBooking: true } });
@@ -14,8 +28,7 @@ export async function deliverAmnPirep(pirepId: string) {
   const identity = object(booking.amnPayloadProvenance);
   let outcome: Record<string, unknown>;
   try {
-    const { externalFlightId, operatingDate } = identity;
-    if (typeof externalFlightId !== "string" || !externalFlightId || typeof operatingDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(operatingDate)) throw new Error("ALLOCATION_IDENTITY_MISSING");
+    const { externalFlightId, operatingDate } = resolveAmnPirepIdentity(identity, booking.selectedDepartureAt);
     if (!Number.isSafeInteger(pirep.passengers) || !Number.isSafeInteger(pirep.freightKg) || Number(pirep.passengers) < 0 || Number(pirep.freightKg) < 0) throw new Error("ACTUAL_LOAD_MISSING");
     const baseUrl = process.env.AMN_API_BASE_URL?.trim().replace(/\/$/, "");
     const key = process.env.AMN_API_KEY?.trim();
@@ -49,4 +62,17 @@ export async function retryAmnPireps() {
     results.push(...await Promise.all(reports.slice(offset, offset + 5).map(async report => ({ pirepId: report.id, status: await deliverAmnPirep(report.id).catch(() => "RETRY") }))));
   }
   return results;
+}
+
+export async function previewAmnPirepBackfill() {
+  const reports = await prisma.pirep.findMany({ where: { dataOrigin: "HISPAFLY_NATIVE", status: "accepted", pilotBooking: { is: { dataOrigin: "HISPAFLY_NATIVE", amnPayloadRequestId: { not: null } } }, OR: [{ rawData: { path: ["amnDelivery", "status"], equals: Prisma.AnyNull } }, { NOT: { rawData: { path: ["amnDelivery", "status"], equals: "DELIVERED" } } }] }, orderBy: [{ flownAt: "asc" }, { id: "asc" }], take: 100, include: { pilotBooking: true } });
+  return reports.map(report => {
+    try {
+      if (!report.pilotBooking || !report.pilotBooking.estimatedArrivalAt || !report.flownAt || !Number.isSafeInteger(report.passengers) || !Number.isSafeInteger(report.freightKg)) throw new Error("HISTORICAL_EVIDENCE_INCOMPLETE");
+      const identity = resolveAmnPirepIdentity(report.pilotBooking.amnPayloadProvenance, report.pilotBooking.selectedDepartureAt);
+      return { pirepId: report.id, flightNumber: report.flightNumber, selectedDepartureAt: report.pilotBooking.selectedDepartureAt.toISOString(), ...identity, status: "READY" };
+    } catch (error) {
+      return { pirepId: report.id, flightNumber: report.flightNumber, selectedDepartureAt: report.pilotBooking?.selectedDepartureAt.toISOString() ?? null, status: "BLOCKED", reason: error instanceof Error ? error.message : "HISTORICAL_EVIDENCE_INCOMPLETE" };
+    }
+  });
 }
