@@ -6,12 +6,12 @@ import ts from "typescript";
 let sent = 0;
 let failHttp = false;
 let wrongReceipt = false;
-const report = { id: "native-1", dataOrigin: "HISPAFLY_NATIVE", status: "accepted", passengers: 90, freightKg: 300, flownAt: new Date("2026-09-05T00:20:00Z"), rawData: { telemetry: "retain" } as Record<string, unknown>, pilotBooking: { dataOrigin: "HISPAFLY_NATIVE", amnPayloadRequestId: "allocation", amnPayloadProvenance: { externalFlightId: "adhoc:original", operatingDate: "2026-09-04" }, estimatedArrivalAt: new Date("2026-09-05T00:00:00Z") } };
+const report = { id: "native-1", dataOrigin: "HISPAFLY_NATIVE", status: "accepted", passengers: 90, freightKg: 300, flownAt: new Date("2026-09-05T00:20:00Z"), rawData: { telemetry: "retain" } as Record<string, unknown>, pilotBooking: { dataOrigin: "HISPAFLY_NATIVE", amnPayloadRequestId: "allocation", amnPayloadProvenance: { externalFlightId: "adhoc:original", operatingDate: "2026-09-04" } as Record<string, unknown>, selectedDepartureAt: new Date("2026-09-04T23:00:00Z"), estimatedArrivalAt: new Date("2026-09-05T00:00:00Z") } };
 const fake = { pirep: { findUnique: async () => structuredClone(report), updateMany: async ({ data }: { data: { rawData: Record<string, unknown> } }) => { report.rawData = data.rawData; return { count: 1 }; } } };
 (globalThis as Record<string, unknown>).__amnTestPrisma = fake;
 const source = readFileSync(new URL("./pirep-delivery.ts", import.meta.url), "utf8").replace('import { prisma } from "@/lib/prisma";', 'const prisma = globalThis.__amnTestPrisma;');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText.replace('from "@prisma/client"', `from ${JSON.stringify(import.meta.resolve("@prisma/client"))}`);
-const { deliverAmnPirep } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+const { deliverAmnPirep, resolveAmnPirepIdentity } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 process.env.AMN_API_BASE_URL = "https://amn.example";
 process.env.AMN_API_KEY = "test-key";
 globalThis.fetch = async (_url, options) => {
@@ -30,6 +30,8 @@ assert.equal(await deliverAmnPirep(report.id), "RETRY"); assert(!JSON.stringify(
 failHttp = false; wrongReceipt = true; assert.equal(await deliverAmnPirep(report.id), "RETRY");
 wrongReceipt = false; assert.equal(await deliverAmnPirep(report.id), "DELIVERED"); assert.equal(report.rawData.telemetry, "retain");
 const before = sent; assert.equal(await deliverAmnPirep(report.id), "DELIVERED"); assert.equal(sent, before);
+assert.deepEqual(resolveAmnPirepIdentity({ externalFlightId: "adhoc:flight:2026-08-26T22:10:00.000Z" }, new Date("2026-08-26T22:10:00.000Z")), { externalFlightId: "adhoc:flight:2026-08-26T22:10:00.000Z", operatingDate: "2026-08-26" });
+assert.throws(() => resolveAmnPirepIdentity({ externalFlightId: "adhoc:flight:2026-08-26T22:10:00.000Z" }, new Date("2026-08-26T22:11:00.000Z")), /ALLOCATION_IDENTITY_MISSING/);
 report.rawData = {}; report.pilotBooking.amnPayloadProvenance.externalFlightId = "";
 assert.equal(await deliverAmnPirep(report.id), "RETRY"); assert.equal(sent, before);
 console.log("Native PIREP delivery: legacy exclusion, review gate, retry, receipt identity, original day and receipt persistence passed.");
