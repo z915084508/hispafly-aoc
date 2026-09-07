@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { toAmnAirportMetadata } from "@/lib/amn/airport-metadata";
+import { normalizeAmnRegistration, resolveAmnAircraftTypeCode } from "@/lib/amn/flight-context-normalization";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,21 +23,6 @@ function authorized(request: Request) {
   const left = Buffer.from(expected);
   const right = Buffer.from(presented);
   return left.length === right.length && timingSafeEqual(left, right);
-}
-
-function aircraftTypeCode(input: {
-  assignedAircraft?: { aircraftType: string | null } | null;
-  fleet?: { type: string | null; iataType: string | null; code: string | null } | null;
-}) {
-  const candidates = [input.assignedAircraft?.aircraftType, input.fleet?.type, input.fleet?.iataType, input.fleet?.code];
-  for (const candidate of candidates) {
-    const raw = candidate?.trim().toUpperCase() ?? "";
-    const compact = raw.replace(/[^A-Z0-9]/g, "");
-    const direct = compact.match(/^(A3\d{2}|A2\d{2}|B7\d{2}|B3\d{2}|E\d{3}|CRJ\d|AT\d{2})/)?.[1];
-    if (direct && /^[A-Z0-9]{2,4}$/.test(direct)) return direct;
-    if (/^[A-Z0-9]{2,4}$/.test(compact)) return compact;
-  }
-  return null;
 }
 
 function dateRange(operatingDate: string) {
@@ -106,7 +92,7 @@ export async function POST(request: Request) {
         flightNumber: route.flightNumber,
         originAirport: toAmnAirportMetadata(route.departureAirport),
         destinationAirport: toAmnAirportMetadata(route.arrivalAirport),
-        defaultAircraftTypeCode: aircraftTypeCode({ fleet: route.defaultFleet }),
+        defaultAircraftTypeCode: resolveAmnAircraftTypeCode({ fleet: route.defaultFleet }),
       },
       targetFlight: target ? {
         flightId: target.id,
@@ -118,8 +104,8 @@ export async function POST(request: Request) {
         status: target.status,
         scheduledDepartureUtc: target.scheduledDeparture.toISOString(),
         scheduledArrivalUtc: target.scheduledArrival.toISOString(),
-        aircraftTypeCode: aircraftTypeCode(target),
-        registration: target.assignedAircraft?.registration ?? null,
+        aircraftTypeCode: resolveAmnAircraftTypeCode(target),
+        registration: normalizeAmnRegistration(target.assignedAircraft?.registration),
       } : {
         flightId: externalFlightId,
         routeId: route.id,
@@ -130,7 +116,7 @@ export async function POST(request: Request) {
         status: "ADHOC",
         scheduledDepartureUtc: body.scheduledDepartureUtc ?? null,
         scheduledArrivalUtc: null,
-        aircraftTypeCode: aircraftTypeCode({ fleet: route.defaultFleet }),
+        aircraftTypeCode: resolveAmnAircraftTypeCode({ fleet: route.defaultFleet }),
         registration: null,
       },
       marketFlights: marketFlights.map((flight) => ({
@@ -141,8 +127,8 @@ export async function POST(request: Request) {
         flightNumber: flight.flightNumber,
         status: flight.status,
         scheduledDepartureUtc: flight.scheduledDeparture.toISOString(),
-        aircraftTypeCode: aircraftTypeCode(flight),
-        registration: flight.assignedAircraft?.registration ?? null,
+        aircraftTypeCode: resolveAmnAircraftTypeCode(flight),
+        registration: normalizeAmnRegistration(flight.assignedAircraft?.registration),
       })),
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
