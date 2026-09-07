@@ -2,9 +2,14 @@ export interface AmnExportAircraftRow { id:string; registration:string|null; air
 export interface AmnExportRouteRow { id:string; departureAirport:{iata:string|null}|null; arrivalAirport:{iata:string|null}|null; operationalStatus:string; updatedAt:Date }
 export interface AmnExportFlightRow { id:string; flightNumber:string; operatingDate:Date; scheduledDeparture:Date; departureAirport:{iata:string|null}|null; arrivalAirport:{iata:string|null}|null; fleet:{type:string|null;code:string|null}|null; assignedAircraft:{registration:string|null;aircraftType:string|null}|null; updatedAt:Date }
 
+const excludedMarketAircraftTypes = new Set(["B748", "EC45"]);
+const normalizedAircraftType = (value:string|null|undefined) => value?.trim().toUpperCase() ?? "";
+export const isAmnMarketAircraftType = (value:string|null|undefined) => !excludedMarketAircraftTypes.has(normalizedAircraftType(value));
+
 export function buildAmnExport(input:{aircraft:AmnExportAircraftRow[];routes:AmnExportRouteRow[];flights:AmnExportFlightRow[];generatedAt:Date}) {
   const issues:Array<{entityType:string;externalId:string;code:string;message:string}> = [];
   const fleet=input.aircraft.flatMap(row=>{
+    if(!isAmnMarketAircraftType(row.aircraftType))return [];
     if(!row.registration||!row.aircraftType){issues.push({entityType:"FLEET",externalId:row.id,code:"IDENTITY_REQUIRED",message:"Aircraft registration and type are required."});return []}
     if(row.seatCapacity==null||row.cargoCapacityKg==null)issues.push({entityType:"FLEET",externalId:row.id,code:"CONFIGURATION_REQUIRED",message:`${row.registration} requires a complete AMN capacity configuration.`});
     return [{externalId:row.id,registration:row.registration,aircraftTypeCode:row.aircraftType,configuration:row.seatCapacity==null||row.cargoCapacityKg==null?null:{sellableSeats:row.seatCapacity,maximumCargoWeightKg:row.cargoCapacityKg}}];
@@ -15,7 +20,8 @@ export function buildAmnExport(input:{aircraft:AmnExportAircraftRow[];routes:Amn
     return [{externalId:row.id,originIata:origin,destinationIata:destination,serviceType:"PASSENGER" as const}];
   });
   const flights=input.flights.flatMap(row=>{
-    const origin=row.departureAirport?.iata,destination=row.arrivalAirport?.iata,type=row.assignedAircraft?.aircraftType??row.fleet?.type??row.fleet?.code;
+    const origin=row.departureAirport?.iata,destination=row.arrivalAirport?.iata,type=row.assignedAircraft?.aircraftType??row.fleet?.code??row.fleet?.type;
+    if([row.assignedAircraft?.aircraftType,row.fleet?.code].some(value=>value&&!isAmnMarketAircraftType(value)))return [];
     if(!origin||!destination||!type){issues.push({entityType:"FLIGHT",externalId:row.id,code:"OPERATIONAL_MAPPING_REQUIRED",message:"Flight requires IATA airports and an aircraft type."});return []}
     return [{externalId:row.id,flightNumber:row.flightNumber,operatingDate:row.operatingDate.toISOString().slice(0,10),originIata:origin,destinationIata:destination,scheduledDepartureUtc:row.scheduledDeparture.toISOString(),aircraftTypeCode:type,registration:row.assignedAircraft?.registration??null}];
   });
