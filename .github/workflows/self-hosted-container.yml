@@ -1,0 +1,46 @@
+name: Self-hosted container build
+on:
+  push:
+    branches: ["codex/self-hosted-container-20261004-v2"]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - .github/workflows/self-hosted-container.yml
+      - self-hosted/**
+      - src/**
+      - api/**
+      - prisma/**
+      - package.json
+      - "*lock*"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: self-hosted-container-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build isolated image
+        env:
+          IMAGE_TAG: hispafly-aoc:${{ github.sha }}
+        run: docker build --tag "$IMAGE_TAG" .
+      - name: Export image and checksum
+        env:
+          IMAGE_TAG: hispafly-aoc:${{ github.sha }}
+        run: |
+          mkdir -p image-output
+          docker save "$IMAGE_TAG" | gzip > image-output/hispafly-aoc.tar.gz
+          cd image-output
+          sha256sum hispafly-aoc.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: hispafly-aoc-image-${{ github.sha }}
+          path: image-output/
+          retention-days: 3
+          if-no-files-found: error
