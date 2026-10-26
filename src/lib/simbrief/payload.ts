@@ -1,3 +1,4 @@
+import type { SimBriefAircraftData } from "./aircraft-data.ts";
 import { normalizeFlightIdentity } from "../dispatch/flightIdentity.ts";
 
 function simBriefDate(value: Date) {
@@ -11,6 +12,7 @@ function simBriefDate(value: Date) {
 
 export function buildSimBriefGeneratePayload(input: {
   staticId: string;
+  aircraftData: SimBriefAircraftData;
   departureIcao: string;
   arrivalIcao: string;
   aircraftType: string | null;
@@ -29,6 +31,7 @@ export function buildSimBriefGeneratePayload(input: {
   if (!identity.numericFlightNumber || !identity.atcCallsign) throw new Error("A valid flight number and callsign are required for SimBrief.");
   return {
     static_id: input.staticId,
+    acdata: input.aircraftData,
     orig: input.departureIcao.toUpperCase(),
     dest: input.arrivalIcao.toUpperCase(),
     type: input.aircraftType || "A320",

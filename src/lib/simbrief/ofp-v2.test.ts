@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { buildSimBriefGeneratePayload } from "./payload.ts";
+import { mapAmnAircraftData } from "./aircraft-data.ts";
 import { resolveSimbriefDispatchLoad } from "./load.ts";
 
 const payload = buildSimBriefGeneratePayload({
   staticId: "HFAOC-dispatch-1",
+  aircraftData: mapAmnAircraftData({ operatingEmptyWeightKg: 42000, maxZeroFuelWeightKg: 62500, maxTakeoffWeightKg: 78000, maxLandingWeightKg: 66000 }),
   departureIcao: "levc",
   arrivalIcao: "lemd",
   aircraftType: "A320",
