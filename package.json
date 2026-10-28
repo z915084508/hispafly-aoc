@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:pwa": "node --experimental-strip-types --test scripts/pwa.test.mjs",
     "dev": "next dev",
     "build": "node scripts/vercel-build.mjs",
     "db:deploy": "prisma migrate deploy && prisma generate && npm run staff:bootstrap",

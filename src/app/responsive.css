@@ -1,5 +1,33 @@
 /* Responsive layout fixes for the STAFF portal. */
 
+/* Keep installed windows clear of display cutouts without disabling zoom. */
+body {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.pwa-install, .pwa-update {
+  padding: 14px 20px;
+  background: #fff;
+  color: var(--ink);
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.pwa-install summary { cursor: pointer; padding: 12px 0; }
+.pwa-help { max-width: 760px; line-height: 1.6; }
+.pwa-update { border-top: 3px solid var(--blue); }
+.pwa-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.pwa-install button, .pwa-update button {
+  min-height: 44px; padding: 10px 16px; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--canvas); color: var(--ink); cursor: pointer;
+}
+.pwa-install button:disabled { cursor: wait; opacity: .6; }
+.pwa-install :focus-visible, .pwa-update :focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+.pilot-menu-toggle { display: none; }
+.pilot-navigation-content { display: flex; flex-direction: column; min-height: 100%; }
+
 .app-shell,
 .main,
 .content,
@@ -155,6 +183,9 @@
 }
 
 @media (max-width: 760px) {
+  .pilot-menu-toggle { display: block; min-height: 44px; width: 100%; padding: 10px 14px; text-align: left; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 9px; font: inherit; font-weight: 700; }
+  .pilot-sidebar:not(.pilot-nav-open) .pilot-navigation-content { display: none; }
+  .pilot-sidebar .pilot-navigation-content { padding-top: 14px; min-height: 0; }
   .topbar {
     height: auto !important;
     padding: 14px 16px !important;
@@ -226,4 +257,30 @@
   .calculation-grid {
     grid-template-columns: 1fr !important;
   }
+}
+
+/* Target the pilot flows; desktop OCC tables and permissions remain unchanged. */
+@media (max-width: 760px) {
+  .pilot-header { height: auto; min-height: 82px; gap: 14px; flex-wrap: wrap; padding: 16px 18px; }
+  .pilot-header nav { flex-shrink: 0; }
+  .pilot-content { width: calc(100% - 24px); padding: 28px 0; }
+  .pilot-welcome-card { padding: 20px; }
+  .pilot-welcome-card > *, .pilot-user-summary > *, .login-form { min-width: 0; max-width: 100%; }
+  .login-form input, .login-form select, .pilot-portal-shell input, .pilot-portal-shell select,
+  .pilot-portal-shell textarea { font-size: 16px; max-width: 100%; }
+  .login-form button, .pilot-portal-shell .action-button, .pilot-portal-shell .button,
+  .pilot-portal-shell .nav-item, .pilot-hub-nav a { min-height: 44px; }
+  .pilot-user-summary { flex-wrap: wrap; width: 100%; }
+  .pilot-user-summary .secondary { overflow-wrap: anywhere; }
+  .pilot-portal-shell .main, .pilot-portal-shell .content { min-width: 0; }
+  .pilot-sidebar .nav-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pilot-sidebar .nav-item { overflow-wrap: anywhere; }
+  .pilot-portal-shell .card-header { flex-wrap: wrap; gap: 12px; }
+  .pilot-portal-shell .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .pilot-portal-shell .rank-track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pilot-portal-shell .award-card { grid-template-columns: auto minmax(0, 1fr); }
+  .pilot-portal-shell .workflow-summary strong { overflow-wrap: anywhere; }
+  .pilot-portal-shell .booking-filter select { min-width: 0; width: 100%; }
+  .pilot-portal-shell iframe { max-width: 100%; }
+  .pilot-portal-shell .table-wrap { overscroll-behavior-x: contain; }
 }
