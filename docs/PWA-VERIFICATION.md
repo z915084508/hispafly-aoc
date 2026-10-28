@@ -4,6 +4,12 @@ Date: 2026-10-28. Base: `cf9f483ab601d9fa1689b0ffbf84195b1230e511`.
 Branch: `feature/aoc-pwa`. Tests ran locally on Windows with Node 24.18.0,
 Next 16.2.9, React 19.2.7, Prisma 6.19.3 and TypeScript 5.9.3.
 
+This file preserves the original implementation test record below. PR #90 is now
+published. The owner subsequently confirmed that VPS is the only production
+environment and Vercel/Neon are retired; old integration checks are not deployment
+evidence. The current audit, update-detection fix and release gates are recorded in
+`VPS-PWA-RELEASE.md` and supersede the historical local-only workflow notes.
+
 ## Confirmed
 
 | Check | Result and boundary |

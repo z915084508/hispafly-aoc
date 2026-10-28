@@ -49,6 +49,7 @@ export function PwaControls() {
   const [installing, setInstalling] = useState(false);
   const [installFailed, setInstallFailed] = useState(false);
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
+  const [newBuildAvailable, setNewBuildAvailable] = useState(false);
   const reloadRequested = useRef(false);
 
   useEffect(() => {
@@ -82,10 +83,22 @@ export function PwaControls() {
       // Other tabs must not reload in the middle of flight forms.
       if (reloadRequested.current) window.location.reload();
     };
+    const checkBuildVersion = async () => {
+      try {
+        const response = await fetch("/api/pwa/version", { cache: "no-store", credentials: "omit" });
+        if (!response.ok) return;
+        const release: unknown = await response.json();
+        if (!disposed && release && typeof release === "object" && "buildId" in release &&
+            typeof release.buildId === "string" && release.buildId !== process.env.NEXT_PUBLIC_AOC_BUILD_ID) {
+          setNewBuildAvailable(true);
+        }
+      } catch { /* Offline/older servers must not interrupt login or flight forms. */ }
+    };
     const checkUpdate = () => {
       if (document.visibilityState === "visible") {
         offerUpdate();
         void registration?.update().catch(() => { /* Keep using the current version while offline. */ });
+        void checkBuildVersion();
       }
     };
     const watchInstalling = () => {
@@ -103,10 +116,14 @@ export function PwaControls() {
       watchInstalling();
       registration.addEventListener("updatefound", watchInstalling);
       document.addEventListener("visibilitychange", checkUpdate);
-      void registration.update().catch(() => {});
+      checkUpdate();
     }).catch(() => { /* Installation help and the online portal remain usable without a worker. */ });
+    // A continuously visible window may never emit visibilitychange. Poll the public
+    // build marker so frontend-only releases are discovered even with identical SW bytes.
+    const interval = window.setInterval(checkUpdate, 15 * 60 * 1000);
     return () => {
       disposed = true;
+      window.clearInterval(interval);
       registration?.removeEventListener("updatefound", watchInstalling);
       document.removeEventListener("visibilitychange", checkUpdate);
       navigator.serviceWorker.removeEventListener("controllerchange", controllerChanged);
@@ -132,17 +149,17 @@ export function PwaControls() {
 
   return (
     <>
-      {waiting && <aside className="pwa-update" role="status">
+      {(waiting || newBuildAvailable) && <aside className="pwa-update" role="status">
         <p>{text.update}</p>
         <div className="pwa-actions">
           <button type="button" onClick={() => {
             // Another window may already have activated this worker. Reload only
             // when this window's user chooses to do so, even in that case.
-            if (waiting.state !== "installed") { window.location.reload(); return; }
+            if (!waiting || waiting.state !== "installed") { window.location.reload(); return; }
             reloadRequested.current = true;
             waiting.postMessage({ type: "AOC_ACTIVATE_UPDATE" });
           }}>{text.reload}</button>
-          <button type="button" onClick={() => setWaiting(null)}>{text.later}</button>
+          <button type="button" onClick={() => { setWaiting(null); setNewBuildAvailable(false); }}>{text.later}</button>
         </div>
       </aside>}
       {!standalone && !installed && <footer className="pwa-install">

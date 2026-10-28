@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
+import { randomUUID } from "node:crypto";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Public, generated release marker only. Never add business environment values here:
+  // Next inlines this marker into both the client and version route at build time.
+  env: { NEXT_PUBLIC_AOC_BUILD_ID: randomUUID() },
   async headers() {
     return [
       {

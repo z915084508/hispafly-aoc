@@ -17,8 +17,17 @@ const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => /^(
 Object.assign(env, { DATABASE_URL: 'postgresql://build:build@127.0.0.1:1/build?connect_timeout=1', DIRECT_URL: 'postgresql://build:build@127.0.0.1:1/build?connect_timeout=1', AOC_RUN_MIGRATIONS: 'false', AOC_RUN_STAFF_BOOTSTRAP: 'false', NEXT_TELEMETRY_DISABLED: '1', NODE_ENV: 'production' });
 const app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', '3307'], { cwd: repo, env, stdio: 'ignore' });
 let version = 'v1';
+let simulatedBuildId = null;
+const versionRequests = [];
 const server = createServer(async (req, res) => {
   try {
+    if (req.url === '/api/pwa/version') {
+      versionRequests.push(req.headers.cookie || '');
+      if (simulatedBuildId) {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        return res.end(JSON.stringify({ buildId: simulatedBuildId }));
+      }
+    }
     if (req.url === '/sw.js') {
       res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-store' });
       return res.end((await fs.readFile(path.join(here, '../public/sw.js'), 'utf8')).replace('const VERSION = "v1"', `const VERSION = "${version}"`));
@@ -45,10 +54,20 @@ async function waitControlled(page) {
   const results = [];
   for (const channel of (process.env.AOC_PWA_BROWSERS || 'chrome,msedge').split(',')) {
     version = 'v1';
+    simulatedBuildId = null;
+    versionRequests.length = 0;
     const profile = path.join(tmpdir(), `pwa-${channel}-${Date.now()}`);
     const context = await chromium.launchPersistentContext(profile, { channel, headless: true, locale: 'es-ES' });
     const browser = context.browser();
     try {
+      await context.addInitScript(() => {
+        window.__pwaPollCallbacks = [];
+        const original = window.setInterval.bind(window);
+        window.setInterval = (callback, delay, ...args) => {
+          if (delay === 15 * 60 * 1000 && typeof callback === 'function') window.__pwaPollCallbacks.push(callback);
+          return original(callback, delay, ...args);
+        };
+      });
       await context.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
       const page = await context.newPage();
       const errors = [];
@@ -56,6 +75,11 @@ async function waitControlled(page) {
       page.on('pageerror', error => errors.push(error.message));
       assert.equal((await page.goto('http://127.0.0.1:3311/')).status(), 200);
       await waitControlled(page);
+      const release = await page.request.get('http://127.0.0.1:3311/api/pwa/version');
+      assert.match((await release.json()).buildId, /^[a-f0-9-]{36}$/);
+      assert.match(release.headers()['cache-control'], /no-store/);
+      await page.waitForLoadState('networkidle');
+      assert.equal(await page.locator('.pwa-update').count(), 0, 'same build must not prompt an update');
       console.log(channel, 'SW controlled');
       const cdp = await context.newCDPSession(page);
       assert.equal(await page.locator('meta[name=apple-mobile-web-app-capable]').getAttribute('content'), 'yes');
@@ -122,6 +146,27 @@ async function waitControlled(page) {
         other.getByRole('button', { name: 'Actualizar y recargar' }).click(),
       ]);
       assert.equal(await other.locator('#test-unsaved').count(), 0, 'second tab can explicitly reload after another tab activates');
+      // Same worker, different application build: long-lived windows still receive
+      // an update reminder, with no session cookie sent and no automatic refresh.
+      await context.addCookies([{ name: 'test_sensitive_session', value: 'fake-test-only', domain: '127.0.0.1', path: '/' }]);
+      await page.evaluate(() => { const input=document.createElement('textarea'); input.id='test-build-unsaved'; input.value='retain on build change'; document.body.append(input); });
+      simulatedBuildId = 'test-frontend-only-release';
+      versionRequests.length = 0;
+      await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+      await page.locator('.pwa-update').waitFor({ state: 'visible' });
+      assert.equal(await page.locator('#test-build-unsaved').inputValue(), 'retain on build change');
+      assert(versionRequests.length > 0 && versionRequests.every(cookie => cookie === ''), 'build checks omit credentials');
+      assert(!(await page.evaluate(() => caches.keys())).some(name => name.includes('version')));
+      await page.getByRole('button', { name: 'Más tarde' }).click();
+      await page.evaluate(() => {
+        const poll = window.__pwaPollCallbacks.at(-1);
+        if (!poll) throw Error('Visible-window 15-minute poll was not registered');
+        poll();
+      });
+      await page.locator('.pwa-update').waitFor({ state: 'visible' });
+      simulatedBuildId = null;
+      await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle' }), page.getByRole('button', { name: 'Actualizar y recargar' }).click()]);
+      assert.equal(await page.locator('#test-build-unsaved').count(), 0);
       assert.deepEqual(errors, []);
       const standalone = await browser.newContext();
       await standalone.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
@@ -130,7 +175,7 @@ async function waitControlled(page) {
       await installedPage.waitForLoadState('networkidle');
       assert.equal(await installedPage.locator('.pwa-install').count(), 0);
       await standalone.close();
-      results.push({ channel, version: browser.version(), secondTabExplicitReload: true, manifest: 'pass', installability: 'no errors', widths: [360, 390, 412, 768, 1280, 1920], pages: ['gateway', 'pilot login', 'staff login'], noAutomaticPrompt: true, installedHelpHidden: true, swUpdateUI: true, otherTabPreserved: true, unauthenticatedPilotGuard: true, pageErrors: errors });
+      results.push({ channel, version: browser.version(), frontendOnlyUpdateDetected: true, versionChecksOmitCredentials: true, secondTabExplicitReload: true, manifest: 'pass', installability: 'no errors', widths: [360, 390, 412, 768, 1280, 1920], pages: ['gateway', 'pilot login', 'staff login'], noAutomaticPrompt: true, installedHelpHidden: true, swUpdateUI: true, otherTabPreserved: true, unauthenticatedPilotGuard: true, pageErrors: errors });
       console.log(channel + ': production UI, manifest installability, 18 layout cases, install interaction, installed-state hiding, SW update and other-tab preservation PASS');
     } finally { await context.close(); }
   }

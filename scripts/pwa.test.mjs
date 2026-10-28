@@ -3,9 +3,19 @@ import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 import { test } from "node:test";
 import manifest from "../src/app/manifest.ts";
+import { GET as getPublicBuild } from "../src/app/api/pwa/version/route.ts";
 
 const root = new URL("../", import.meta.url);
 const workerSource = await readFile(new URL("public/sw.js", root), "utf8");
+
+test("public version endpoint returns only a build marker and forbids caching", async () => {
+  const response = await getPublicBuild();
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("Cache-Control"), /no-store/);
+  const payload = await response.json();
+  assert.deepEqual(Object.keys(payload), ["buildId"]);
+  assert.equal(typeof payload.buildId, "string");
+});
 
 function worker(fetchOverride) {
   const listeners = new Map();
@@ -105,7 +115,7 @@ test("private, redirected and unexpected MIME responses fail install without cac
 
 test("API, writes, external URLs, RSC and server actions bypass worker handling", () => {
   const instance = worker();
-  for (const path of ["/api/auth/local/me", "/api/efb/pilot/bookings", "/api/ofp/secret/pdf", "/api/cron/native-flight-generation"]) {
+  for (const path of ["/api/auth/local/me", "/api/pwa/version", "/api/efb/pilot/bookings", "/api/ofp/secret/pdf", "/api/cron/native-flight-generation"]) {
     assert.equal(instance.request(path, { mode: "navigate" }), undefined);
   }
   assert.equal(instance.request("/pilot/bookings", { method: "POST" }), undefined);

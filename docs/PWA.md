@@ -3,6 +3,10 @@
 Implementation branch: `feature/aoc-pwa`, based on `main` at
 `cf9f483ab601d9fa1689b0ffbf84195b1230e511`. No deployment or production data changes.
 
+Production policy: the owner confirms AOC is fully migrated to the owned VPS.
+Vercel hosting/deployments and Neon databases are retired. See `AGENTS.md` and
+`VPS-PWA-RELEASE.md`; historical provider references are not the current topology.
+
 ## Scope
 
 The existing Next.js 16 App Router portal remains the application. This change adds
@@ -74,6 +78,19 @@ Save forms before selecting update. Only the selecting window reloads; another
 window keeps its unsaved work and can later choose its own reload. Activation
 deletes only old `hispafly-aoc-static-*` caches, leaving other applications alone.
 All old windows closing also allows the normal browser worker lifecycle to advance.
+
+Frontend releases are detected independently of SW file changes. `next.config.ts`
+generates a public random build marker that Next inlines into the browser and the
+new `/api/pwa/version` endpoint. This is not a secret or a server-environment dump.
+The endpoint uses no authentication/database access and returns only `buildId` with
+no-store headers; requests omit credentials and the SW bypasses it like every API.
+Visible windows check on initialization, visibility return and every 15 minutes.
+A changed build offers the same save-before-reload action even when the SW bytes
+are unchanged. Later can be reminded on a subsequent check. Background throttling,
+offline devices and a user declining reload prevent any absolute update deadline;
+forms are never discarded automatically. Multiple replicas must serve one build
+marker together: build once and promote the same artifact, not separate per-instance
+builds, to avoid alternating version notices. Verify the marker through the real proxy.
 
 For rollback, do not assume reverting server files removes an installed worker.
 Ship a compatible forward worker with a new cache version, or a reviewed retirement
@@ -180,11 +197,12 @@ These are not claimed complete by a desktop/headless test run:
 - [ ] Desktop OCC navigation, tables, administrative functions and permission checks
   retain their behavior; test on a separate staging database.
 
-No production deployment, push, PR, merge, VPS/DNS/TLS change or database migration
-is performed by these local verification steps. The repository remains linked to a
-Vercel project; its complete automatic deployment policy must be verified before
-publishing this branch. A local commit/review bundle can be inspected without firing
-remote deployment hooks.
+No production deployment, merge, VPS/DNS/TLS change or database migration is performed
+by these local verification steps. PR #90 is published for review only. An obsolete
+Vercel check still reports a blocked preview, but main currently has no protection
+or effective rulesets, so it is not a required check. Repository-specific integration
+cleanup and any future main protection changes require a separate approved settings
+change; do not disable regression CI or forge successful statuses.
 
 ## References
 
