@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/i18n/core";
 import { logoutPilot } from "@/app/pilot/actions";
 import { prisma } from "@/lib/prisma";
 import { effectivePilotRank, legacyAppointment } from "@/lib/pilot/career";
+import { PilotNavigation } from "@/components/pilot-navigation";
 
 const dispatchNavItems = [
   ["flightMarketplace", "/pilot/flight-offers"],
@@ -37,7 +38,7 @@ export async function PilotPortalShell({ children }: { children: React.ReactNode
 
   return (
     <div className="app-shell pilot-portal-shell">
-      <aside className="sidebar pilot-sidebar">
+      <PilotNavigation>
         <div className="brand">
           <div className="brand-logo"><Image src="/logo-hispafly-full.png" alt="HISPAFLY" width={1800} height={400} priority /></div>
           <div className="brand-subtitle">Pilot Portal</div>
@@ -58,7 +59,7 @@ export async function PilotPortalShell({ children }: { children: React.ReactNode
         <div className="nav-label">{t("pilotNav.economy")}</div>
         <nav className="nav-list">{economyNavItems.map(([key, href]) => <Link className="nav-item" href={href} key={href}>{t(`pilotNav.${key}`)}</Link>)}</nav>
         <div className="sidebar-note">{t("pilotNav.privacyNote")}<br/><Link href="/privacy">{t("pilotNav.privacy")}</Link></div>
-      </aside>
+      </PilotNavigation>
       <main className="main">
         <header className="topbar pilot-topbar">
           <div className="environment">{t("pilotNav.environment")}</div>
