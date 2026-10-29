@@ -104,7 +104,7 @@ sharp GHSA-f88m-g3jw-g9cj 涉及上游 CVE-2026-33327、33328、35590、35591；
 - 新增安全测试 3/3：Nodemailer 不联网生成 multipart 身份邮件；Prisma 配置使用 deepmerge 8 正常加载；实际身份服务源码在内存持久化边界下验证登录成功、邮箱规范化、错误密码锁定和锁定后不创建会话。
 - 现有身份密码、邮件、飞行预约、SimBrief OFP/PDF、STRATOS/AMN PIREP（stub HTTP/持久化）、FOQA/ACARS 规则测试通过；额外员工密码测试使用本地服务器测试加载器通过。
 - src/ 业务逻辑和 prisma/ 与 main 无差异。next-env.d.ts 新行由新版 Next 构建自动生成；不是业务逻辑改写。
-- .github/workflows/dependency-security.yml 新增审计与无数据库连接的兼容/业务规则检查；未更改现有 FOQA 工作流。该原有工作流会在 GitHub 临时 PostgreSQL 服务中自行执行历史 schema 验证；它不连接 VPS。没有手动执行或修改那些数据库步骤。
+- .github/workflows/dependency-security.yml 新增审计与无数据库连接的兼容/业务规则检查；未更改现有 FOQA 工作流。创建 PR 自动触发了旧 FOQA，已在 GitHub 临时 PostgreSQL 中执行 schema SQL 和数据库回归。已请求取消，但未能在数据库步骤前拦截。这超出了本轮不执行迁移的严格边界，特此披露；它没有连接 VPS。本地没有运行迁移，也未修改生产数据库。
 
 所有本地业务测试子进程清除业务凭据，并禁止真实 socket 连接；没有发出 SimBrief、STRATOS、SMTP 或生产数据库请求。真实认证 cookie、已登录业务全链路、VPS PostgreSQL 查询和真实 SMTP/TLS 投递未被本轮验证，必须在隔离环境继续验收。
 
@@ -122,4 +122,10 @@ sharp GHSA-f88m-g3jw-g9cj 涉及上游 CVE-2026-33327、33328、35590、35591；
 4. 经单独生产授权，使用已确认的 VPS 发布机制部署安全制品；保留会话密钥、数据库、旧制品，观察错误率和业务探针。没有 schema 变化，不附带迁移。
 5. 安全版本运行稳定后，另行将 PR #90 同步到安全基线，解决锁文件冲突，重跑 PWA/业务/设备验收，再单独决定 PWA 发布。
 
-回滚只切换已保留的完整应用制品与运行配置，不恢复数据库快照。原 main 制品已知有安全风险，只能作为经明确风险批准的临时应急选项，优先前向修补。回退不得重启 Vercel/Neon。没有执行合并、VPS 操作、部署、数据库迁移或生产数据改动。
+回滚只切换已保留的完整应用制品与运行配置，不恢复数据库快照。原 main 制品已知有安全风险，只能作为经明确风险批准的临时应急选项，优先前向修补。回退不得重启 Vercel/Neon。未合并、部署或修改 VPS/生产数据；本地未运行迁移。原有 CI 的临时数据库 SQL 执行已在上文披露。
+
+## PR 与 CI 交付记录
+
+独立草稿 PR：[Security Fix #91](https://github.com/z915084508/hispafly-aoc/pull/91)。实现提交 6eedc17；[Dependency security regression](https://github.com/z915084508/hispafly-aoc/actions/runs/40801032318) 通过。原有 [FOQA run](https://github.com/z915084508/hispafly-aoc/actions/runs/40801032287) 已发出取消请求，但数据库步骤已先行完成。
+
+此文档修正提交使用 [skip ci]，避免再次触发含 SQL 的旧工作流。它不修改安全代码、分支保护或检查要求，也不代表文档 head 全部 CI 通过。PR 保持草稿，不能据此直接合并或部署。
