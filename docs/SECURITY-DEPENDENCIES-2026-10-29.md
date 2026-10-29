@@ -1,5 +1,7 @@
 # Dependency security fix — 2026-10-29
 
+后续更新：本文保留依赖修复与早期 CI 审核记录。PR #91 现已进一步分离普通构建和人工迁移，并将自动 SQL 回归改为显式手动隔离任务；旧包装器/自动 FOQA 的描述不再代表最新入口。当前操作与 #90 同步方案以 [构建和迁移防护说明](BUILD-MIGRATION-SAFETY.md) 为准。
+
 ## 范围与结论
 
 安全分支 security/dependency-hardening，基于 main cf9f483ab601d9fa1689b0ffbf84195b1230e511；不包含 PR #90 的 PWA 提交，feature/aoc-pwa 仍为 7c7ba45。VPS 是唯一生产环境；不恢复 Vercel/Neon。
