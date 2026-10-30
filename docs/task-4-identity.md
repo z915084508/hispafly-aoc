@@ -5,7 +5,7 @@ Pilot authentication and registration are fully local. Existing `Pilot` records 
 ## Deployment
 
 1. Configure the existing session and token secrets from `.env.example`.
-2. Run `pnpm db:deploy` once against the target database. Database migration and bootstrap are intentionally separate from the Vercel build to prevent concurrent deployment lock failures.
+2. Only when an approved schema change requires it, follow [manual migration safeguards](BUILD-MIGRATION-SAFETY.md) and run `npm run db:migrate -- --confirm` in an interactive terminal. Ordinary builds never migrate. Staff bootstrap is a separate, explicitly authorized operation; no longer bundled with migration. The schema-free security release requires neither operation.
 3. Configure `SMTP_USER`, `SMTP_PASSWORD`, `AUTH_EMAIL_FROM` and `APP_BASE_URL`. For Gmail, `SMTP_PASSWORD` must be a Google App Password, never the normal account password.
 4. New Pilots register at `/register` and must verify their email before sign-in.
 5. Staff may also create or manage a local login for an existing Pilot profile.

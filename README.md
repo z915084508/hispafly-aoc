@@ -64,7 +64,7 @@ Test locally by starting the portal, opening `/settings/vamsys`, and selecting *
 
 `getValidVamsysAccessToken(pilotId)` refreshes expiring tokens server-side. Invalid refresh grants revoke the local connection and create audit events. This OAuth connection does not synchronize PIREPs; that remains Task 7.
 
-Apply committed database migrations with `prisma migrate deploy` before enabling the OAuth client in a deployed environment.
+Historical deployment note: database changes require the [approved manual migration procedure](docs/BUILD-MIGRATION-SAFETY.md), independently of normal builds. This note does not authorize re-enabling retired vAMSYS OAuth or any retired hosting provider.
 
 ## Development staff and permissions
 
