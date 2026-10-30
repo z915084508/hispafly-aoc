@@ -33,6 +33,7 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm exec prisma validate
       - run: npm run test:build-safety
+      - run: npm run test:pwa
       - name: Build without migrations, even with retired flags enabled
         env:
           AOC_RUN_MIGRATIONS: "true"

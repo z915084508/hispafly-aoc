@@ -179,5 +179,5 @@ async function waitControlled(page) {
       console.log(channel + ': production UI, manifest installability, 18 layout cases, install interaction, installed-state hiding, SW update and other-tab preservation PASS');
     } finally { await context.close(); }
   }
-  await fs.writeFile(path.join(output, 'AOC-PWA-browser-results.json'), JSON.stringify({ date: '2026-10-28', browsers: results, note: 'Headless local browser checks; not physical-device installation or authenticated operational acceptance.' }, null, 2));
+  await fs.writeFile(path.join(output, 'AOC-PWA-browser-results.json'), JSON.stringify({ date: new Date().toISOString(), browsers: results, note: 'Headless local browser checks; not physical-device installation or authenticated operational acceptance.' }, null, 2));
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => { server.close(); app.kill(); });
