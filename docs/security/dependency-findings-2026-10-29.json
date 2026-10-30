@@ -1,0 +1,1254 @@
+[
+  {
+    "ghsa": "GHSA-2464-fhr4-w9xw",
+    "cve": null,
+    "affectedDependency": "next",
+    "severity": "critical",
+    "baselineVersions": [
+      "16.2.9"
+    ],
+    "advisoryPatchedRanges": [
+      ">=16.4.1"
+    ],
+    "selectedLockedVersions": "16.4.3",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "glibc Linux 上底层 SVG 处理路径；next/image 已使用，不可信 SVG 入口与实际系统尚未确认。sharp >=0.35.5 是通告给出的缓解。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next"
+    ],
+    "source": "https://github.com/advisories/GHSA-2464-fhr4-w9xw"
+  },
+  {
+    "ghsa": "GHSA-2xp9-vwfh-vxw4",
+    "cve": null,
+    "affectedDependency": "next",
+    "severity": "critical",
+    "baselineVersions": [
+      "16.2.9"
+    ],
+    "advisoryPatchedRanges": [
+      ">=16.3.3"
+    ],
+    "selectedLockedVersions": "16.4.3",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "图片优化处理不可信 AVIF，涉及底层 libheif；项目使用 next/image，但攻击者控制图片入口尚未确认。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next"
+    ],
+    "source": "https://github.com/advisories/GHSA-2xp9-vwfh-vxw4"
+  },
+  {
+    "ghsa": "GHSA-673q-mjm6-r5xr",
+    "cve": null,
+    "affectedDependency": "next",
+    "severity": "critical",
+    "baselineVersions": [
+      "16.2.9"
+    ],
+    "advisoryPatchedRanges": [
+      ">=16.4.1"
+    ],
+    "selectedLockedVersions": "16.4.3",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "Cache Components 的 use cache 返回多份 typed arrays；当前未发现 use cache/cacheComponents 配置，仍通过 Next 补丁覆盖。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next"
+    ],
+    "source": "https://github.com/advisories/GHSA-673q-mjm6-r5xr"
+  },
+  {
+    "ghsa": "GHSA-p293-qw3h-jr36",
+    "cve": "CVE-2026-75604",
+    "affectedDependency": "next",
+    "severity": "critical",
+    "baselineVersions": [
+      "16.2.9"
+    ],
+    "advisoryPatchedRanges": [
+      ">=16.3.3"
+    ],
+    "selectedLockedVersions": "16.4.3",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "运行在 Windows 文件系统的服务器；VPS OS 未知，不能据客户端 Windows 推断现网适用。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next"
+    ],
+    "source": "https://github.com/advisories/GHSA-p293-qw3h-jr36"
+  },
+  {
+    "ghsa": "GHSA-vcvr-r3jv-pc5j",
+    "cve": null,
+    "affectedDependency": "next",
+    "severity": "critical",
+    "baselineVersions": [
+      "16.2.9"
+    ],
+    "advisoryPatchedRanges": [
+      ">=16.3.6"
+    ],
+    "selectedLockedVersions": "16.4.3",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "Node ImageResponse 渲染不可信 SVG；当前 src 未发现 next/og 或 ImageResponse 使用。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next"
+    ],
+    "source": "https://github.com/advisories/GHSA-vcvr-r3jv-pc5j"
+  },
+  {
+    "ghsa": "GHSA-3jxr-9vmj-r5cp",
+    "cve": "CVE-2026-13149",
+    "affectedDependency": "brace-expansion",
+    "severity": "high",
+    "baselineVersions": [
+      "1.1.15",
+      "5.0.6"
+    ],
+    "advisoryPatchedRanges": [
+      ">=1.1.16",
+      ">=5.0.7"
+    ],
+    "selectedLockedVersions": "1.1.21 / 5.0.12",
+    "scope": "development-only",
+    "prerequisites": "仅开发树 ESLint/Minimatch；处理攻击者提供的 brace glob 才可触发 CPU/内存/递归 DoS；未发现生产 HTTP 入口。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion"
+    ],
+    "source": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp"
+  },
+  {
+    "ghsa": "GHSA-6j4f-fj2g-mc7p",
+    "cve": "CVE-2026-102276",
+    "affectedDependency": "brace-expansion",
+    "severity": "high",
+    "baselineVersions": [
+      "1.1.15",
+      "5.0.6"
+    ],
+    "advisoryPatchedRanges": [
+      ">=1.1.19",
+      ">=5.0.10"
+    ],
+    "selectedLockedVersions": "1.1.21 / 5.0.12",
+    "scope": "development-only",
+    "prerequisites": "仅开发树 ESLint/Minimatch；处理攻击者提供的 brace glob 才可触发 CPU/内存/递归 DoS；未发现生产 HTTP 入口。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion"
+    ],
+    "source": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p"
+  },
+  {
+    "ghsa": "GHSA-mh99-v99m-4gvg",
+    "cve": "CVE-2026-14257",
+    "affectedDependency": "brace-expansion",
+    "severity": "high",
+    "baselineVersions": [
+      "1.1.15",
+      "5.0.6"
+    ],
+    "advisoryPatchedRanges": [
+      ">=1.1.17",
+      ">=5.0.8"
+    ],
+    "selectedLockedVersions": "1.1.21 / 5.0.12",
+    "scope": "development-only",
+    "prerequisites": "仅开发树 ESLint/Minimatch；处理攻击者提供的 brace glob 才可触发 CPU/内存/递归 DoS；未发现生产 HTTP 入口。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion"
+    ],
+    "source": "https://github.com/advisories/GHSA-mh99-v99m-4gvg"
+  },
+  {
+    "ghsa": "GHSA-qhr7-859c-m2p7",
+    "cve": "CVE-2026-102278",
+    "affectedDependency": "brace-expansion",
+    "severity": "high",
+    "baselineVersions": [
+      "1.1.15",
+      "5.0.6"
+    ],
+    "advisoryPatchedRanges": [
+      ">=1.1.20",
+      ">=5.0.11"
+    ],
+    "selectedLockedVersions": "1.1.21 / 5.0.12",
+    "scope": "development-only",
+    "prerequisites": "仅开发树 ESLint/Minimatch；处理攻击者提供的 brace glob 才可触发 CPU/内存/递归 DoS；未发现生产 HTTP 入口。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion"
+    ],
+    "source": "https://github.com/advisories/GHSA-qhr7-859c-m2p7"
+  },
+  {
+    "ghsa": "GHSA-rgw5-rvv9-x895",
+    "cve": "CVE-2026-69152",
+    "affectedDependency": "brace-expansion",
+    "severity": "high",
+    "baselineVersions": [
+      "5.0.6",
+      "1.1.15"
+    ],
+    "advisoryPatchedRanges": [
+      ">=5.0.9",
+      ">=1.1.18"
+    ],
+    "selectedLockedVersions": "1.1.21 / 5.0.12",
+    "scope": "development-only",
+    "prerequisites": "仅开发树 ESLint/Minimatch；处理攻击者提供的 brace glob 才可触发 CPU/内存/递归 DoS；未发现生产 HTTP 入口。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@typescript-eslint/typescript-estree>minimatch>brace-expansion",
+      ".>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>@eslint/config-array>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>@eslint/eslintrc>minimatch>brace-expansion",
+      ".>eslint-config-next>typescript-eslint>eslint>minimatch>brace-expansion"
+    ],
+    "source": "https://github.com/advisories/GHSA-rgw5-rvv9-x895"
+  },
+  {
+    "ghsa": "GHSA-73wf-gq98-2v4g",
+    "cve": "CVE-2026-73088",
+    "affectedDependency": "browserslist",
+    "severity": "high",
+    "baselineVersions": [
+      "4.28.4"
+    ],
+    "advisoryPatchedRanges": [
+      ">=4.28.7"
+    ],
+    "selectedLockedVersions": "4.29.5",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "编译查询缓存或自定义 stats 来自攻击者；包在生产依赖树，但没有发现应用 HTTP 调用入口。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next>styled-jsx>@babel/core>@babel/helper-compilation-targets>browserslist",
+      ".>eslint-config-next>eslint-plugin-react-hooks>@babel/core>@babel/helper-compilation-targets>browserslist"
+    ],
+    "source": "https://github.com/advisories/GHSA-73wf-gq98-2v4g"
+  },
+  {
+    "ghsa": "GHSA-c83g-rgw3-j3cx",
+    "cve": "CVE-2026-73089",
+    "affectedDependency": "browserslist",
+    "severity": "high",
+    "baselineVersions": [
+      "4.28.4"
+    ],
+    "advisoryPatchedRanges": [
+      ">=4.28.7"
+    ],
+    "selectedLockedVersions": "4.29.5",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "编译查询缓存或自定义 stats 来自攻击者；包在生产依赖树，但没有发现应用 HTTP 调用入口。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next>styled-jsx>@babel/core>@babel/helper-compilation-targets>browserslist",
+      ".>eslint-config-next>eslint-plugin-react-hooks>@babel/core>@babel/helper-compilation-targets>browserslist"
+    ],
+    "source": "https://github.com/advisories/GHSA-c83g-rgw3-j3cx"
+  },
+  {
+    "ghsa": "GHSA-ggr8-5vv4-36mx",
+    "cve": "CVE-2026-40345",
+    "affectedDependency": "deepmerge-ts",
+    "severity": "high",
+    "baselineVersions": [
+      "7.1.5"
+    ],
+    "advisoryPatchedRanges": [
+      ">=8.0.0"
+    ],
+    "selectedLockedVersions": "8.0.0",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "Prisma CLI 配置合并两个同路径自引用对象；仅普通 JSON 不足以触发。因 @prisma/client 的 Prisma peer 被生产审计归类；src/lib/prisma.ts 只导入客户端，没有导入 CLI 配置。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>@prisma/client>prisma>@prisma/config>deepmerge-ts",
+      ".>prisma>@prisma/config>deepmerge-ts"
+    ],
+    "source": "https://github.com/advisories/GHSA-ggr8-5vv4-36mx"
+  },
+  {
+    "ghsa": "GHSA-2883-xcg3-v3hh",
+    "cve": "CVE-2026-84375",
+    "affectedDependency": "js-yaml",
+    "severity": "high",
+    "baselineVersions": [
+      "4.3.0"
+    ],
+    "advisoryPatchedRanges": [
+      ">=4.3.2"
+    ],
+    "selectedLockedVersions": "4.3.2",
+    "scope": "development-only",
+    "prerequisites": "仅开发树 ESLint 配置解析；需处理不可信 YAML（omap/merge）；不是生产 HTTP 数据解析器。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-import>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-react>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>eslint>@eslint/eslintrc>js-yaml"
+    ],
+    "source": "https://github.com/advisories/GHSA-2883-xcg3-v3hh"
+  },
+  {
+    "ghsa": "GHSA-5p4m-2wfm-xmqj",
+    "cve": null,
+    "affectedDependency": "js-yaml",
+    "severity": "high",
+    "baselineVersions": [
+      "4.3.0"
+    ],
+    "advisoryPatchedRanges": [
+      ">=4.3.1"
+    ],
+    "selectedLockedVersions": "4.3.2",
+    "scope": "development-only",
+    "prerequisites": "仅开发树 ESLint 配置解析；需处理不可信 YAML（omap/merge）；不是生产 HTTP 数据解析器。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-import-resolver-typescript>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-import>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>@typescript-eslint/parser>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-import>eslint-module-utils>eslint-import-resolver-typescript>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-import>@typescript-eslint/parser>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-jsx-a11y>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-react>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>eslint-plugin-react-hooks>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/eslint-plugin>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/parser>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>@eslint-community/eslint-utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>@typescript-eslint/utils>eslint>@eslint/eslintrc>js-yaml",
+      ".>eslint-config-next>typescript-eslint>eslint>@eslint/eslintrc>js-yaml"
+    ],
+    "source": "https://github.com/advisories/GHSA-5p4m-2wfm-xmqj"
+  },
+  {
+    "ghsa": "GHSA-28wg-ghj8-5hjv",
+    "cve": "CVE-2026-67214",
+    "affectedDependency": "nanoid",
+    "severity": "high",
+    "baselineVersions": [
+      "3.3.15"
+    ],
+    "advisoryPatchedRanges": [
+      ">=3.3.16"
+    ],
+    "selectedLockedVersions": "3.3.20",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "非安全/自定义生成器收到攻击者可控负数或零长度；当前应用未发现直接 nanoid 调用。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next>postcss>nanoid",
+      ".>@tailwindcss/postcss>postcss>nanoid"
+    ],
+    "source": "https://github.com/advisories/GHSA-28wg-ghj8-5hjv"
+  },
+  {
+    "ghsa": "GHSA-2v37-7h3g-55p8",
+    "cve": "CVE-2026-67213",
+    "affectedDependency": "nanoid",
+    "severity": "high",
+    "baselineVersions": [
+      "3.3.15"
+    ],
+    "advisoryPatchedRanges": [
+      ">=3.3.18"
+    ],
+    "selectedLockedVersions": "3.3.20",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "非安全/自定义生成器收到攻击者可控负数或零长度；当前应用未发现直接 nanoid 调用。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next>postcss>nanoid",
+      ".>@tailwindcss/postcss>postcss>nanoid"
+    ],
+    "source": "https://github.com/advisories/GHSA-2v37-7h3g-55p8"
+  },
+  {
+    "ghsa": "GHSA-6gpp-xcg3-4w24",
+    "cve": "CVE-2026-64642",
+    "affectedDependency": "next",
+    "severity": "high",
+    "baselineVersions": [
+      "16.2.9"
+    ],
+    "advisoryPatchedRanges": [
+      ">=16.2.11"
+    ],
+    "selectedLockedVersions": "16.4.3",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "Turbopack + App Router + 单一 config.i18n.locales，且授权依赖 middleware；当前 next.config.ts 无该 locales 配置。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next"
+    ],
+    "source": "https://github.com/advisories/GHSA-6gpp-xcg3-4w24"
+  },
+  {
+    "ghsa": "GHSA-89xv-2m56-2m9x",
+    "cve": "CVE-2026-64649",
+    "affectedDependency": "next",
+    "severity": "high",
+    "baselineVersions": [
+      "16.2.9"
+    ],
+    "advisoryPatchedRanges": [
+      ">=16.2.11"
+    ],
+    "selectedLockedVersions": "16.4.3",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "Server Action 转发/重定向、自定义服务器或未约束 Host 关联头；实际 VPS 代理/自定义服务器未知。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next"
+    ],
+    "source": "https://github.com/advisories/GHSA-89xv-2m56-2m9x"
+  },
+  {
+    "ghsa": "GHSA-cjq9-62q9-8jv4",
+    "cve": "CVE-2026-94483",
+    "affectedDependency": "next",
+    "severity": "high",
+    "baselineVersions": [
+      "16.2.9"
+    ],
+    "advisoryPatchedRanges": [
+      ">=16.3.8"
+    ],
+    "selectedLockedVersions": "16.4.3",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "图片优化访问允许的远程主机，攻击者能控制 DNS/URL；当前配置未声明 images.remotePatterns，现网入口仍待查。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next"
+    ],
+    "source": "https://github.com/advisories/GHSA-cjq9-62q9-8jv4"
+  },
+  {
+    "ghsa": "GHSA-m99w-x7hq-7vfj",
+    "cve": "CVE-2026-64641",
+    "affectedDependency": "next",
+    "severity": "high",
+    "baselineVersions": [
+      "16.2.9"
+    ],
+    "advisoryPatchedRanges": [
+      ">=16.2.11"
+    ],
+    "selectedLockedVersions": "16.4.3",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "App Router 定义至少一个 Server Action；当前 src/app/pilot/actions.ts 等符合功能前提，公网请求可消耗服务进程 CPU。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next"
+    ],
+    "source": "https://github.com/advisories/GHSA-m99w-x7hq-7vfj"
+  },
+  {
+    "ghsa": "GHSA-p3m5-59mp-jv5r",
+    "cve": "CVE-2026-94482",
+    "affectedDependency": "next",
+    "severity": "high",
+    "baselineVersions": [
+      "16.2.9"
+    ],
+    "advisoryPatchedRanges": [
+      ">=16.4.1"
+    ],
+    "selectedLockedVersions": "16.4.3",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "App Router + 至少一个 Server Action；本仓库符合功能前提。是否现网暴露仍须确认实际版本。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next"
+    ],
+    "source": "https://github.com/advisories/GHSA-p3m5-59mp-jv5r"
+  },
+  {
+    "ghsa": "GHSA-p9j2-gv94-2wf4",
+    "cve": "CVE-2026-64645",
+    "affectedDependency": "next",
+    "severity": "high",
+    "baselineVersions": [
+      "16.2.9"
+    ],
+    "advisoryPatchedRanges": [
+      ">=16.2.11"
+    ],
+    "selectedLockedVersions": "16.4.3",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "rewrites/redirects 外部目标主机由请求输入构造；当前 next.config.ts 无这类规则。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next"
+    ],
+    "source": "https://github.com/advisories/GHSA-p9j2-gv94-2wf4"
+  },
+  {
+    "ghsa": "GHSA-2x7j-588g-ccc2",
+    "cve": null,
+    "affectedDependency": "nodemailer",
+    "severity": "high",
+    "baselineVersions": [
+      "9.0.3"
+    ],
+    "advisoryPatchedRanges": [
+      ">=9.1.0"
+    ],
+    "selectedLockedVersions": "10.1.4",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "src/lib/auth/delivery.ts 的账号验证/重置邮件使用该库；不可信收件人字符串进入地址解析器可阻塞进程，需要评估输入长度/语法限制，不能判为纯开发风险。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>nodemailer"
+    ],
+    "source": "https://github.com/advisories/GHSA-2x7j-588g-ccc2"
+  },
+  {
+    "ghsa": "GHSA-v53p-9fqp-m79j",
+    "cve": null,
+    "affectedDependency": "nodemailer",
+    "severity": "high",
+    "baselineVersions": [
+      "9.0.3"
+    ],
+    "advisoryPatchedRanges": [
+      ">=10.0.6"
+    ],
+    "selectedLockedVersions": "10.1.4",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "src/lib/auth/delivery.ts 的账号验证/重置邮件使用该库；不可信收件人字符串进入地址解析器可阻塞进程，需要评估输入长度/语法限制，不能判为纯开发风险。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>nodemailer"
+    ],
+    "source": "https://github.com/advisories/GHSA-v53p-9fqp-m79j"
+  },
+  {
+    "ghsa": "GHSA-6g55-p6wh-862q",
+    "cve": "CVE-2026-45623",
+    "affectedDependency": "postcss",
+    "severity": "high",
+    "baselineVersions": [
+      "8.4.31"
+    ],
+    "advisoryPatchedRanges": [
+      ">=8.5.12"
+    ],
+    "selectedLockedVersions": "8.5.23",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "需处理恶意 CSS sourceMappingURL；生产依赖树包含编译工具，当前未发现 HTTP 请求运行 PostCSS 或用户上传 CSS 构建。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next>postcss"
+    ],
+    "source": "https://github.com/advisories/GHSA-6g55-p6wh-862q"
+  },
+  {
+    "ghsa": "GHSA-r28c-9q8g-f849",
+    "cve": "CVE-2026-73646",
+    "affectedDependency": "postcss",
+    "severity": "high",
+    "baselineVersions": [
+      "8.4.31",
+      "8.5.15"
+    ],
+    "advisoryPatchedRanges": [
+      ">=8.5.18"
+    ],
+    "selectedLockedVersions": "8.5.23",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "需处理恶意 CSS sourceMappingURL；生产依赖树包含编译工具，当前未发现 HTTP 请求运行 PostCSS 或用户上传 CSS 构建。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next>postcss",
+      ".>@tailwindcss/postcss>postcss"
+    ],
+    "source": "https://github.com/advisories/GHSA-r28c-9q8g-f849"
+  },
+  {
+    "ghsa": "GHSA-f88m-g3jw-g9cj",
+    "cve": null,
+    "affectedDependency": "sharp",
+    "severity": "high",
+    "baselineVersions": [
+      "0.34.5"
+    ],
+    "advisoryPatchedRanges": [
+      ">=0.35.0"
+    ],
+    "selectedLockedVersions": "0.35.5",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "处理不可信图像触发底层 libvips/libheif/librsvg 问题；需确认现网预编译库、OS 与图片输入；不能只按包存在判定已可利用。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next>sharp"
+    ],
+    "source": "https://github.com/advisories/GHSA-f88m-g3jw-g9cj"
+  },
+  {
+    "ghsa": "GHSA-rgj7-g3m4-5g8c",
+    "cve": null,
+    "affectedDependency": "sharp",
+    "severity": "high",
+    "baselineVersions": [
+      "0.34.5"
+    ],
+    "advisoryPatchedRanges": [
+      ">=0.35.4"
+    ],
+    "selectedLockedVersions": "0.35.5",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "处理不可信图像触发底层 libvips/libheif/librsvg 问题；需确认现网预编译库、OS 与图片输入；不能只按包存在判定已可利用。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next>sharp"
+    ],
+    "source": "https://github.com/advisories/GHSA-rgj7-g3m4-5g8c"
+  },
+  {
+    "ghsa": "GHSA-wq5f-xc86-pv6w",
+    "cve": null,
+    "affectedDependency": "sharp",
+    "severity": "high",
+    "baselineVersions": [
+      "0.34.5"
+    ],
+    "advisoryPatchedRanges": [
+      ">=0.35.5"
+    ],
+    "selectedLockedVersions": "0.35.5",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "处理不可信图像触发底层 libvips/libheif/librsvg 问题；需确认现网预编译库、OS 与图片输入；不能只按包存在判定已可利用。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next>sharp"
+    ],
+    "source": "https://github.com/advisories/GHSA-wq5f-xc86-pv6w"
+  },
+  {
+    "ghsa": "GHSA-68fv-2mgg-jv7q",
+    "cve": "CVE-2026-93749",
+    "affectedDependency": "source-map-js",
+    "severity": "high",
+    "baselineVersions": [
+      "1.2.1"
+    ],
+    "advisoryPatchedRanges": [
+      ">=1.2.2"
+    ],
+    "selectedLockedVersions": "1.2.2",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "处理恶意 indexed source-map sections 偏移；经 PostCSS 引入，未发现生产 HTTP 源码图解析入口。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>next>postcss>source-map-js",
+      ".>@tailwindcss/postcss>@tailwindcss/node>source-map-js",
+      ".>@tailwindcss/postcss>postcss>source-map-js"
+    ],
+    "source": "https://github.com/advisories/GHSA-68fv-2mgg-jv7q"
+  },
+  {
+    "ghsa": "GHSA-2m5v-pch6-74hx",
+    "cve": "CVE-2026-109383",
+    "affectedDependency": "undici",
+    "severity": "high",
+    "baselineVersions": [
+      "6.28.0"
+    ],
+    "advisoryPatchedRanges": [
+      ">=6.29.1"
+    ],
+    "selectedLockedVersions": "6.29.1",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "使用 Agent TLS 自定义 checkServerIdentity 回调时该配置被丢失；不是所有默认 HTTPS 连接都绕过证书验证。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>@vercel/blob>undici"
+    ],
+    "source": "https://github.com/advisories/GHSA-2m5v-pch6-74hx"
+  },
+  {
+    "ghsa": "GHSA-qrxm-fqhp-jwvm",
+    "cve": "CVE-2026-87018",
+    "affectedDependency": "undici",
+    "severity": "high",
+    "baselineVersions": [
+      "6.28.0"
+    ],
+    "advisoryPatchedRanges": [
+      ">=6.29.1"
+    ],
+    "selectedLockedVersions": "6.29.1",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "undici 对端发起 TLS1.2 重协商并更换不匹配主机名证书；需要对应 TLS/服务端条件。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>@vercel/blob>undici"
+    ],
+    "source": "https://github.com/advisories/GHSA-qrxm-fqhp-jwvm"
+  },
+  {
+    "ghsa": "GHSA-rfgv-xxqx-mfg5",
+    "cve": "CVE-2026-19534",
+    "affectedDependency": "undici",
+    "severity": "high",
+    "baselineVersions": [
+      "6.28.0"
+    ],
+    "advisoryPatchedRanges": [
+      ">=6.28.1"
+    ],
+    "selectedLockedVersions": "6.29.1",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "undici WebSocket 客户端连接恶意端点并收到未请求的 subprotocol；当前 Blob 使用路径未发现该 WebSocket 入口。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>@vercel/blob>undici"
+    ],
+    "source": "https://github.com/advisories/GHSA-rfgv-xxqx-mfg5"
+  },
+  {
+    "ghsa": "GHSA-xjj6-f33q-929c",
+    "cve": "CVE-2026-109869",
+    "affectedDependency": "undici",
+    "severity": "high",
+    "baselineVersions": [
+      "6.28.0"
+    ],
+    "advisoryPatchedRanges": [
+      ">=6.29.1"
+    ],
+    "selectedLockedVersions": "6.29.1",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "undici 处理恶意端点的过多 content-encoding；属于生产树 Blob HTTP 依赖，实际上传路径是否启用未知。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>@vercel/blob>undici"
+    ],
+    "source": "https://github.com/advisories/GHSA-xjj6-f33q-929c"
+  },
+  {
+    "ghsa": "GHSA-mrhx-c7xc-m3w5",
+    "cve": "CVE-2023-54404",
+    "affectedDependency": "zod",
+    "severity": "high",
+    "baselineVersions": [
+      "4.1.11",
+      "4.4.3"
+    ],
+    "advisoryPatchedRanges": [
+      ">=4.6.6"
+    ],
+    "selectedLockedVersions": "4.6.7",
+    "scope": "production-tree (may also have development paths)",
+    "prerequisites": "恶意大型集合触发大量验证错误和内存耗尽；生产路径为 Blob→OIDC→CLI-config，开发路径为 ESLint 插件；当前未发现应用直接把请求集合交给该依赖。",
+    "productionVpsStatus": "unverified: no deployed artifact/version/OS evidence available",
+    "dependencyPaths": [
+      ".>@vercel/blob>@vercel/oidc>@vercel/cli-config>zod",
+      ".>eslint-config-next>eslint-plugin-react-hooks>zod",
+      ".>eslint-config-next>eslint-plugin-react-hooks>zod-validation-error>zod"
+    ],
+    "source": "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5"
+  }
+]
