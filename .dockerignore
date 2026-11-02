@@ -12,6 +12,8 @@
 !eslint.config.mjs
 !prisma/
 !prisma/schema.prisma
+!docker/
+!docker/runtime-packages.json
 !src/
 !src/**
 !public/

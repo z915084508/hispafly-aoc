@@ -1,0 +1,150 @@
+name: Isolated PWA artifact build
+description: Build and scan one reviewed source SHA on a fresh GitHub-hosted runner
+inputs:
+  source_sha:
+    description: Reviewed full source SHA already checked out
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Verify isolated runner and immutable checkout
+      shell: bash
+      env:
+        EXPECTED_SHA: ${{ inputs.source_sha }}
+      run: |
+        set -euo pipefail
+        test "$GITHUB_REPOSITORY" = z915084508/hispafly-aoc
+        test "${RUNNER_ENVIRONMENT:-}" = github-hosted
+        test "$RUNNER_OS" = Linux
+        test "$(uname -m)" = x86_64
+        test -z "${DOCKER_HOST:-}"
+        test -z "${DOCKER_CONTEXT:-}"
+        test "$(docker context show)" = default
+        test "$(docker info --format '{{.OSType}}/{{.Architecture}}')" = linux/x86_64
+        [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+        test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+        node scripts/container-packaging-static.mjs
+        test "$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)" -ge 5500
+        test "$(df -Pm . | awk 'NR==2 {print $4}')" -ge 20000
+        printf 'EXPECTED_SHA=%s\n' "$EXPECTED_SHA" >> "$GITHUB_ENV"
+        mkdir out
+    - name: Create ephemeral exporter-capable builder (future authorized run only)
+      id: builder
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      with:
+        version: v0.38.1
+        name: pwa92-${{ github.run_id }}-${{ github.run_attempt }}
+        driver: docker-container
+        driver-opts: |
+          image=moby/buildkit:v0.34.1@sha256:b651bf250c2805569f1db385ad1ea8fb73737dfc851de305f274ca02690fa93f
+          network=bridge
+          default-load=false
+          restart-policy=no
+        buildkitd-flags: --oci-worker-gc
+        platforms: linux/amd64
+        use: false
+        install: false
+        cache-binary: false
+        cleanup: true
+        keep-state: false
+    - name: Verify effective driver and platform
+      shell: bash
+      env:
+        BUILDER_NAME: ${{ steps.builder.outputs.name }}
+        BUILDER_PLATFORMS: ${{ steps.builder.outputs.platforms }}
+      run: |
+        set -euo pipefail
+        docker buildx inspect "$BUILDER_NAME" --bootstrap > out/builder-inspect.txt
+        test "$(awk '/^Driver:/ {print $2}' out/builder-inspect.txt)" = docker-container
+        test "$(awk '/^Status:/ {print $2}' out/builder-inspect.txt)" = running
+        test "$(awk '/^BuildKit version:/ {print $3}' out/builder-inspect.txt)" = v0.34.1
+        grep -Eq '^Platforms:.*linux/amd64([, *]|$)' out/builder-inspect.txt
+        grep -F 'image="moby/buildkit:v0.34.1@sha256:b651bf250c2805569f1db385ad1ea8fb73737dfc851de305f274ca02690fa93f"' out/builder-inspect.txt
+        case ",$BUILDER_PLATFORMS," in *,linux/amd64,*) ;; *) exit 1 ;; esac
+        printf 'BUILDER_NAME=%s\n' "$BUILDER_NAME" >> "$GITHUB_ENV"
+    - name: Static prerequisites and clean source archive
+      shell: bash
+      run: |
+        set -euo pipefail
+        test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+        git diff --exit-code
+        node scripts/container-packaging-static.mjs
+        mkdir context
+        git archive "$EXPECTED_SHA" Dockerfile .dockerignore package.json pnpm-lock.yaml pnpm-workspace.yaml next.config.ts next-env.d.ts tsconfig.json postcss.config.mjs eslint.config.mjs prisma/schema.prisma docker/runtime-packages.json src public scripts | tar -x -C context
+        test -z "$(find context -type l -print -quit)"
+        test -z "$(find context -type f \( -name '.env' -o -name '.env.*' -o -name '*.pem' -o -name '*.key' -o -name '*.dump' \) -print -quit)"
+        sha256sum Dockerfile .dockerignore pnpm-lock.yaml pnpm-workspace.yaml docker/runtime-packages.json .github/workflows/pwa-container-review.yml .github/workflows/pwa-container-validation.yml .github/actions/pwa-container-artifact/action.yml scripts/container-packaging-static.mjs scripts/container-artifact.py scripts/container-native-inventory.mjs scripts/validate-container-sbom.py > out/recipe.sha256
+        printf '%s\n' "$EXPECTED_SHA" > out/source-sha.txt
+        docker version --format '{{.Client.Version}} / {{.Server.Version}}' > out/docker-version.txt
+        docker buildx version > out/buildx-version.txt
+    - name: Build archive only; never load, run or push
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker buildx build --builder "$BUILDER_NAME" --platform linux/amd64 --no-cache \
+          --build-arg SOURCE_REVISION="$EXPECTED_SHA" \
+          --tag "hispafly-aoc:pwa92-${EXPECTED_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+          --provenance=false --metadata-file out/build-metadata.json \
+          --output type=docker,dest=out/image.tar context
+        python3 scripts/container-artifact.py out/image.tar "$EXPECTED_SHA" > out/image-identity.json
+    - name: Acquire checksum-pinned scanner
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "$RUNNER_TEMP/trivy-bin"
+        curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+          https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_Linux-64bit.tar.gz \
+          --output "$RUNNER_TEMP/trivy.tar.gz"
+        printf '%s  %s\n' c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0 "$RUNNER_TEMP/trivy.tar.gz" | sha256sum --check --strict
+        tar -xzf "$RUNNER_TEMP/trivy.tar.gz" -C "$RUNNER_TEMP/trivy-bin" trivy
+        "$RUNNER_TEMP/trivy-bin/trivy" --version > out/scanner-version.txt
+    - name: SBOM and full vulnerability report
+      shell: bash
+      env:
+        TRIVY_CACHE_DIR: ${{ runner.temp }}/trivy-cache
+      run: |
+        set -euo pipefail
+        scanner="$RUNNER_TEMP/trivy-bin/trivy"
+        "$scanner" image --config /dev/null --ignorefile /dev/null --input out/image.tar --scanners vuln --format json --output out/vulnerabilities.json
+        "$scanner" image --config /dev/null --ignorefile /dev/null --input out/image.tar --skip-db-update --skip-java-db-update --format cyclonedx --output out/sbom.cdx.json
+        cp "$TRIVY_CACHE_DIR/db/metadata.json" out/vulnerability-db-metadata.json
+        python3 scripts/validate-container-sbom.py out/image-identity.json out/sbom.cdx.json docker/runtime-packages.json > out/sbom-native-validation.json
+    - name: Reject High/Critical findings, stale DB and unsupported OS
+      shell: bash
+      env:
+        TRIVY_CACHE_DIR: ${{ runner.temp }}/trivy-cache
+      run: |
+        set -euo pipefail
+        python3 - <<'PY'
+        import datetime, json
+        from pathlib import Path
+        d = json.loads(Path("out/vulnerability-db-metadata.json").read_text())
+        updated = datetime.datetime.fromisoformat(d["UpdatedAt"].replace("Z", "+00:00"))
+        age = datetime.datetime.now(datetime.timezone.utc) - updated
+        assert datetime.timedelta(0) <= age <= datetime.timedelta(hours=48), "stale/future vulnerability database"
+        PY
+        "$RUNNER_TEMP/trivy-bin/trivy" image --config /dev/null --ignorefile /dev/null --input out/image.tar --skip-db-update --skip-java-db-update --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --exit-on-eol 1
+        sha256sum out/image.tar > out/image.tar.sha256
+        (cd out && sha256sum source-sha.txt recipe.sha256 build-metadata.json image-identity.json sbom.cdx.json vulnerabilities.json scanner-version.txt vulnerability-db-metadata.json docker-version.txt buildx-version.txt builder-inspect.txt sbom-native-validation.json > evidence.sha256)
+    - name: Upload diagnostic evidence, including failed security gates
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: pwa92-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+        path: |
+          out/*.json
+          out/*.txt
+          out/recipe.sha256
+          out/evidence.sha256
+        if-no-files-found: error
+        retention-days: 7
+    - name: Upload image only after every gate passes
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: pwa92-image-${{ github.run_id }}-${{ github.run_attempt }}
+        path: |
+          out/image.tar
+          out/image.tar.sha256
+        if-no-files-found: error
+        compression-level: 0
+        retention-days: 7

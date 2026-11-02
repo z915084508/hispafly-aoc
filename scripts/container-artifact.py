@@ -31,12 +31,28 @@ with tarfile.open(archive, "r:") as tar:
     names = {item.split("=", 1)[0] for item in runtime.get("Env", [])}
     assert names <= {"PATH", "NODE_VERSION", "YARN_VERSION", "NODE_ENV", "NEXT_TELEMETRY_DISABLED", "PORT"}, "unexpected baked environment"
     assert not runtime.get("Volumes"), "implicit shared storage prohibited"
+    # Read only this generated inventory from final-image layers; never extract.
+    inventory_path = "usr/local/share/hispafly/runtime-native-inventory.json"
+    inventory = None
+    for layer_name in manifest["Layers"]:
+        layer_member = tar.getmember(layer_name)
+        assert layer_member.isfile(), "unsafe layer reference"
+        with tarfile.open(fileobj=tar.extractfile(layer_member), mode="r:*") as layer:
+            for item in layer:
+                normalized = item.name.removeprefix("./").lstrip("/")
+                if normalized == "usr/local/share/hispafly/.wh.runtime-native-inventory.json":
+                    inventory = None
+                if normalized == inventory_path:
+                    assert item.isfile() and item.size <= 4 * 1024 * 1024
+                    inventory = json.load(layer.extractfile(item))
+    assert inventory is not None, "final runtime native inventory missing"
     print(json.dumps({
         "sourceSha": expected,
         "platform": "linux/amd64",
         "imageConfigId": "sha256:" + hashlib.sha256(config_bytes).hexdigest(),
         "tags": manifest["RepoTags"],
         "layerCount": len(manifest["Layers"]),
+        "nativeInventory": inventory,
         "registryManifestDigest": None,
         "note": "Config ID, BuildKit digest and archive SHA-256 are distinct; no registry publication."
     }, indent=2))

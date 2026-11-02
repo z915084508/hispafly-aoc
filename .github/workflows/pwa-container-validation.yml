@@ -1,0 +1,41 @@
+name: PWA first isolated build (reserved branch only)
+on:
+  push:
+    branches: [codex/pwa92-first-build-validation]
+    paths: [docker/pwa-validation-source.txt]
+permissions:
+  contents: read
+concurrency:
+  group: pwa-first-build-validation
+  cancel-in-progress: false
+jobs:
+  artifact:
+    if: github.event_name == 'push' && github.event.deleted == false && github.ref == 'refs/heads/codex/pwa92-first-build-validation'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Verify one-file authorization commit and reviewed parent
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = push
+          test "$GITHUB_REF" = refs/heads/codex/pwa92-first-build-validation
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-list --parents -n 1 HEAD | awk '{print NF}')" = 2
+          EXPECTED_SHA="$(cat docker/pwa-validation-source.txt)"
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_SHA"
+          test "$(git diff-tree --no-commit-id --name-only -r HEAD)" = docker/pwa-validation-source.txt
+          test "$(git show "$EXPECTED_SHA:docker/pwa-validation-source.txt")" = NOT_AUTHORIZED
+          git checkout --detach "$EXPECTED_SHA"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          printf 'sha=%s\n' "$EXPECTED_SHA" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/pwa-container-artifact
+        with:
+          source_sha: ${{ steps.source.outputs.sha }}
