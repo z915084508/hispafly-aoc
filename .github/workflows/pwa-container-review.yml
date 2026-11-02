@@ -3,11 +3,11 @@ on:
   workflow_dispatch:
     inputs:
       source_sha:
-        description: Exact reviewed packaging commit (40 lowercase hex characters)
+        description: Exact reviewed packaging commit
         required: true
         type: string
       confirm:
-        description: Type BUILD_ISOLATED_ARTIFACT after separate build authorization
+        description: Type BUILD_ISOLATED_ARTIFACT after separate authorization
         required: true
         type: string
 permissions:
@@ -17,115 +17,25 @@ concurrency:
   cancel-in-progress: false
 jobs:
   artifact:
-    # No environments, production secrets, services, deployment or registry login.
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    env:
-      EXPECTED_SHA: ${{ inputs.source_sha }}
-      CONFIRM: ${{ inputs.confirm }}
     steps:
-      - name: Validate dispatch before checkout
+      - name: Validate manual authorization inputs
         shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.source_sha }}
+          CONFIRM: ${{ inputs.confirm }}
         run: |
           set -euo pipefail
           test "$GITHUB_EVENT_NAME" = workflow_dispatch
-          test "$GITHUB_REPOSITORY" = z915084508/hispafly-aoc
           test "$CONFIRM" = BUILD_ISOLATED_ARTIFACT
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$EXPECTED_SHA" = "$GITHUB_SHA"
-          test "$(uname -m)" = x86_64
-          command -v docker
-          docker buildx version
-          test "$(docker info --format '{{.OSType}}/{{.Architecture}}')" = linux/x86_64
-          test "$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)" -ge 5500
-          test "$(df -Pm . | awk 'NR==2 {print $4}')" -ge 20000
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ inputs.source_sha }}
           persist-credentials: false
           fetch-depth: 1
-      - name: Static prerequisites and clean source archive
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
-          git diff --exit-code
-          node scripts/container-packaging-static.mjs
-          mkdir context out
-          git archive "$EXPECTED_SHA" Dockerfile .dockerignore package.json pnpm-lock.yaml pnpm-workspace.yaml next.config.ts next-env.d.ts tsconfig.json postcss.config.mjs eslint.config.mjs prisma/schema.prisma src public scripts | tar -x -C context
-          test -z "$(find context -type l -print -quit)"
-          test -z "$(find context -type f \( -name '.env' -o -name '.env.*' -o -name '*.pem' -o -name '*.key' -o -name '*.dump' \) -print -quit)"
-          sha256sum Dockerfile .dockerignore pnpm-lock.yaml pnpm-workspace.yaml .github/workflows/pwa-container-review.yml scripts/container-packaging-static.mjs scripts/container-artifact.py > out/recipe.sha256
-          printf '%s\n' "$EXPECTED_SHA" > out/source-sha.txt
-          docker version --format '{{.Client.Version}} / {{.Server.Version}}' > out/docker-version.txt
-          docker buildx version > out/buildx-version.txt
-      - name: Build archive only; never load, run or push
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker buildx build --platform linux/amd64 --no-cache \
-            --build-arg SOURCE_REVISION="$EXPECTED_SHA" \
-            --tag "hispafly-aoc:pwa92-${EXPECTED_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            --provenance=false --metadata-file out/build-metadata.json \
-            --output type=docker,dest=out/image.tar context
-          python3 scripts/container-artifact.py out/image.tar "$EXPECTED_SHA" > out/image-identity.json
-      - name: Acquire checksum-pinned scanner
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/trivy-bin"
-          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
-            https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_Linux-64bit.tar.gz \
-            --output "$RUNNER_TEMP/trivy.tar.gz"
-          printf '%s  %s\n' c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0 "$RUNNER_TEMP/trivy.tar.gz" | sha256sum --check --strict
-          tar -xzf "$RUNNER_TEMP/trivy.tar.gz" -C "$RUNNER_TEMP/trivy-bin" trivy
-          "$RUNNER_TEMP/trivy-bin/trivy" --version > out/scanner-version.txt
-      - name: SBOM and full vulnerability report
-        shell: bash
-        env:
-          TRIVY_CACHE_DIR: ${{ runner.temp }}/trivy-cache
-        run: |
-          set -euo pipefail
-          scanner="$RUNNER_TEMP/trivy-bin/trivy"
-          "$scanner" image --config /dev/null --ignorefile /dev/null --input out/image.tar --scanners vuln --format json --output out/vulnerabilities.json
-          "$scanner" image --config /dev/null --ignorefile /dev/null --input out/image.tar --skip-db-update --skip-java-db-update --format cyclonedx --output out/sbom.cdx.json
-          cp "$TRIVY_CACHE_DIR/db/metadata.json" out/vulnerability-db-metadata.json
-      - name: Reject High/Critical findings, stale DB and unsupported OS
-        shell: bash
-        env:
-          TRIVY_CACHE_DIR: ${{ runner.temp }}/trivy-cache
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import datetime, json
-          from pathlib import Path
-          d = json.loads(Path("out/vulnerability-db-metadata.json").read_text())
-          updated = datetime.datetime.fromisoformat(d["UpdatedAt"].replace("Z", "+00:00"))
-          age = datetime.datetime.now(datetime.timezone.utc) - updated
-          assert datetime.timedelta(0) <= age <= datetime.timedelta(hours=48), "stale/future vulnerability database"
-          PY
-          "$RUNNER_TEMP/trivy-bin/trivy" image --config /dev/null --ignorefile /dev/null --input out/image.tar --skip-db-update --skip-java-db-update --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --exit-on-eol 1
-          sha256sum out/image.tar > out/image.tar.sha256
-          (cd out && sha256sum source-sha.txt recipe.sha256 build-metadata.json image-identity.json sbom.cdx.json vulnerabilities.json scanner-version.txt vulnerability-db-metadata.json docker-version.txt buildx-version.txt > evidence.sha256)
-      - name: Upload diagnostic evidence, including failed security gates
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: ./.github/actions/pwa-container-artifact
         with:
-          name: pwa92-evidence-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            out/*.json
-            out/*.txt
-            out/recipe.sha256
-            out/evidence.sha256
-          if-no-files-found: error
-          retention-days: 7
-      - name: Upload image only after every gate passes
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: pwa92-image-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            out/image.tar
-            out/image.tar.sha256
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
+          source_sha: ${{ inputs.source_sha }}

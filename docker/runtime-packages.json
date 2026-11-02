@@ -1,0 +1,18 @@
+{
+  "snapshot": "20261102T000000Z",
+  "platform": "linux/amd64",
+  "packages": {
+    "libssl3": "3.0.22-1~deb12u2",
+    "openssl": "3.0.22-1~deb12u2",
+    "ca-certificates": "20230311+deb12u1"
+  },
+  "requiredLibraries": [
+    { "path": "/usr/lib/x86_64-linux-gnu/libssl.so.3", "package": "libssl3" },
+    { "path": "/usr/lib/x86_64-linux-gnu/libcrypto.so.3", "package": "libssl3" }
+  ],
+  "debianIndexEvidence": {
+    "libssl3": "cb4784740daa9b3b0eaea2b444bbefa686794afbbf3d678d238c1fd9875f2efd",
+    "openssl": "5cdf0b735b1c8a96ae0bf83ed328c83c2170f8320dedb035e98705b60b2d0cfe",
+    "ca-certificates": "0d5f444f594e48c1e16a41d8fc628a09b24c658916a1274025c2330f2a802bed"
+  }
+}

@@ -38,17 +38,28 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
 ARG SOURCE_REVISION
 LABEL org.opencontainers.image.source="https://github.com/z915084508/hispafly-aoc" \
       org.opencontainers.image.revision="${SOURCE_REVISION}"
-# Prisma OpenSSL 3 libraries and CA bundle come from the digest-pinned builder.
-COPY --from=dependencies /usr/lib/x86_64-linux-gnu/libssl.so.3 /usr/lib/x86_64-linux-gnu/libssl.so.3
-COPY --from=dependencies /usr/lib/x86_64-linux-gnu/libcrypto.so.3 /usr/lib/x86_64-linux-gnu/libcrypto.so.3
+# Bootstrap HTTPS trust, then install/register the pinned CA package below.
 COPY --from=dependencies /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY docker/runtime-packages.json /usr/local/share/hispafly/runtime-packages.json
+# Fixed snapshots, exact package versions and Debian signature verification.
+# Only snapshot expiry is disabled; signature and package-hash checks remain enabled.
+RUN rm -f /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources && \
+    printf '%s\n' \
+      'deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg check-valid-until=no] https://snapshot.debian.org/archive/debian/20261102T000000Z/ bookworm main' \
+      'deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg check-valid-until=no] https://snapshot.debian.org/archive/debian-security/20261102T000000Z/ bookworm-security main' \
+      > /etc/apt/sources.list.d/aoc-snapshot.list && \
+    apt-get update && \
+    node -e 'const fs=require("fs"),cp=require("child_process"),assert=require("assert/strict"),p=JSON.parse(fs.readFileSync("/usr/local/share/hispafly/runtime-packages.json"));for(const [name,version] of Object.entries(p.packages)){const records=cp.execFileSync("apt-cache",["show",name],{encoding:"utf8"}).split("\n\n");assert(records.some(r=>r.includes("Version: "+version+"\n")&&r.includes("SHA256: "+p.debianIndexEvidence[name])),"package checksum metadata mismatch: "+name);}' && \
+    apt-get install -y --no-install-recommends \
+      libssl3=3.0.22-1~deb12u2 openssl=3.0.22-1~deb12u2 ca-certificates=20230311+deb12u1 && \
+    rm -rf /var/lib/apt/lists/*
 COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --from=compile --chown=node:node /app/.next ./.next
 COPY --from=compile --chown=node:node /app/public ./public
 COPY --from=compile --chown=node:node /app/package.json /app/next.config.ts ./
-# Check native linkage without starting a service. Missing libraries fail closed.
-RUN --network=none find node_modules -type f -name '*.node' -exec sh -c \
-    'for f do output=$(ldd "$f" 2>&1) || exit 1; case "$output" in *"not found"*) printf "%s\n" "$output"; exit 1;; esac; done' sh {} + && \
+COPY scripts/container-native-inventory.mjs /usr/local/lib/aoc-native-inventory.mjs
+# No database access: ELF linkage/ownership and generated-client loading only.
+RUN --network=none node /usr/local/lib/aoc-native-inventory.mjs && \
     node -e "require('sharp'); require('@prisma/client')"
 USER node
 EXPOSE 3000
